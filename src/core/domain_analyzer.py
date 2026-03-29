@@ -1,6 +1,6 @@
 """
 Domain Forensic Analyzer - Enhanced Module Integration
-Professional OSINT Tool with Robust Error Handling
+Professional OSINT Tool with Robust Error Handling & Multi-API Intelligence
 
 Portfolio-Ready | Clean Code | Industry Standards | Production-Grade
 """
@@ -28,7 +28,7 @@ from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
 from src.core.result_aggregator import create_result_aggregator, UnifiedResult
 
-# Core-Module importieren
+# Core-Module importieren - ENHANCED WITH NEW APIS
 try:
     from src.core.security_manager import create_security_manager
     from src.analyzers.dns_analyzer import DNSAnalyzer
@@ -36,6 +36,8 @@ try:
     from src.analyzers.subdomain_scanner import SubdomainScanner
     from src.analyzers.network_intelligence import NetworkIntelligence
     from src.analyzers.securitytrails_client import SecurityTrailsClient
+    from src.analyzers.abuseipdb_client import AbuseIPDBClient          # NEW API
+    from src.analyzers.virustotal_client import VirusTotalClient        # NEW API
     CORE_MODULES_AVAILABLE = True
 except ImportError as error:
     CORE_MODULES_AVAILABLE = False
@@ -53,11 +55,11 @@ class ModuleExecutionResult:
 class DomainAnalyzer:
     """
     Professional Domain Forensic Analysis Orchestrator
-    Enhanced with Robust Error Handling and Performance Monitoring
+    Enhanced with Robust Error Handling, Performance Monitoring & Multi-API Intelligence
     """
     
     def __init__(self):
-        """Initialize Domain Analyzer with enhanced module integration"""
+        """Initialize Domain Analyzer with enhanced multi-API module integration"""
         # Platform Detection
         self.platform = platform.system().lower()
         
@@ -71,19 +73,22 @@ class DomainAnalyzer:
         # Initialize Logging
         self._setup_logging()
         
-        # Core Modules with Timeouts
+        # Core Modules with Enhanced API Integration
         self.modules = {}
         self.module_execution_order = [
-            'dns', 'cdn', 'network', 'subdomain', 'securitytrails'
+            'dns', 'cdn', 'network', 'subdomain', 
+            'securitytrails', 'abuseipdb', 'virustotal'  # ENHANCED WITH NEW APIS
         ]
         
-        # Module-specific timeouts (seconds)
+        # Module-specific timeouts (seconds) - ENHANCED
         self.module_timeouts = {
             'dns': 30,
             'cdn': 45, 
             'network': 60,
             'subdomain': 180,
-            'securitytrails': 30
+            'securitytrails': 30,
+            'abuseipdb': 30,         # NEW API TIMEOUT
+            'virustotal': 30         # NEW API TIMEOUT
         }
         
         # Analysis State
@@ -126,13 +131,15 @@ class DomainAnalyzer:
             self.logger.error("System initialization failed", error=str(error))
     
     def _initialize_modules(self) -> None:
-        """Initialize all core analyzer modules"""
+        """Initialize all core analyzer modules - ENHANCED WITH NEW APIS"""
         module_classes = {
             'dns': DNSAnalyzer,
             'cdn': CDNDetector,
             'subdomain': SubdomainScanner,
             'network': NetworkIntelligence,
-            'securitytrails': SecurityTrailsClient
+            'securitytrails': SecurityTrailsClient,
+            'abuseipdb': AbuseIPDBClient,        # NEW API MODULE
+            'virustotal': VirusTotalClient       # NEW API MODULE
         }
         
         for module_name, module_class in module_classes.items():
@@ -143,7 +150,7 @@ class DomainAnalyzer:
                 self.logger.warning(f"Failed to initialize {module_name}", error=str(error))
     
     def analyze_domain(self, domain: str) -> UnifiedResult:
-        """Main Domain Analysis Function with Enhanced Error Handling"""
+        """Main Domain Analysis Function with Enhanced Multi-API Error Handling"""
         # Input validation
         if not DomainValidator.is_valid_domain(domain):
             raise ValueError(f"Invalid domain format: {domain}")
@@ -151,7 +158,7 @@ class DomainAnalyzer:
         clean_domain = DomainValidator.clean_domain(domain)
         start_time = datetime.now()
         
-        self.logger.info("Starting domain analysis", domain=clean_domain)
+        self.logger.info("Starting enhanced multi-API domain analysis", domain=clean_domain)
         
         # Initialize analysis state
         self.current_analysis = {
@@ -170,11 +177,13 @@ class DomainAnalyzer:
         # Calculate final metrics
         execution_time = (datetime.now() - start_time).total_seconds()
         
-        self.logger.info("Analysis completed", 
+        self.logger.info("Enhanced analysis completed", 
                         domain=clean_domain,
                         execution_time=execution_time,
                         successful_modules=len([m for m in self.execution_metrics.values() if m.success]),
-                        failed_modules=len([m for m in self.execution_metrics.values() if not m.success]))
+                        failed_modules=len([m for m in self.execution_metrics.values() if not m.success]),
+                        apis_used=len([m for m in ['securitytrails', 'abuseipdb', 'virustotal'] 
+                                     if m in self.modules and self.execution_metrics.get(m, {}).success]))
         
         # Create unified result using aggregator
         result = self.result_aggregator.aggregate_results(
@@ -193,7 +202,7 @@ class DomainAnalyzer:
             self.logger.warning("No modules available for execution")
             return
         
-        print(f"\nStarting OSINT Analysis with Enhanced Error Handling...")
+        print(f"\nStarting OSINT Analysis with Enhanced Multi-API Error Handling...")
         start_time = time.time()
         
         # Execute modules with enhanced progress tracking
@@ -221,21 +230,26 @@ class DomainAnalyzer:
             
             print(f" {status_icon} {timing}")
         
-        # Enhanced completion summary
+        # Enhanced completion summary with API statistics
         total_time = time.time() - start_time
         successful = len([m for m in self.execution_metrics.values() if m.success])
         failed = len([m for m in self.execution_metrics.values() if not m.success and not m.timeout_occurred])
         timeout = len([m for m in self.execution_metrics.values() if m.timeout_occurred])
         
+        # API-specific statistics
+        api_modules = ['securitytrails', 'abuseipdb', 'virustotal']
+        api_success = len([m for m in api_modules if m in self.execution_metrics and self.execution_metrics[m].success])
+        
         print(f"   [100%] Analysis Complete: {successful}/{len(modules_to_run)} successful | "
-              f"{failed} failed | {timeout} timeout | Total: {total_time:.1f}s")
+              f"{failed} failed | {timeout} timeout | APIs: {api_success}/3 | Total: {total_time:.1f}s")
         
         # Log performance summary
-        self.logger.info("Workflow completed",
+        self.logger.info("Enhanced workflow completed",
                         total_modules=len(modules_to_run),
                         successful=successful,
                         failed=failed,
                         timeout=timeout,
+                        api_success=api_success,
                         total_time=f"{total_time:.2f}s")
     
     def _execute_module_with_timeout(self, module_name: str) -> ModuleExecutionResult:
@@ -316,7 +330,7 @@ class DomainAnalyzer:
             )
     
     def _call_module_function(self, module_name: str, module: Any, domain: str) -> Dict[str, Any]:
-        """Call the appropriate function for each module type"""
+        """Call the appropriate function for each module type - ENHANCED WITH NEW APIS"""
         if module_name == 'dns':
             return module.analyze_domain(domain)
         
@@ -356,11 +370,30 @@ class DomainAnalyzer:
         elif module_name == 'securitytrails':
             return module.analyze_domain_intelligence(domain)
         
+        elif module_name == 'abuseipdb':
+            # NEW API: Get IP from DNS analysis for reputation check
+            dns_result = self.current_analysis['results'].get('dns', {})
+            ip_address = dns_result.get('ipv4')
+            
+            if not ip_address:
+                # Try fallback data
+                fallback_data = dns_result.get('fallback_data', {})
+                ip_address = fallback_data.get('ipv4')
+            
+            if ip_address:
+                return module.analyze_ip_reputation(ip_address, domain)
+            else:
+                raise Exception("No IP address available for reputation analysis")
+        
+        elif module_name == 'virustotal':
+            # NEW API: Direct domain reputation analysis
+            return module.analyze_domain_reputation(domain)
+        
         else:
             raise Exception(f"Unknown module: {module_name}")
     
     def _get_fallback_result(self, module_name: str, failure_type: str, error_details: str = "") -> Dict[str, Any]:
-        """Generate fallback result for failed modules"""
+        """Generate fallback result for failed modules - ENHANCED WITH NEW APIS"""
         base_result = {
             'analysis_status': 'failed',
             'error': error_details,
@@ -368,7 +401,7 @@ class DomainAnalyzer:
             'failure_timestamp': datetime.now().isoformat()
         }
         
-        # Module-specific fallback data
+        # Module-specific fallback data - ENHANCED
         fallback_data = {
             'dns': {
                 'ipv4': None,
@@ -394,6 +427,28 @@ class DomainAnalyzer:
             'securitytrails': {
                 'api_status': 'failed',
                 'domain_details': {'subdomain_count': 0}
+            },
+            'abuseipdb': {                                  # NEW API FALLBACK
+                'api_status': 'failed',
+                'ip_address': 'unknown',
+                'abuse_confidence': 0,
+                'reputation_intelligence': {
+                    'risk_level': 'UNKNOWN',
+                    'risk_description': 'Analysis failed'
+                }
+            },
+            'virustotal': {                                 # NEW API FALLBACK
+                'api_status': 'failed',
+                'domain': 'unknown',
+                'threat_analysis': {
+                    'total_security_vendors': 0,
+                    'malicious_detections': 0,
+                    'suspicious_detections': 0
+                },
+                'threat_intelligence': {
+                    'threat_level': 'UNKNOWN',
+                    'threat_description': 'Analysis failed'
+                }
             }
         }
         
@@ -403,14 +458,15 @@ class DomainAnalyzer:
         return base_result
 
 def display_intro():
-    """Display professional intro"""
+    """Display professional intro - ENHANCED"""
     print(Colors.header("DOMAIN FORENSIC ANALYZER"))
     print(Colors.investigation_separator(80))
     print("Professional OSINT Tool | Network Intelligence | Asset Discovery")
-    print("Cross-Platform | Security-First | Production-Ready")
+    print("Multi-API Threat Intelligence | Enhanced Security Analysis")
     print(Colors.investigation_separator(80))
     print(f"Platform: {Colors.info(platform.system())} | "
-          f"Modules: {Colors.success('5 Core Analyzers')} | "
+          f"Modules: {Colors.success('7 Core Analyzers')} | "  # UPDATED COUNT
+          f"APIs: {Colors.success('3 Intelligence Sources')} | "
           f"Status: {Colors.success('Ready')}")
 
 def get_domain_input() -> str:
@@ -437,7 +493,7 @@ def get_domain_input() -> str:
             sys.exit(0)
 
 def display_comprehensive_summary_fixed(result: UnifiedResult) -> None:
-    """Display comprehensive summary using calculated values from result"""
+    """Display comprehensive summary using calculated values from result - ENHANCED WITH NEW APIS"""
     print(f"\n{Colors.investigation_separator(80)}")
     print(Colors.header(f"ANALYSIS COMPLETE: {result.domain.upper()}"))
     print(Colors.investigation_separator(80))
@@ -544,45 +600,95 @@ def display_comprehensive_summary_fixed(result: UnifiedResult) -> None:
         domain_details = st_result.get('domain_details', {})
         subdomain_count = domain_details.get('subdomain_count', 0) if isinstance(domain_details, dict) else 0
         
-        status_text = "Demo-Mode" if api_status == 'demo_mode' else "Active API"
+        status_text = "Demo-Mode" if api_status == 'demo_mode' else "Live API"
         print(f"Intelligence: COMPLETE {status_text}")
         print(f"   └─ Historical Subdomains: {Colors.info(str(subdomain_count))}")
     else:
         print(f"Intelligence: FAILED")
     
-    # Risk Assessment Summary
-    if result.sensitive_assets_found > 0:
-        print(f"\n{Colors.section_header('RISK ASSESSMENT', 60)}")
+    # AbuseIPDB - NEW API DISPLAY
+    abuse_result = result.results.get('abuseipdb', {})
+    if abuse_result.get('analysis_status') in ['abgeschlossen', 'demo_abgeschlossen']:
+        api_status = abuse_result.get('api_status', 'unknown')
+        abuse_confidence = abuse_result.get('abuse_confidence', 0)
+        reputation_intel = abuse_result.get('reputation_intelligence', {})
+        risk_level = reputation_intel.get('risk_level', 'UNKNOWN')
+        
+        status_text = "Demo-Mode" if api_status == 'demo_mode' else "Live API"
+        risk_color = Colors.error if risk_level == 'CRITICAL' else Colors.warning if risk_level == 'HIGH' else Colors.success
+        print(f"IP Reputation: COMPLETE {status_text}")
+        print(f"   ├─ Abuse Confidence: {Colors.info(f'{abuse_confidence}%')}")
+        print(f"   └─ Risk Level: {risk_color(risk_level)}")
+    else:
+        print(f"IP Reputation: FAILED")
+    
+    # VirusTotal - NEW API DISPLAY
+    vt_result = result.results.get('virustotal', {})
+    if vt_result.get('analysis_status') in ['abgeschlossen', 'demo_abgeschlossen']:
+        api_status = vt_result.get('api_status', 'unknown')
+        threat_analysis = vt_result.get('threat_analysis', {})
+        malicious = threat_analysis.get('malicious_detections', 0)
+        suspicious = threat_analysis.get('suspicious_detections', 0)
+        total_vendors = threat_analysis.get('total_security_vendors', 0)
+        threat_intel = vt_result.get('threat_intelligence', {})
+        threat_level = threat_intel.get('threat_level', 'UNKNOWN')
+        
+        status_text = "Demo-Mode" if api_status == 'demo_mode' else "Live API"
+        threat_color = Colors.error if threat_level == 'CRITICAL' else Colors.warning if threat_level == 'HIGH' else Colors.success
+        print(f"Domain Reputation: COMPLETE {status_text}")
+        print(f"   ├─ Threat Detection: {Colors.info(f'{malicious + suspicious}/{total_vendors} vendors')}")
+        print(f"   └─ Threat Level: {threat_color(threat_level)}")
+    else:
+        print(f"Domain Reputation: FAILED")
+    
+    # Enhanced Risk Assessment Summary
+    if result.sensitive_assets_found > 0 or abuse_result.get('abuse_confidence', 0) > 25 or vt_result.get('threat_analysis', {}).get('malicious_detections', 0) > 0:
+        print(f"\n{Colors.section_header('ENHANCED RISK ASSESSMENT', 60)}")
+        
+        # Multi-factor risk assessment
+        risk_factors = []
         
         if result.sensitive_assets_found >= 20:
-            risk_color = Colors.error
-            risk_text = "HIGH RISK"
-            recommendations = ["Immediate security review required", "Reduce administrative surface exposure"]
-        elif result.sensitive_assets_found >= 10:
-            risk_color = Colors.warning  
-            risk_text = "MEDIUM RISK"
-            recommendations = ["Review access controls for sensitive endpoints", "Implement additional monitoring"]
+            risk_factors.append("High number of sensitive assets")
         elif result.sensitive_assets_found >= 3:
-            risk_color = Colors.info
-            risk_text = "LOW RISK"
-            recommendations = ["Monitor sensitive endpoints", "Maintain current security practices"]
+            risk_factors.append("Moderate sensitive asset exposure")
+        
+        # IP reputation risks
+        abuse_confidence = abuse_result.get('abuse_confidence', 0)
+        if abuse_confidence > 50:
+            risk_factors.append(f"High IP abuse confidence ({abuse_confidence}%)")
+        elif abuse_confidence > 25:
+            risk_factors.append(f"Moderate IP reputation risk ({abuse_confidence}%)")
+        
+        # Domain reputation risks
+        malicious = vt_result.get('threat_analysis', {}).get('malicious_detections', 0)
+        if malicious > 0:
+            risk_factors.append(f"Domain flagged by {malicious} security vendors")
+        
+        # Overall risk calculation
+        if malicious > 0 or abuse_confidence > 75:
+            overall_risk = "CRITICAL"
+            risk_color = Colors.error
+        elif result.sensitive_assets_found >= 10 or abuse_confidence > 50:
+            overall_risk = "HIGH"
+            risk_color = Colors.warning
+        elif result.sensitive_assets_found >= 3 or abuse_confidence > 25:
+            overall_risk = "MEDIUM"
+            risk_color = Colors.warning
         else:
-            risk_color = Colors.success
-            risk_text = "MINIMAL RISK"
-            recommendations = ["Continue current security practices"]
+            overall_risk = "LOW"
+            risk_color = Colors.info
         
-        print(f"Sensitive Assets: {risk_color(str(result.sensitive_assets_found))}")
-        print(f"Risk Level: {risk_color(risk_text)}")
+        print(f"Multi-Source Risk Level: {risk_color(overall_risk)}")
         
-        # Show recommendations
-        if recommendations:
-            print(f"Recommendations:")
-            for rec in recommendations[:2]:
-                print(f"   • {rec}")
+        if risk_factors:
+            print(f"Risk Factors:")
+            for factor in risk_factors[:3]:  # Top 3 factors
+                print(f"   • {factor}")
     
     # Final Summary
     print(f"\n{Colors.investigation_separator(80)}")
-    print(f"Analysis Complete | Detailed Log: {Colors.dim('logs/domain_analyzer_*.log')}")
+    print(f"Enhanced Analysis Complete | Detailed Log: {Colors.dim('logs/domain_analyzer_*.log')}")
     print(f"Total Assets: {Colors.highlight(str(result.total_assets_found))} | "
           f"Sensitive: {Colors.warning(str(result.sensitive_assets_found))} | "
           f"Risk: {Colors.info(result.overall_risk_level.upper())} | "
@@ -590,9 +696,9 @@ def display_comprehensive_summary_fixed(result: UnifiedResult) -> None:
     print(Colors.investigation_separator(80))
 
 def main():
-    """Main single-run interface"""
+    """Main single-run interface with enhanced multi-API support"""
     try:
-        # Display intro
+        # Display enhanced intro
         display_intro()
         
         # Initialize analyzer
@@ -601,13 +707,13 @@ def main():
         # Get domain input
         domain = get_domain_input()
         
-        # Run analysis
+        # Run enhanced analysis
         result = analyzer.analyze_domain(domain)
         
-        # Display results
+        # Display enhanced results
         display_comprehensive_summary_fixed(result)
         
-        print(f"\nAnalysis complete. Check logs for detailed information.")
+        print(f"\nEnhanced analysis complete. Check logs for detailed information.")
         
     except KeyboardInterrupt:
         print("\nAnalysis interrupted. Goodbye!")

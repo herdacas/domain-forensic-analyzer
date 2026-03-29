@@ -221,3 +221,18 @@ __pycache__/
 .Python
 env/
 venv/
+
+# API Configuration Security - Domain Forensic Analyzer
+config/api_keys.json
+config/*.json
+config/api_keys.*
+*.key
+secrets/
+private/
+*.pem
+*.p12
+
+# Additional Security Files
+api_*.json
+*_api_key*
+credentials.json
