@@ -62,7 +62,7 @@ class NetworkIntelligence:
     
     def analyze_network(self, ip_address: str, domain: str = None) -> Dict[str, Any]:
         """Enhanced Network Intelligence-Analyse"""
-        print(Colors.header("ENHANCED NETWORK INTELLIGENCE ANALYSIS"))
+        print(Colors.header("NETWORK ANALYSIS"))
         print(Colors.investigation_separator(60))
         
         if not ip_address:
@@ -89,23 +89,23 @@ class NetworkIntelligence:
         }
         
         # Konnektivitaets-Tests
-        print(f"\n{Colors.section_header('CONNECTIVITY TESTING', 50)}")
+        print(f"\n{Colors.section_header('CONNECTIVITY', 50)}")
         connectivity = self._test_connectivity(ip_address, domain)
         results['connectivity_test'] = connectivity
         
         # Traceroute-Analyse
-        print(f"\n{Colors.section_header('TRACEROUTE ANALYSIS', 50)}")
+        print(f"\n{Colors.section_header('TRACEROUTE', 50)}")
         traceroute_data = self._perform_traceroute(ip_address)
         results['traceroute_data'] = traceroute_data
         
         # Enhanced Netzwerkpfad-Analyse
         if traceroute_data.get('status') == 'success':
-            print(f"\n{Colors.section_header('ENHANCED NETWORK PATH ANALYSIS', 50)}")
+            print(f"\n{Colors.section_header('NETWORK PATH', 50)}")
             enhanced_path = self._analyze_enhanced_network_path(traceroute_data.get('hops', []))
             results['enhanced_network_path'] = enhanced_path
             
             # Hop-Intelligence
-            print(f"\n{Colors.section_header('HOP INTELLIGENCE GATHERING', 50)}")
+            print(f"\n{Colors.section_header('HOP INTELLIGENCE', 50)}")
             hop_intelligence = self._gather_hop_intelligence(enhanced_path)
             results['hop_intelligence'] = hop_intelligence
             
@@ -114,7 +114,7 @@ class NetworkIntelligence:
             results['route_classification'] = route_classification
             
             # Enhanced OPSEC-Assessment
-            print(f"\n{Colors.section_header('ENHANCED OPSEC ASSESSMENT', 50)}")
+            print(f"\n{Colors.section_header('OPSEC ASSESSMENT', 50)}")
             opsec_assessment = self._assess_enhanced_opsec_risks(enhanced_path, hop_intelligence, route_classification)
             results['opsec_assessment'] = opsec_assessment
         
@@ -307,19 +307,26 @@ class NetworkIntelligence:
                     if '[' not in part and ']' not in part:
                         hostname = part
                         break
+
+            latency_matches = re.findall(r'<?\d+(?:\.\d+)?\s*ms', line.lower())
+            latency_values = [match.replace(' ', '') for match in latency_matches]
+
+            if not ip_address:
+                hostname = None
             
             return {
                 'hop': hop_number,
                 'ip': ip_address,
                 'hostname': hostname,
-                'status': 'responsive' if ip_address else 'timeout'
+                'status': 'responsive' if ip_address else 'timeout',
+                'latencies': latency_values
             }
         except:
             return None
     
     def _analyze_enhanced_network_path(self, hops: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Enhanced Netzwerkpfad-Analyse"""
-        print(f"  {Colors.info('Enhanced Pfad-Analyse:')} Untersuche {len(hops)} Network-Hops...")
+        print(f"  {Colors.info('Path Analysis:')} Inspecting {len(hops)} network hops...")
         
         enhanced_path = []
         
@@ -329,6 +336,7 @@ class NetworkIntelligence:
                 'ip_address': hop['ip'],
                 'hostname': hop['hostname'],
                 'status': hop['status'],
+                'latencies': hop.get('latencies', []),
                 'provider_type': 'unknown',
                 'is_consumer_isp': False,
                 'is_national_isp': False,
@@ -365,7 +373,9 @@ class NetworkIntelligence:
                         break
             
             # Hop-Klassifikation
-            if hop_analysis['is_consumer_isp']:
+            if hop['status'] != 'responsive':
+                hop_analysis['hop_classification'] = 'no_response'
+            elif hop_analysis['is_consumer_isp']:
                 hop_analysis['hop_classification'] = 'opsec_risk'
             elif hop_analysis['is_international_backbone']:
                 hop_analysis['hop_classification'] = 'backbone_transit'
@@ -378,36 +388,36 @@ class NetworkIntelligence:
             
             enhanced_path.append(hop_analysis)
         
-        # Vollständige Hop-Visualisierung
-        print(f"  {Colors.info('Hop-für-Hop Visualisierung:')}")
-        displayed_hops = 0
+        # Full hop-by-hop output, including timeouts, so the route remains auditable.
+        print(f"  {Colors.info('Hop-by-hop route:')}")
         for hop in enhanced_path:
+            indicator = self._get_hop_indicator(hop)
+            hop_number = hop['hop_number']
+
             if hop['status'] == 'responsive' and hop['ip_address']:
-                indicator = self._get_hop_indicator(hop)
-                hop_number = hop['hop_number']
                 ip_display = hop['ip_address']
-                
                 print(f"    {Colors.dim(f'Hop {hop_number:2d}:')} {Colors.format_ip(ip_display)} {indicator}")
-                
-                # Provider-Details anzeigen
+
+                if hop.get('latencies'):
+                    print(f"         {Colors.dim('-> RTT:')} {', '.join(hop['latencies'])}")
+
                 if hop['is_consumer_isp']:
-                    print(f"         {Colors.warning('-> Consumer-ISP detected!')} ({hop['hostname']})")
+                    print(f"         {Colors.warning('-> Consumer ISP detected')} ({hop['hostname']})")
                 elif hop['is_international_backbone']:
                     print(f"         {Colors.info('-> International Backbone')} ({hop['hostname']})")
                 elif hop['is_national_isp']:
                     print(f"         {Colors.success('-> National ISP')} ({hop['hostname']})")
                 elif hop['hostname']:
-                    short_hostname = hop['hostname'][:40] + '...' if len(hop['hostname']) > 40 else hop['hostname']
-                    print(f"         {Colors.dim(f'-> {short_hostname}')}")
-                
-                displayed_hops += 1
+                    print(f"         {Colors.dim(f'-> {hop['hostname']}')}")
+            else:
+                print(f"    {Colors.dim(f'Hop {hop_number:2d}:')} * * * {Colors.warning('[TIMEOUT]')}")
                 
         responsive_hops = [h for h in enhanced_path if h['status'] == 'responsive']
         critical_hops = [h for h in enhanced_path if h['is_critical_hop']]
         consumer_hops = [h for h in enhanced_path if h['is_consumer_isp']]
         national_hops = [h for h in enhanced_path if h['is_national_isp']]
         
-        print(f"  {Colors.success('Responsive Hops:')} {len(responsive_hops)} ({displayed_hops} angezeigt)")
+        print(f"  {Colors.success('Responsive Hops:')} {len(responsive_hops)}")
         print(f"  {Colors.info('National ISP Hops:')} {len(national_hops)}")
         print(f"  {Colors.warning('Critical Hops:')} {len(critical_hops)}")
         
@@ -426,6 +436,8 @@ class NetworkIntelligence:
         
         if classification == 'opsec_risk':
             return Colors.error('[OPSEC-RISK]')
+        elif classification == 'no_response':
+            return Colors.warning('[NO-RESPONSE]')
         elif classification == 'backbone_transit':
             return Colors.warning('[BACKBONE]')
         elif classification == 'national_isp':

@@ -98,7 +98,7 @@ class SubdomainScanner:
         Returns:
             dict: Subdomain-Scan Ergebnisse mit Kategorisierung
         """
-        print(Colors.header("ENHANCED ASSET DISCOVERY"))
+        print(Colors.header("ASSET DISCOVERY"))
         print(Colors.investigation_separator(60))
         
         # Domain-Validierung
@@ -134,7 +134,7 @@ class SubdomainScanner:
         }
         
         # Wildcard-DNS-Erkennung
-        print(f"\n{Colors.section_header('DNS CONFIGURATION ANALYSIS', 50)}")
+        print(f"\n{Colors.section_header('DNS CONFIGURATION', 50)}")
         wildcard_detected = self._detect_wildcard(clean_domain)
         results['wildcard_detected'] = wildcard_detected
         
@@ -269,15 +269,7 @@ class SubdomainScanner:
             }
             
             # Ergebnisse sammeln
-            completed_count = 0
             for future in as_completed(future_to_subdomain):
-                completed_count += 1
-                
-                # Progress-Update alle 10 Abfragen
-                if completed_count % 10 == 0 or completed_count == len(subdomains_to_test):
-                    progress = (completed_count / len(subdomains_to_test)) * 100
-                    print(f"    Progress: {progress:.0f}% ({completed_count}/{len(subdomains_to_test)})")
-                
                 result = future.result()
                 if result:
                     discovered_assets.append(result)

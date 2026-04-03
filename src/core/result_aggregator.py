@@ -231,6 +231,23 @@ class ResultAggregator:
         # Subdomain assets - FIXED mit comprehensive key search
         subdomain_result = module_results.get('subdomain', {})
         if subdomain_result.get('analysis_status') == 'abgeschlossen':
+            sensitive_assets = subdomain_result.get('sensitive_assets', [])
+            risk_by_subdomain = {}
+
+            if isinstance(sensitive_assets, list):
+                for sensitive_entry in sensitive_assets:
+                    if not isinstance(sensitive_entry, dict):
+                        continue
+
+                    asset_data = sensitive_entry.get('asset', {})
+                    if not isinstance(asset_data, dict):
+                        continue
+
+                    subdomain_value = asset_data.get('subdomain') or asset_data.get('domain')
+                    risk_value = sensitive_entry.get('risk_level')
+
+                    if subdomain_value and risk_value:
+                        risk_by_subdomain[str(subdomain_value).lower().strip()] = str(risk_value).lower().strip()
             
             # COMPREHENSIVE KEY SEARCH - genau wie im original code
             discovered_assets = None
@@ -298,6 +315,11 @@ class ResultAggregator:
                             if risk_value:
                                 risk_level = str(risk_value).lower().strip()
                                 break
+
+                        # Prefer explicit risk from subdomain scanner sensitive_assets
+                        subdomain_key = subdomain_name.lower().strip()
+                        if subdomain_key in risk_by_subdomain:
+                            risk_level = risk_by_subdomain[subdomain_key]
                         
                         # If no risk_level found, infer from subdomain name
                         if not risk_level:
@@ -323,22 +345,6 @@ class ResultAggregator:
                             discovered_at=datetime.now().isoformat()
                         )
                         assets.append(standardized)
-        
-        # DNS assets
-        dns_result = module_results.get('dns', {})
-        if dns_result.get('analysis_status') == 'abgeschlossen':
-            if dns_result.get('ipv4'):
-                ip_asset = StandardizedAsset(
-                    asset_id=f"ip_{dns_result['ipv4']}",
-                    asset_type="ip_address",
-                    value=dns_result['ipv4'],
-                    risk_level="informational",
-                    confidence=ConfidenceLevel.HIGH,
-                    source=DataSource.DNS_ANALYSIS,
-                    metadata={"reverse_dns": dns_result.get('reverse_dns')},
-                    discovered_at=datetime.now().isoformat()
-                )
-                assets.append(ip_asset)
         
         return assets
     
@@ -397,8 +403,16 @@ class ResultAggregator:
             'ipv4': dns_result.get('ipv4'),
             'ipv6': dns_result.get('ipv6'),
             'reverse_dns': dns_result.get('reverse_dns'),
-            'nameservers': dns_result.get('nameservers', []),
-            'mail_servers': dns_result.get('mail_servers', [])
+            'nameservers': (
+                dns_result.get('nameservers')
+                or dns_result.get('ns_records')
+                or []
+            ),
+            'mail_servers': (
+                dns_result.get('mail_servers')
+                or dns_result.get('mx_records')
+                or []
+            )
         }
     
     def _calculate_risk_metrics(self, assets: List[StandardizedAsset], 

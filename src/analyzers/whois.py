@@ -1,0 +1,173 @@
+# whois.py
+# Vollständige, produktionsreife WHOIS-Integration für den Domain Forensic Analyzer
+# MIT License – Copyright (c) 2025 herdacas
+
+import os
+import logging
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+import requests
+import whois  # python-whois
+from dotenv import load_dotenv
+
+# --------------------------------------------------------------------------- #
+# Logging-Setup (professioneller Standard)
+# --------------------------------------------------------------------------- #
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("whois_module")
+
+# --------------------------------------------------------------------------- #
+# Laden der Umgebungsvariablen (.env)
+# --------------------------------------------------------------------------- #
+load_dotenv()
+
+WHOISXML_API_KEY = os.getenv("WHOISXML_API_KEY")
+SECURITYTRAILS_API_KEY = os.getenv("SECURITYTRAILS_API_KEY")  # falls später genutzt
+VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
+
+# --------------------------------------------------------------------------- #
+# Hilfsfunktion: Datums-Normalisierung (python-whois liefert unterschiedliche Typen)
+# --------------------------------------------------------------------------- #
+def _normalize_date(date_obj: Any) -> Optional[str]:
+    if not date_obj:
+        return None
+    if isinstance(date_obj, list):
+        date_obj = date_obj[0]
+    if isinstance(date_obj, datetime):
+        return date_obj.isoformat()
+    if isinstance(date_obj, str):
+        return date_obj
+    return str(date_obj)
+
+# --------------------------------------------------------------------------- #
+# 1. Kostenlose lokale WHOIS-Abfrage (Fallback)
+# --------------------------------------------------------------------------- #
+def get_whois_local(domain: str) -> Dict[str, Any]:
+    """
+    WHOIS-Abfrage mit python-whois (keine API-Key nötig).
+    Sehr zuverlässig für gängige TLDs.
+    """
+    logger.info(f"WHOIS (lokal) – Abfrage für {domain}")
+    try:
+        w = whois.whois(domain)
+
+        result = {
+            "source": "python-whois (lokal)",
+            "domain": domain.lower(),
+            "registrar": w.registrar,
+            "creation_date": _normalize_date(w.creation_date),
+            "expiration_date": _normalize_date(w.expiration_date),
+            "updated_date": _normalize_date(w.last_updated),
+            "name_servers": w.name_servers,
+            "status": w.status,
+            "registrant_name": w.get("name"),
+            "registrant_organization": w.get("org"),
+            "registrant_country": w.get("country"),
+            "registrant_email": w.get("email"),
+            "raw_text": str(w)
+        }
+        logger.debug(f"WHOIS lokal erfolgreich für {domain}")
+        return result
+
+    except Exception as e:
+        logger.warning(f"WHOIS lokal fehlgeschlagen für {domain}: {str(e)}")
+        return {
+            "source": "python-whois (lokal)",
+            "domain": domain.lower(),
+            "error": str(e)
+        }
+
+# --------------------------------------------------------------------------- #
+# 2. Professionelle API-Abfrage via WhoisXML API (empfohlen)
+# --------------------------------------------------------------------------- #
+def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
+    """
+    Hochwertige WHOIS-Abfrage inkl. historischer Daten über WhoisXML API.
+    Kostenloser Plan: 500 Abfragen/Monat.
+    """
+    if not WHOISXML_API_KEY or WHOISXML_API_KEY.strip() == "" or "your_key" in WHOISXML_API_KEY:
+        logger.warning("WHOISXML_API_KEY fehlt oder ungültig → wird übersprungen")
+        return {"error": "WHOISXML_API_KEY nicht konfiguriert"}
+
+    url = "https://whoisxmlapi.com/whoisserver/WhoisService"
+    params = {
+        "apiKey": WHOISXML_API_KEY,
+        "domainName": domain,
+        "outputFormat": "JSON",
+        "da": "1"  # inkl. Registrant-Daten, wo verfügbar
+    }
+
+    logger.info(f"WHOIS (WhoisXML API) – Abfrage für {domain}")
+    try:
+        response = requests.get(url, params=params, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+
+        if "ErrorMessage" in data:
+            err = data["ErrorMessage"]["msg"]
+            logger.warning(f"WhoisXML API Fehler für {domain}: {err}")
+            return {"source": "WhoisXML API", "error": err}
+
+        record = data.get("WhoisRecord", {})
+
+        registrant = record.get("registrant", {}) or {}
+        registry_data = record.get("registryData", {})
+
+        result = {
+            "source": "WhoisXML API",
+            "domain": domain.lower(),
+            "registrar": record.get("registrarName"),
+            "creation_date": record.get("createdDate") or registry_data.get("createdDate"),
+            "expiration_date": record.get("expiresDate") or registry_data.get("expiresDate"),
+            "updated_date": record.get("updatedDate") or registry_data.get("updatedDate"),
+            "name_servers": record.get("nameServers", {}).get("hostNames"),
+            "status": record.get("status") or registry_data.get("status"),
+            "registrant_name": registrant.get("name"),
+            "registrant_organization": registrant.get("organization"),
+            "registrant_country": registrant.get("country"),
+            "registrant_email": registrant.get("email") or record.get("contactEmail"),
+            "administrative_contact": record.get("administrativeContact"),
+            "technical_contact": record.get("technicalContact"),
+            "audit_created_date": record.get("audit", {}).get("createdDate"),
+            "audit_updated_date": record.get("audit", {}).get("updatedDate"),
+            "historical_available": bool(record.get("dataHistory")),
+            "raw_json": data
+        }
+        logger.debug(f"WHOIS WhoisXML API erfolgreich für {domain}")
+        return result
+
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"WHOIS WhoisXML API Request-Fehler für {domain}: {str(e)}")
+        return {"source": "WhoisXML API", "error": str(e)}
+    except Exception as e:
+        logger.error(f"Unerwarteter Fehler bei WhoisXML API für {domain}: {str(e)}")
+        return {"source": "WhoisXML API", "error": str(e)}
+
+# --------------------------------------------------------------------------- #
+# 3. Kombinierte Hauptfunktion mit intelligentem Fallback
+# --------------------------------------------------------------------------- #
+def get_whois(domain: str) -> Dict[str, Any]:
+    """
+    Öffentliche Hauptfunktion – liefert immer das beste verfügbare Ergebnis.
+    Reihenfolge:
+      1. WhoisXML API (wenn Key vorhanden)
+      2. python-whois als Fallback
+    """
+    domain = domain.strip().lower()
+
+    # 1. Versuch: WhoisXML API (besser, aktueller, mehr Details)
+    if WHOISXML_API_KEY and WHOISXML_API_KEY.strip():
+        result = get_whois_xmlapi(domain)
+        if "error" not in result or "rate limit" in str(result.get("error", "")).lower():
+            logger.info(f"WHOIS erfolgreich via WhoisXML API für {domain}")
+            return result
+
+    # 2. Fallback: Lokale python-whois-Abfrage
+    logger.info(f"WHOIS Fallback auf python-whois für {domain}")
+    fallback = get_whois_local(domain)
+    return fallback

@@ -92,11 +92,14 @@ class VirusTotalClient:
         reputation = attributes.get('reputation', 0)
         
         # Threat Classification
-        if malicious > 0:
-            threat_level = 'CRITICAL'
-            threat_description = f'Domain flagged as malicious by {malicious} security vendors'
-        elif suspicious > 2:
+        if malicious >= 3:
             threat_level = 'HIGH'
+            threat_description = f'Domain flagged as malicious by {malicious} security vendors'
+        elif malicious > 0:
+            threat_level = 'MEDIUM'
+            threat_description = f'Limited malicious detections ({malicious} vendors) - review required'
+        elif suspicious >= 3:
+            threat_level = 'MEDIUM'
             threat_description = f'Domain flagged as suspicious by {suspicious} security vendors'
         elif reputation < -10:
             threat_level = 'MEDIUM'
