@@ -1,0 +1,448 @@
+"""
+DNS History Timeline Analyzer for Domain Forensic Analyzer.
+
+Audit note:
+Existing historical DNS support was found in securitytrails_client.py, but it is
+limited to a compact A/MX summary and is not suitable for a forensic timeline.
+This module keeps that legacy summary intact and implements a separate normalized
+DNS history timeline from scratch.
+
+SecurityTrails and VirusTotal clients were audited for historical endpoints.
+AbuseIPDB was audited too, but its current integration exposes IP reputation
+reports rather than DNS record timeline data, so it is not used as a DNS history
+source here.
+"""
+
+import json
+import logging
+import os
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import requests
+
+
+logger = logging.getLogger("dns_history_analyzer")
+logger.addHandler(logging.NullHandler())
+logger.propagate = False
+
+
+class DNSHistoryAnalyzer:
+    """Collect and analyze historical DNS changes from multiple passive sources."""
+
+    RECORD_TYPES = ("a", "aaaa", "mx", "ns", "txt", "cname")
+
+    def __init__(self):
+        self.project_root = Path(__file__).resolve().parents[2]
+        self.securitytrails_api_key = self._get_api_key("SECURITYTRAILS_API_KEY", "securitytrails")
+        self.virustotal_api_key = self._get_api_key("VIRUSTOTAL_API_KEY", "virustotal")
+        self.securitytrails_base_url = "https://api.securitytrails.com/v1"
+        self.virustotal_base_url = "https://www.virustotal.com/api/v3"
+        self.session = requests.Session()
+
+    def _get_api_key(self, env_name: str, service_name: str) -> Optional[str]:
+        """Prefer environment variables, then config/api_keys.json."""
+        env_value = os.getenv(env_name)
+        if self._is_real_key(env_value):
+            return env_value.strip()
+
+        config_path = self.project_root / "config" / "api_keys.json"
+        if not config_path.exists():
+            return None
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as config_file:
+                config_data = json.load(config_file)
+        except Exception as error:
+            logger.warning("Could not read API key config: %s", error)
+            return None
+
+        service_config = config_data.get(service_name)
+        if isinstance(service_config, dict):
+            config_value = service_config.get("api_key")
+        else:
+            config_value = service_config
+
+        return config_value.strip() if self._is_real_key(config_value) else None
+
+    @staticmethod
+    def _is_real_key(value: Optional[str]) -> bool:
+        if not value:
+            return False
+        text = value.strip()
+        if len(text) < 10:
+            return False
+        placeholders = ("your_", "_here", "placeholder", "demo", "test")
+        return not any(marker in text.lower() for marker in placeholders)
+
+    def analyze_dns_history(self, domain: str) -> Dict[str, Any]:
+        """Build a unified historical DNS timeline for a domain."""
+        clean_domain = domain.strip().lower()
+        source_results = {
+            "securitytrails": self._collect_securitytrails_history(clean_domain),
+            "virustotal": self._collect_virustotal_history(clean_domain),
+            "certificate_transparency": self._collect_certificate_transparency(clean_domain),
+        }
+
+        events = []
+        errors = []
+        data_sources = []
+        for source_name, source_result in source_results.items():
+            if source_result.get("status") == "success":
+                if source_result.get("events"):
+                    data_sources.append(source_result.get("label", source_name))
+                events.extend(source_result.get("events", []))
+            elif source_result.get("error"):
+                errors.append(f"{source_name}: {source_result['error']}")
+
+        if not events:
+            fallback = self._build_native_fallback(clean_domain)
+            events.extend(fallback["events"])
+            data_sources.append(fallback["label"])
+
+        timeline = self._deduplicate_and_sort_events(events)
+        pattern_analysis = self._analyze_patterns(timeline)
+        span = self._calculate_timeline_span(timeline)
+
+        return {
+            "analysis_status": "abgeschlossen",
+            "domain": clean_domain,
+            "api_status": "live_data" if data_sources else "fallback",
+            "data_sources": data_sources,
+            "timeline_span": span,
+            "major_changes": len([event for event in timeline if event.get("severity") in ["medium", "high"]]),
+            "timeline": timeline,
+            "pattern_analysis": pattern_analysis,
+            "historical_risk_events": pattern_analysis.get("historical_risk_events", []),
+            "source_errors": errors,
+        }
+
+    def _collect_securitytrails_history(self, domain: str) -> Dict[str, Any]:
+        if not self.securitytrails_api_key:
+            return {"status": "skipped", "error": "SecurityTrails API key not configured", "events": []}
+
+        headers = {"APIKEY": self.securitytrails_api_key, "Accept": "application/json"}
+        events = []
+        errors = []
+
+        for record_type in self.RECORD_TYPES:
+            endpoint = f"{self.securitytrails_base_url}/history/{domain}/dns/{record_type}"
+            try:
+                response = self.session.get(endpoint, headers=headers, timeout=25)
+                if response.status_code == 404:
+                    continue
+                response.raise_for_status()
+                payload = response.json()
+                events.extend(self._parse_securitytrails_records(record_type, payload))
+                time.sleep(0.2)
+            except Exception as error:
+                errors.append(f"{record_type}: {error}")
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "SecurityTrails",
+            "events": events,
+            "error": "; ".join(errors[:3]) if errors and not events else None,
+        }
+
+    def _parse_securitytrails_records(self, record_type: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        events = []
+        for record in payload.get("records", []) or []:
+            values = self._extract_record_values(record_type, record.get("values", []))
+            if not values:
+                continue
+            first_seen = self._normalize_timestamp(record.get("first_seen") or record.get("firstSeen"))
+            last_seen = self._normalize_timestamp(record.get("last_seen") or record.get("lastSeen"))
+            events.append(self._make_event(
+                event_date=first_seen or last_seen,
+                change_type=f"{record_type.upper()} record observed",
+                record_type=record_type.upper(),
+                source="SecurityTrails",
+                previous_value=None,
+                new_value=values,
+                classification=self._classify_change(record_type, values),
+                last_seen=last_seen,
+            ))
+        return events
+
+    def _collect_virustotal_history(self, domain: str) -> Dict[str, Any]:
+        if not self.virustotal_api_key:
+            return {"status": "skipped", "error": "VirusTotal API key not configured", "events": []}
+
+        headers = {"x-apikey": self.virustotal_api_key}
+        endpoint = f"{self.virustotal_base_url}/domains/{domain}/resolutions"
+
+        try:
+            response = self.session.get(endpoint, headers=headers, timeout=25)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as error:
+            return {"status": "failed", "label": "VirusTotal", "events": [], "error": str(error)}
+
+        grouped_by_date: Dict[str, Set[str]] = {}
+        for item in payload.get("data", []) or []:
+            attributes = item.get("attributes", {}) or {}
+            ip_address = attributes.get("ip_address") or attributes.get("host_name")
+            date_value = attributes.get("date") or attributes.get("last_resolved")
+            if not ip_address:
+                continue
+            normalized_date = self._normalize_timestamp(date_value) or "unknown"
+            date_key = normalized_date[:10] if normalized_date != "unknown" else "unknown"
+            grouped_by_date.setdefault(date_key, set()).add(str(ip_address).strip())
+
+        events = []
+        for date_key, ip_addresses in grouped_by_date.items():
+            sorted_ips = sorted(ip_addresses)
+            severity = "low" if len(sorted_ips) > 3 else "medium"
+            events.append(self._make_event(
+                event_date=date_key,
+                change_type="Historical IP resolution",
+                record_type="A",
+                source="VirusTotal",
+                previous_value=None,
+                new_value=sorted_ips,
+                classification=(
+                    "Load-balanced resolution set"
+                    if len(sorted_ips) > 3
+                    else self._classify_change("a", sorted_ips)
+                ),
+                severity=severity,
+            ))
+
+        return {"status": "success" if events else "failed", "label": "VirusTotal", "events": events}
+
+    def _collect_certificate_transparency(self, domain: str) -> Dict[str, Any]:
+        endpoint = "https://crt.sh/"
+        params = {"q": f"%.{domain}", "output": "json"}
+        try:
+            response = self.session.get(endpoint, params=params, timeout=25)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as error:
+            return {"status": "failed", "label": "Certificate Transparency", "events": [], "error": str(error)}
+
+        seen_names: Set[Tuple[str, str]] = set()
+        events = []
+        for certificate in payload[:250]:
+            not_before = self._normalize_timestamp(certificate.get("not_before"))
+            raw_names = str(certificate.get("name_value") or "")
+            names = sorted({name.strip().lower().lstrip("*.") for name in raw_names.splitlines() if name.strip()})
+            subdomains = [name for name in names if name == domain or name.endswith(f".{domain}")]
+            if not subdomains:
+                continue
+            key = (not_before or "unknown", "|".join(subdomains))
+            if key in seen_names:
+                continue
+            seen_names.add(key)
+            events.append(self._make_event(
+                event_date=not_before,
+                change_type="Certificate names observed",
+                record_type="CT",
+                source="Certificate Transparency",
+                previous_value=None,
+                new_value=subdomains[:10],
+                classification="Certificate / subdomain expansion",
+                severity="low" if len(subdomains) < 5 else "medium",
+            ))
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "Certificate Transparency",
+            "events": events,
+        }
+
+    def _build_native_fallback(self, domain: str) -> Dict[str, Any]:
+        return {
+            "label": "Native Fallback",
+            "events": [self._make_event(
+                event_date=datetime.now(timezone.utc).isoformat(),
+                change_type="Current DNS baseline",
+                record_type="BASELINE",
+                source="Native Fallback",
+                previous_value=None,
+                new_value=[domain],
+                classification="No historical data available",
+                severity="low",
+            )],
+        }
+
+    def _extract_record_values(self, record_type: str, values: List[Dict[str, Any]]) -> List[str]:
+        extracted = []
+        keys_by_type = {
+            "a": ("ip", "ipv4", "value"),
+            "aaaa": ("ipv6", "ip", "value"),
+            "mx": ("hostname", "value"),
+            "ns": ("nameserver", "hostname", "value"),
+            "txt": ("value", "text"),
+            "cname": ("hostname", "value"),
+        }
+        for value in values or []:
+            if not isinstance(value, dict):
+                text = str(value).strip()
+            else:
+                text = ""
+                for key in keys_by_type.get(record_type, ("value",)):
+                    if value.get(key):
+                        text = str(value[key]).strip()
+                        break
+            if text:
+                extracted.append(text.rstrip("."))
+        return sorted(set(extracted))
+
+    def _make_event(
+        self,
+        event_date: Optional[str],
+        change_type: str,
+        record_type: str,
+        source: str,
+        previous_value: Optional[List[str]],
+        new_value: List[str],
+        classification: str,
+        severity: str = "medium",
+        last_seen: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "date": event_date or "unknown",
+            "last_seen": last_seen,
+            "change_type": change_type,
+            "record_type": record_type,
+            "source": source,
+            "previous": previous_value or [],
+            "new": new_value,
+            "classification": classification,
+            "severity": severity,
+        }
+
+    def _deduplicate_and_sort_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        seen = set()
+        unique_events = []
+        for event in events:
+            key = (
+                event.get("date"),
+                event.get("record_type"),
+                event.get("source"),
+                tuple(event.get("new", [])),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_events.append(event)
+
+        return sorted(unique_events, key=lambda item: self._sort_key(item.get("date")), reverse=True)[:60]
+
+    def _calculate_timeline_span(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
+        dates = [self._parse_datetime(event.get("date")) for event in timeline]
+        dates = [date for date in dates if date]
+        if not dates:
+            return {"start_date": None, "end_date": None, "days": 0}
+        start_date = min(dates)
+        end_date = max(dates)
+        return {
+            "start_date": start_date.date().isoformat(),
+            "end_date": end_date.date().isoformat(),
+            "days": max((end_date - start_date).days, 0),
+        }
+
+    def _analyze_patterns(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
+        change_events = [
+            event for event in timeline
+            if event.get("classification") != "Load-balanced resolution set"
+        ]
+        total_events = len(change_events)
+        span = self._calculate_timeline_span(timeline)
+        days = max(span.get("days") or 0, 1)
+        monthly_rate = total_events / max(days / 30, 1)
+
+        if monthly_rate >= 10:
+            frequency = "high change velocity"
+        elif monthly_rate >= 3:
+            frequency = "moderate change velocity"
+        else:
+            frequency = "low change velocity"
+
+        record_types = {event.get("record_type") for event in timeline}
+        ip_values = {
+            value
+            for event in change_events
+            if event.get("record_type") in {"A", "AAAA"}
+            for value in event.get("new", [])
+        }
+        load_balanced_sets = [
+            event for event in timeline
+            if event.get("classification") == "Load-balanced resolution set"
+        ]
+
+        suspicious = []
+        if monthly_rate >= 10:
+            suspicious.append("rapid DNS change pattern")
+        if len(ip_values) >= 12:
+            suspicious.append("many historical IP resolutions")
+        if "NS" in record_types and len([event for event in timeline if event.get("record_type") == "NS"]) >= 4:
+            suspicious.append("multiple nameserver changes")
+
+        if suspicious:
+            risk_level = "MEDIUM" if len(suspicious) < 3 else "HIGH"
+            stability = "volatile"
+        elif load_balanced_sets and not suspicious:
+            risk_level = "LOW"
+            stability = "load-balanced / distributed"
+        elif total_events >= 10:
+            risk_level = "LOW"
+            stability = "moderately stable"
+        else:
+            risk_level = "LOW"
+            stability = "stable or limited history"
+
+        return {
+            "change_frequency": frequency,
+            "infrastructure_stability": stability,
+            "suspicious_patterns": suspicious or ["none detected"],
+            "risk_level": risk_level,
+            "historical_risk_events": suspicious,
+        }
+
+    def _classify_change(self, record_type: str, values: List[str]) -> str:
+        normalized_type = record_type.lower()
+        if normalized_type in {"a", "aaaa"}:
+            return "Infrastructure resolution change"
+        if normalized_type == "mx":
+            return "Mail routing change"
+        if normalized_type == "ns":
+            return "Authority / nameserver change"
+        if normalized_type == "txt":
+            return "Policy or verification change"
+        if normalized_type == "cname":
+            return "Service routing change"
+        return "Historical observation"
+
+    def _normalize_timestamp(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+        text = str(value).strip()
+        if not text:
+            return None
+        parsed = self._parse_datetime(text)
+        return parsed.isoformat() if parsed else text
+
+    def _parse_datetime(self, value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        text = str(value).strip().replace("Z", "+00:00")
+        for candidate in (text, f"{text}+00:00"):
+            try:
+                parsed = datetime.fromisoformat(candidate)
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        return None
+
+    def _sort_key(self, value: Any) -> datetime:
+        return self._parse_datetime(value) or datetime.min.replace(tzinfo=timezone.utc)

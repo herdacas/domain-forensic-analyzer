@@ -26,6 +26,7 @@ class DataSource(Enum):
     NETWORK_INTEL = "network_intelligence"
     SECURITYTRAILS = "securitytrails"
     WHOIS = "whois"
+    DNS_HISTORY = "dns_history"
     AGGREGATED = "aggregated"
 
 @dataclass
@@ -150,7 +151,7 @@ class ResultAggregator:
     
     def __init__(self):
         self.supported_modules = [
-            'dns', 'whois', 'cdn', 'subdomain', 'network', 'securitytrails'
+            'dns', 'whois', 'dns_history', 'cdn', 'subdomain', 'network', 'securitytrails'
         ]
     
     def aggregate_results(self, domain: str, module_results: Dict[str, Any], 
@@ -475,7 +476,8 @@ class ResultAggregator:
                     'subdomain': DataSource.SUBDOMAIN_SCAN,
                     'network': DataSource.NETWORK_INTEL,
                     'securitytrails': DataSource.SECURITYTRAILS,
-                    'whois': DataSource.WHOIS
+                    'whois': DataSource.WHOIS,
+                    'dns_history': DataSource.DNS_HISTORY
                 }
                 if module_name in source_map:
                     sources.append(source_map[module_name])

@@ -1,6 +1,8 @@
 {
   "securitytrails": "YOUR_SECURITYTRAILS_API_KEY_HERE",
+  "abuseipdb": "YOUR_ABUSEIPDB_API_KEY_HERE",
   "virustotal": "YOUR_VIRUSTOTAL_API_KEY_HERE",
+  "whoisxml": "YOUR_WHOISXML_API_KEY_HERE",
   "shodan": "YOUR_SHODAN_API_KEY_HERE",
   "censys": "YOUR_CENSYS_API_KEY_HERE"
 }

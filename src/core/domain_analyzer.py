@@ -35,6 +35,7 @@ try:
     from src.core.security_manager import create_security_manager
     from src.analyzers.dns_analyzer import DNSAnalyzer
     from src.analyzers.cdn_detector import CDNDetector
+    from src.analyzers.dns_history_analyzer import DNSHistoryAnalyzer
     from src.analyzers.subdomain_scanner import SubdomainScanner
     from src.analyzers.network_intelligence import NetworkIntelligence
     from src.analyzers.securitytrails_client import SecurityTrailsClient
@@ -119,7 +120,7 @@ class DomainAnalyzer:
         
         # Order in which modules will be executed
         self.module_execution_order = [
-            'dns', 'whois', 'cdn', 'network', 'subdomain',
+            'dns', 'whois', 'dns_history', 'cdn', 'network', 'subdomain',
             'securitytrails', 'abuseipdb', 'virustotal'
         ]
         
@@ -127,6 +128,7 @@ class DomainAnalyzer:
         self.module_timeouts = {
             'dns': 30,
             'whois': 30,
+            'dns_history': 90,
             'cdn': 45, 
             'network': 90,
             'subdomain': 180,
@@ -181,6 +183,7 @@ class DomainAnalyzer:
         module_classes = {
             'dns': DNSAnalyzer,
             'whois': get_whois if WHOIS_MODULE_AVAILABLE else None,
+            'dns_history': DNSHistoryAnalyzer,
             'cdn': CDNDetector,
             'subdomain': SubdomainScanner,
             'network': NetworkIntelligence,
@@ -300,7 +303,14 @@ class DomainAnalyzer:
         )
         if whois_used_api:
             api_success += 1
-        api_total = 4 if 'whois' in modules_to_run else 3
+        dns_history_result = self.current_analysis['results'].get('dns_history', {})
+        dns_history_used_external = bool([
+            source for source in dns_history_result.get('data_sources', [])
+            if source != 'Native Fallback'
+        ])
+        if dns_history_used_external:
+            api_success += 1
+        api_total = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
         
         print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful | "
               f"{failed} failed | {timeout} timeout | APIs: {api_success}/{api_total} | Total: {total_time:.1f}s")
@@ -438,6 +448,9 @@ class DomainAnalyzer:
                 return result
             result.setdefault('analysis_status', 'abgeschlossen')
             return result
+
+        elif module_name == 'dns_history':
+            return module.analyze_dns_history(domain)
         
         elif module_name == 'cdn':
             # CDN analyzer needs IP address from DNS results
@@ -526,6 +539,20 @@ class DomainAnalyzer:
                 'registrant_name': None,
                 'registrant_organization': None,
                 'registrant_country': None
+            },
+            'dns_history': {
+                'domain': domain,
+                'data_sources': [],
+                'timeline_span': {'start_date': None, 'end_date': None, 'days': 0},
+                'major_changes': 0,
+                'timeline': [],
+                'pattern_analysis': {
+                    'change_frequency': 'not assessed',
+                    'infrastructure_stability': 'unknown',
+                    'suspicious_patterns': ['analysis failed'],
+                    'risk_level': 'UNKNOWN'
+                },
+                'historical_risk_events': []
             },
             'cdn': {
                 'provider_name': 'Unknown',
@@ -722,8 +749,8 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print("Multi-API Threat Intelligence | Security Analysis")
     print(f"{Colors.investigation_separator(80)}")
     print(f"Platform: {Colors.info(platform.system())} | "
-          f"Modules: {Colors.success('8 Core Analyzers')} | "
-          f"APIs: {Colors.success('4 Intelligence Sources')} | "
+          f"Modules: {Colors.success('9 Core Analyzers')} | "
+          f"APIs: {Colors.success('5 Intelligence Sources')} | "
           f"Status: {Colors.success('Ready')}")
     
     # Return metadata for logging
@@ -1030,6 +1057,32 @@ def _format_dns_assessment_findings(assessment: Dict[str, Any], max_items: int =
     return '; '.join(str(item) for item in findings[:max_items])
 
 
+def _format_history_value(values: Any, max_items: int = 3, max_length: int = 86) -> str:
+    """Render DNS history values compactly for the forensic summary."""
+    if not values:
+        return 'none'
+    if isinstance(values, str):
+        items = [values]
+    elif isinstance(values, (list, tuple, set)):
+        items = [str(item) for item in values if str(item).strip()]
+    else:
+        items = [str(values)]
+    if not items:
+        return 'none'
+    rendered = ', '.join(items[:max_items])
+    if len(items) > max_items:
+        rendered += f", +{len(items) - max_items} more"
+    return rendered if len(rendered) <= max_length else f"{rendered[:max_length - 3]}..."
+
+
+def _format_history_date(value: Any) -> str:
+    """Render ISO-like history timestamps as dates when possible."""
+    if not value or value == 'unknown':
+        return 'unknown date'
+    text = str(value)
+    return text[:10] if len(text) >= 10 else text
+
+
 def _format_whois_value(value: Any, default: str = 'Unknown') -> str:
     """Render WHOIS values that may be scalar, list-like, or missing."""
     if value is None:
@@ -1188,6 +1241,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     st_result = result.results.get('securitytrails', {})
     dns_result = result.results.get('dns', {})
     whois_result = result.results.get('whois', {})
+    dns_history_result = result.results.get('dns_history', {})
     cdn_result = result.results.get('cdn', {})
     network_result = result.results.get('network', {})
     subdomain_result = result.results.get('subdomain', {})
@@ -1339,6 +1393,52 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         print(f"└── Assessment Findings: {Colors.info(_format_dns_assessment_findings(dns_config_assessment))}")
     else:
         print(f"└── DNS Forensics: {Colors.error('UNAVAILABLE')}")
+
+    print(f"\n{Colors.section_header('DNS HISTORY TIMELINE', 50)}")
+    if dns_history_result.get('analysis_status') == 'abgeschlossen':
+        data_sources = dns_history_result.get('data_sources', []) or []
+        timeline_span = dns_history_result.get('timeline_span', {}) or {}
+        timeline = dns_history_result.get('timeline', []) or []
+        pattern_analysis = dns_history_result.get('pattern_analysis', {}) or {}
+        historical_risk_events = dns_history_result.get('historical_risk_events', []) or []
+
+        start_date = timeline_span.get('start_date') or 'unknown'
+        end_date = timeline_span.get('end_date') or 'unknown'
+        span_days = timeline_span.get('days', 0)
+        print(f"├── Data Sources: {Colors.info(', '.join(data_sources) if data_sources else 'none')}")
+        print(f"├── Timeline Span: {Colors.info(f'{start_date} to {end_date} ({span_days} days)')}")
+        print(f"├── Major Changes: {Colors.info(str(dns_history_result.get('major_changes', 0)))} detected")
+
+        if timeline:
+            for event in timeline[:5]:
+                print(f"├── {_format_history_date(event.get('date'))}: {Colors.info(event.get('change_type', 'Historical change'))}")
+                print(f"│   ├── Source: {event.get('source', 'unknown')}")
+                print(f"│   ├── Previous: {_format_history_value(event.get('previous'))}")
+                print(f"│   ├── New: {_format_history_value(event.get('new'))}")
+                print(f"│   └── Change Type: {event.get('classification', 'unclassified')}")
+        else:
+            print(f"├── Timeline: {Colors.dim('no historical events returned')}")
+
+        suspicious_patterns = pattern_analysis.get('suspicious_patterns', ['not assessed'])
+        if isinstance(suspicious_patterns, list):
+            suspicious_text = '; '.join(str(item) for item in suspicious_patterns[:3])
+        else:
+            suspicious_text = str(suspicious_patterns)
+
+        print(f"├── Pattern Analysis:")
+        print(f"│   ├── Change Frequency: {Colors.info(str(pattern_analysis.get('change_frequency', 'not assessed')))}")
+        print(f"│   ├── Infrastructure Stability: {Colors.info(str(pattern_analysis.get('infrastructure_stability', 'unknown')))}")
+        print(f"│   ├── Suspicious Patterns: {Colors.info(suspicious_text)}")
+        print(f"│   └── Risk Assessment: {Colors.warning(str(pattern_analysis.get('risk_level', 'UNKNOWN')))}")
+        if historical_risk_events:
+            print(f"└── Historical Risk Events: {Colors.warning('; '.join(str(item) for item in historical_risk_events[:3]))}")
+        else:
+            print(f"└── Historical Risk Events: {Colors.success('none detected')}")
+    elif dns_history_result:
+        print(f"├── DNS History: {Colors.warning('UNAVAILABLE')}")
+        print(f"└── Detail: {Colors.dim(str(dns_history_result.get('error') or 'No timeline data available'))}")
+    else:
+        print(f"└── DNS History: {Colors.error('NOT RUN')}")
 
     print(f"\n{Colors.section_header('INFRASTRUCTURE', 50)}")
     if cdn_result.get('analysis_status') == 'abgeschlossen':
@@ -1557,6 +1657,12 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         api_statuses.append("VirusTotal")
     if whois_result.get('source') == 'WhoisXML API':
         api_statuses.append("WhoisXML")
+    dns_history_sources = [
+        source for source in dns_history_result.get('data_sources', [])
+        if source != 'Native Fallback'
+    ]
+    if dns_history_sources:
+        api_statuses.append(f"DNS History ({', '.join(dns_history_sources[:3])})")
     
     if api_statuses:
         print(f"├── Live APIs Used: {Colors.success(', '.join(api_statuses))}")
