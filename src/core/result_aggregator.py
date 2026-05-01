@@ -25,6 +25,7 @@ class DataSource(Enum):
     SUBDOMAIN_SCAN = "subdomain_scan"
     NETWORK_INTEL = "network_intelligence"
     SECURITYTRAILS = "securitytrails"
+    WHOIS = "whois"
     AGGREGATED = "aggregated"
 
 @dataclass
@@ -149,7 +150,7 @@ class ResultAggregator:
     
     def __init__(self):
         self.supported_modules = [
-            'dns', 'cdn', 'subdomain', 'network', 'securitytrails'
+            'dns', 'whois', 'cdn', 'subdomain', 'network', 'securitytrails'
         ]
     
     def aggregate_results(self, domain: str, module_results: Dict[str, Any], 
@@ -412,7 +413,18 @@ class ResultAggregator:
                 dns_result.get('mail_servers')
                 or dns_result.get('mx_records')
                 or []
-            )
+            ),
+            'soa_record': dns_result.get('soa_record', {}),
+            'txt_records': dns_result.get('txt_records', []),
+            'spf_record': dns_result.get('spf_record'),
+            'spf_analysis': dns_result.get('spf_analysis', {}),
+            'dmarc_record': dns_result.get('dmarc_record'),
+            'dmarc_analysis': dns_result.get('dmarc_analysis', {}),
+            'dkim': dns_result.get('dkim', {}),
+            'caa_records': dns_result.get('caa_records', []),
+            'dnssec': dns_result.get('dnssec', {}),
+            'zone_transfer': dns_result.get('zone_transfer', {}),
+            'dns_configuration_assessment': dns_result.get('dns_configuration_assessment', {})
         }
     
     def _calculate_risk_metrics(self, assets: List[StandardizedAsset], 
@@ -462,7 +474,8 @@ class ResultAggregator:
                     'cdn': DataSource.CDN_DETECTION,
                     'subdomain': DataSource.SUBDOMAIN_SCAN,
                     'network': DataSource.NETWORK_INTEL,
-                    'securitytrails': DataSource.SECURITYTRAILS
+                    'securitytrails': DataSource.SECURITYTRAILS,
+                    'whois': DataSource.WHOIS
                 }
                 if module_name in source_map:
                     sources.append(source_map[module_name])

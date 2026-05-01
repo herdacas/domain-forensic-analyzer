@@ -69,6 +69,11 @@ class SecureAPIManager:
                 "api_key": "YOUR_NEW_VIRUSTOTAL_KEY_HERE",
                 "base_url": "https://www.virustotal.com/api/v3",
                 "rate_limit": 1000
+            },
+            "whoisxml": {
+                "api_key": "YOUR_NEW_WHOISXML_API_KEY_HERE",
+                "base_url": "https://whoisxmlapi.com/whoisserver/WhoisService",
+                "rate_limit": 500
             }
         }
         

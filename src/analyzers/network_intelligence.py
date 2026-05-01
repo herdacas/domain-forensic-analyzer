@@ -10,6 +10,7 @@ import subprocess
 import platform
 import sys
 import os
+import time
 import urllib.request
 import urllib.error
 import socket
@@ -37,10 +38,17 @@ class NetworkIntelligence:
         self.traceroute_timeout_regional = self.settings.scan_settings.traceroute_timeout_regional
         self.traceroute_timeout_international = self.settings.scan_settings.traceroute_timeout_international
         self.encoding = self.settings.scan_settings.traceroute_encoding
-        
+        self.max_traceroute_hops = getattr(self.settings.scan_settings, 'max_traceroute_hops', 15)
+
         # Plattform-spezifische Konfiguration
         self.platform = platform.system().lower()
         self.is_windows = self.platform == 'windows'
+        # Probe timeout is intentionally lower than the overall command timeout so
+        # partial routes return faster without losing the useful "where did it stop?"
+        # context for the report. We also stop after a short no-response streak,
+        # because later asterisks rarely add investigative value but add a lot of wait.
+        self.traceroute_probe_timeout_ms = 2000 if self.is_windows else 2500
+        self.max_consecutive_no_response_hops = 3
         
         # CORRECTED: Echte Consumer-ISP Patterns (nicht National Carrier)
         self.consumer_isp_patterns = [
@@ -99,7 +107,7 @@ class NetworkIntelligence:
         results['traceroute_data'] = traceroute_data
         
         # Enhanced Netzwerkpfad-Analyse
-        if traceroute_data.get('status') == 'success':
+        if traceroute_data.get('status') in ['success', 'partial'] and traceroute_data.get('hops'):
             print(f"\n{Colors.section_header('NETWORK PATH', 50)}")
             enhanced_path = self._analyze_enhanced_network_path(traceroute_data.get('hops', []))
             results['enhanced_network_path'] = enhanced_path
@@ -231,31 +239,123 @@ class NetworkIntelligence:
         """Fuehrt Traceroute durch"""
         print(f"  {Colors.info('Traceroute-Analyse:')} Ermittle Netzwerkpfad...")
         
+        timeout = self.traceroute_timeout_international if self._is_likely_international_route(ip_address) else self.traceroute_timeout_regional
+        metadata = {
+            'command_timeout_seconds': timeout,
+            'probe_timeout_ms': self.traceroute_probe_timeout_ms,
+            'max_hops': self.max_traceroute_hops
+        }
+
+        process = None
         try:
             if self.is_windows:
-                cmd = ['tracert', '-h', '15', ip_address]
+                cmd = ['tracert', '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
             else:
-                cmd = ['traceroute', '-m', '15', ip_address]
-            
-            timeout = self.traceroute_timeout_international if self._is_likely_international_route(ip_address) else self.traceroute_timeout_regional
-            
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout,
+                cmd = ['traceroute', '-m', str(self.max_traceroute_hops), '-w', str(max(1, self.traceroute_probe_timeout_ms // 1000)), ip_address]
+
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                 encoding=self.encoding if self.is_windows else 'utf-8',
                 errors='replace'
             )
-            
-            if result.returncode == 0 or result.stdout:
-                hops = self._parse_traceroute_output(result.stdout)
+
+            output_lines = []
+            start_time = time.monotonic()
+            consecutive_no_response_hops = 0
+
+            while True:
+                if time.monotonic() - start_time > timeout:
+                    return self._stop_traceroute_process(
+                        process,
+                        output_lines,
+                        metadata,
+                        'Traceroute command timed out after '
+                        f'{timeout}s'
+                    )
+
+                line = process.stdout.readline() if process.stdout else ''
+                if line:
+                    output_lines.append(line)
+                    hop_info = self._parse_traceroute_line(line.strip())
+                    if hop_info:
+                        if hop_info.get('status') == 'responsive':
+                            consecutive_no_response_hops = 0
+                        else:
+                            consecutive_no_response_hops += 1
+                            if consecutive_no_response_hops >= self.max_consecutive_no_response_hops:
+                                return self._stop_traceroute_process(
+                                    process,
+                                    output_lines,
+                                    metadata,
+                                    'Traceroute stopped after '
+                                    f'{self.max_consecutive_no_response_hops} consecutive no-response hops'
+                                )
+                    continue
+
+                if process.poll() is not None:
+                    break
+
+                time.sleep(0.05)
+
+            remaining_stdout, _ = process.communicate(timeout=2)
+            if remaining_stdout:
+                output_lines.append(remaining_stdout)
+
+            full_output = ''.join(output_lines)
+
+            if process.returncode == 0 or full_output:
+                hops = self._parse_traceroute_output(full_output)
+                metadata.update(self._summarize_traceroute_progress(hops))
                 print(f"    {Colors.success('Traceroute abgeschlossen:')} {len(hops)} Hops analysiert")
-                return {'status': 'success', 'hops': hops, 'total_hops': len(hops)}
+                return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
             else:
-                return {'status': 'failed', 'error': 'No route found'}
-                
-        except subprocess.TimeoutExpired:
-            return {'status': 'timeout', 'error': f'Timeout after {timeout}s'}
+                return {'status': 'failed', 'error': 'No route found', **metadata}
         except Exception as error:
-            return {'status': 'error', 'error': str(error)}
+            return {'status': 'error', 'error': str(error), **metadata}
+        finally:
+            if process and process.poll() is None:
+                process.kill()
+
+    def _summarize_traceroute_progress(self, hops: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Leitet aus den bereits beobachteten Hops eine kompakte Fortschritts-Summary ab."""
+        responsive_hops = [hop for hop in hops if hop.get('status') == 'responsive']
+        unresponsive_hops = [hop for hop in hops if hop.get('status') != 'responsive']
+
+        return {
+            'last_responsive_hop': responsive_hops[-1]['hop'] if responsive_hops else None,
+            'first_unresponsive_hop': unresponsive_hops[0]['hop'] if unresponsive_hops else None
+        }
+
+    def _stop_traceroute_process(self, process: subprocess.Popen, output_lines: List[str], metadata: Dict[str, Any], reason: str) -> Dict[str, Any]:
+        """Stoppt tracert/traceroute kontrolliert und liefert die bis dahin beobachtete Route zurueck."""
+        try:
+            process.terminate()
+            remaining_stdout, _ = process.communicate(timeout=2)
+        except Exception:
+            process.kill()
+            remaining_stdout, _ = process.communicate()
+
+        if remaining_stdout:
+            output_lines.append(remaining_stdout)
+
+        hops = self._parse_traceroute_output(''.join(output_lines))
+        metadata.update(self._summarize_traceroute_progress(hops))
+        if hops:
+            return {
+                'status': 'partial',
+                'error': reason,
+                'hops': hops,
+                'total_hops': len(hops),
+                **metadata
+            }
+
+        return {
+            'status': 'timeout',
+            'error': reason,
+            'hops': [],
+            'total_hops': 0,
+            **metadata
+        }
     
     def _is_likely_international_route(self, ip_address: str) -> bool:
         """Schaetzt internationale Route"""

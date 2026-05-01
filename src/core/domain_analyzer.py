@@ -45,6 +45,14 @@ except ImportError as error:
     CORE_MODULES_AVAILABLE = False
     print(f"Core modules import error: {error}")
 
+try:
+    from src.analyzers.whois import get_whois
+    WHOIS_MODULE_AVAILABLE = True
+except ImportError as error:
+    get_whois = None
+    WHOIS_MODULE_AVAILABLE = False
+    print(f"WHOIS module import error: {error}")
+
 @dataclass
 class ModuleExecutionResult:
     """Stores the result and performance data for each analyzer module"""
@@ -111,15 +119,16 @@ class DomainAnalyzer:
         
         # Order in which modules will be executed
         self.module_execution_order = [
-            'dns', 'cdn', 'network', 'subdomain', 
+            'dns', 'whois', 'cdn', 'network', 'subdomain',
             'securitytrails', 'abuseipdb', 'virustotal'
         ]
         
         # Maximum time each module is allowed to run before being stopped
         self.module_timeouts = {
             'dns': 30,
+            'whois': 30,
             'cdn': 45, 
-            'network': 60,
+            'network': 90,
             'subdomain': 180,
             'securitytrails': 30,
             'abuseipdb': 30,
@@ -171,6 +180,7 @@ class DomainAnalyzer:
         """Create instances of all analyzer modules and store them"""
         module_classes = {
             'dns': DNSAnalyzer,
+            'whois': get_whois if WHOIS_MODULE_AVAILABLE else None,
             'cdn': CDNDetector,
             'subdomain': SubdomainScanner,
             'network': NetworkIntelligence,
@@ -182,7 +192,9 @@ class DomainAnalyzer:
         # Try to create each module, log warnings for any that fail
         for module_name, module_class in module_classes.items():
             try:
-                self.modules[module_name] = module_class()
+                if module_class is None:
+                    raise ImportError(f"{module_name} module not available")
+                self.modules[module_name] = module_class if module_name == 'whois' else module_class()
                 self.logger.debug(f"{module_name.title()} module initialized")
             except Exception as error:
                 self.logger.warning(f"Failed to initialize {module_name}", error=str(error))
@@ -277,12 +289,21 @@ class DomainAnalyzer:
         failed = len([m for m in self.execution_metrics.values() if not m.success and not m.timeout_occurred])
         timeout = len([m for m in self.execution_metrics.values() if m.timeout_occurred])
         
-        # Count how many API modules succeeded
+        # Count how many live API-backed modules succeeded
         api_modules = ['securitytrails', 'abuseipdb', 'virustotal']
         api_success = len([m for m in api_modules if m in self.execution_metrics and self.execution_metrics[m].success])
+        whois_result = self.current_analysis['results'].get('whois', {})
+        whois_used_api = (
+            self.execution_metrics.get('whois') is not None
+            and self.execution_metrics['whois'].success
+            and whois_result.get('source') == 'WhoisXML API'
+        )
+        if whois_used_api:
+            api_success += 1
+        api_total = 4 if 'whois' in modules_to_run else 3
         
         print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful | "
-              f"{failed} failed | {timeout} timeout | APIs: {api_success}/3 | Total: {total_time:.1f}s")
+              f"{failed} failed | {timeout} timeout | APIs: {api_success}/{api_total} | Total: {total_time:.1f}s")
         
         # Log detailed statistics
         self.logger.info("Workflow completed",
@@ -291,11 +312,13 @@ class DomainAnalyzer:
                         failed=failed,
                         timeout=timeout,
                         api_success=api_success,
+                        api_total=api_total,
                         total_time=f"{total_time:.2f}s")
     
     def _execute_module_with_timeout(self, module_name: str) -> ModuleExecutionResult:
         """Run a single module with timeout protection and performance monitoring"""
         module = self.modules.get(module_name)
+
         if not module:
             # Return failure result if module doesn't exist
             return ModuleExecutionResult(
@@ -377,6 +400,18 @@ class DomainAnalyzer:
                     execution_time=execution_time,
                     error_message="Invalid module result"
                 )
+            if result.get('analysis_status') == 'failed':
+                error_message = str(result.get('error') or 'Module reported failure')
+                self.logger.error(f"{module_name} analysis reported failure",
+                                domain=domain,
+                                error=error_message,
+                                execution_time=execution_time)
+                return ModuleExecutionResult(
+                    success=False,
+                    result=result,
+                    execution_time=execution_time,
+                    error_message=error_message
+                )
             self.logger.debug(f"{module_name} analysis completed", 
                             domain=domain,
                             execution_time=execution_time,
@@ -392,6 +427,17 @@ class DomainAnalyzer:
         """Call the correct function for each type of analyzer module"""
         if module_name == 'dns':
             return module.analyze_domain(domain)
+
+        elif module_name == 'whois':
+            result = module(domain)
+            if not isinstance(result, dict):
+                raise Exception("Invalid WHOIS result")
+            if result.get('error'):
+                result.setdefault('analysis_status', 'failed')
+                result.setdefault('failure_type', 'error')
+                return result
+            result.setdefault('analysis_status', 'abgeschlossen')
+            return result
         
         elif module_name == 'cdn':
             # CDN analyzer needs IP address from DNS results
@@ -461,12 +507,25 @@ class DomainAnalyzer:
         }
         
         # Provide appropriate fallback data for each module type
+        domain = self.current_analysis.get('domain', 'unknown') if self.current_analysis else 'unknown'
         fallback_data = {
             'dns': {
                 'ipv4': None,
                 'ipv6': None,
                 'nameservers': [],
                 'mail_servers': []
+            },
+            'whois': {
+                'source': 'failed',
+                'domain': domain,
+                'registrar': None,
+                'creation_date': None,
+                'expiration_date': None,
+                'updated_date': None,
+                'name_servers': [],
+                'registrant_name': None,
+                'registrant_organization': None,
+                'registrant_country': None
             },
             'cdn': {
                 'provider_name': 'Unknown',
@@ -663,8 +722,8 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print("Multi-API Threat Intelligence | Security Analysis")
     print(f"{Colors.investigation_separator(80)}")
     print(f"Platform: {Colors.info(platform.system())} | "
-          f"Modules: {Colors.success('7 Core Analyzers')} | "
-          f"APIs: {Colors.success('3 Intelligence Sources')} | "
+          f"Modules: {Colors.success('8 Core Analyzers')} | "
+          f"APIs: {Colors.success('4 Intelligence Sources')} | "
           f"Status: {Colors.success('Ready')}")
     
     # Return metadata for logging
@@ -760,20 +819,44 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
 def _display_traceroute_details(traceroute_data: Dict[str, Any], enhanced_path: List[Dict[str, Any]]) -> None:
     """Render the full traceroute without truncating hops."""
     traceroute_status = traceroute_data.get('status', 'unknown')
-    if traceroute_status != 'success':
+    command_timeout = traceroute_data.get('command_timeout_seconds')
+    probe_timeout_ms = traceroute_data.get('probe_timeout_ms')
+    max_hops = traceroute_data.get('max_hops')
+    hops = traceroute_data.get('hops', []) or []
+    last_responsive_hop = traceroute_data.get('last_responsive_hop')
+    first_unresponsive_hop = traceroute_data.get('first_unresponsive_hop')
+
+    if traceroute_status not in ['success', 'partial']:
         if traceroute_status == 'timeout':
             print(f"├── Status: {Colors.warning('TIMEOUT')}")
             print(f"├── Traceroute: {Colors.dim('incomplete')}")
         else:
             print(f"├── Status: {Colors.error('FAILED')}")
             print(f"├── Traceroute: {Colors.error('UNAVAILABLE')}")
+        if command_timeout:
+            print(f"├── Command Timeout: {Colors.info(f'{command_timeout}s')}")
+        if probe_timeout_ms:
+            print(f"├── Probe Timeout: {Colors.info(f'{probe_timeout_ms}ms')} per hop")
+        if max_hops:
+            print(f"├── Max Hops: {Colors.info(str(max_hops))}")
         error_text = traceroute_data.get('error')
         if error_text:
             print(f"└── Detail: {Colors.dim(error_text)}")
         return
 
-    hops = traceroute_data.get('hops', []) or []
-    print(f"├── Traceroute: {Colors.info(f'{len(hops)} hops')}")
+    if traceroute_status == 'partial':
+        print(f"├── Status: {Colors.warning('PARTIAL')}")
+        print(f"├── Traceroute: {Colors.info(f'{len(hops)} hops observed before stop')}")
+        print(f"├── Last Responsive Hop: {Colors.info(str(last_responsive_hop))}")
+        print(f"├── Timeout Observed From Hop: {Colors.warning(str(first_unresponsive_hop))}")
+        print(f"├── Command Timeout: {Colors.info(f'{command_timeout}s')}")
+        print(f"├── Probe Timeout: {Colors.info(f'{probe_timeout_ms}ms')} per hop")
+        print(f"├── Max Hops: {Colors.info(str(max_hops))}")
+        error_text = traceroute_data.get('error')
+        if error_text:
+            print(f"├── Detail: {Colors.dim(error_text)}")
+    else:
+        print(f"├── Traceroute: {Colors.info(f'{len(hops)} hops')}")
 
     if not hops:
         print(f"└── No hop data returned")
@@ -882,6 +965,106 @@ def _extract_mail_server_entries(dns_result: Dict[str, Any]) -> List[str]:
     return entries
 
 
+def _format_policy_record(value: Any, max_length: int = 90) -> str:
+    """Render long policy-style DNS records in a compact single-line form."""
+    text = str(value or '').strip()
+    if not text:
+        return 'not configured'
+    return text if len(text) <= max_length else f"{text[:max_length - 3]}..."
+
+
+def _summarize_caa_entries(dns_result: Dict[str, Any]) -> List[str]:
+    """Render compact CAA labels for display."""
+    entries = []
+    for record in dns_result.get('caa_records', []) or []:
+        if not isinstance(record, dict):
+            continue
+        tag = str(record.get('tag', '')).strip()
+        value = str(record.get('value', '')).strip()
+        if tag and value:
+            entries.append(f"{tag} {value}")
+    return entries
+
+
+def _format_spf_analysis(spf_analysis: Dict[str, Any]) -> str:
+    """Render a short SPF assessment summary for the report."""
+    if not spf_analysis or spf_analysis.get('status') != 'configured':
+        return 'not configured'
+    return str(spf_analysis.get('summary') or 'configured')
+
+
+def _format_dmarc_analysis(dmarc_analysis: Dict[str, Any]) -> str:
+    """Render a compact DMARC configuration summary."""
+    if not dmarc_analysis or dmarc_analysis.get('status') != 'configured':
+        return 'not configured'
+    return str(dmarc_analysis.get('summary') or 'configured')
+
+
+def _format_dkim_discovery(dkim_result: Dict[str, Any]) -> str:
+    """Summarize heuristic DKIM selector discovery in one line."""
+    selectors = dkim_result.get('selectors', []) or []
+    if not selectors:
+        return 'no common selectors detected (heuristic discovery only)'
+    selector_names = [
+        str(entry.get('selector')).strip()
+        for entry in selectors[:3]
+        if isinstance(entry, dict) and entry.get('selector')
+    ]
+    if not selector_names:
+        return 'selectors discovered via heuristic lookup'
+    return f"{len(selectors)} discovered via heuristic lookup ({', '.join(selector_names)})"
+
+
+def _format_dns_config_assessment(assessment: Dict[str, Any]) -> str:
+    """Render the overall DNS configuration assessment summary."""
+    if not assessment:
+        return 'not assessed'
+    return str(assessment.get('summary') or 'not assessed')
+
+
+def _format_dns_assessment_findings(assessment: Dict[str, Any], max_items: int = 2) -> str:
+    """Render the most relevant DNS hardening findings as a compact list."""
+    findings = assessment.get('findings', []) if isinstance(assessment, dict) else []
+    if not findings:
+        return 'no material hardening gaps observed'
+    return '; '.join(str(item) for item in findings[:max_items])
+
+
+def _format_whois_value(value: Any, default: str = 'Unknown') -> str:
+    """Render WHOIS values that may be scalar, list-like, or missing."""
+    if value is None:
+        return default
+    if isinstance(value, (list, tuple, set)):
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        return ', '.join(cleaned) if cleaned else default
+    text = str(value).strip()
+    return text if text else default
+
+
+def _format_whois_nameservers(value: Any) -> List[str]:
+    """Normalize WHOIS nameserver data for display."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        nameservers = [value]
+    elif isinstance(value, (list, tuple, set)):
+        nameservers = list(value)
+    else:
+        nameservers = [str(value)]
+    normalized = []
+    seen = set()
+    for nameserver in nameservers:
+        text = str(nameserver).strip().rstrip('.')
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+    return normalized
+
+
 def _build_sensitive_asset_lookup(subdomain_result: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """Map discovered subdomains to their sensitive-asset metadata."""
     sensitive_lookup = {}
@@ -960,18 +1143,35 @@ def _extract_vt_category_signals(vt_result: Dict[str, Any]) -> List[str]:
     if not isinstance(categories, dict):
         return []
 
+    def format_category_label(value: Any) -> str:
+        text = str(value).strip()
+        if not text:
+            return ""
+        if text.islower():
+            if "/" in text:
+                return "/".join(part.strip().title() for part in text.split("/"))
+            return text.title()
+        return text
+
     signals = []
     seen = set()
-    for key, value in categories.items():
-        for candidate in (key, value):
-            text = str(candidate).strip()
-            if not text:
-                continue
-            normalized = text.lower()
-            if normalized in seen:
-                continue
-            seen.add(normalized)
-            signals.append(text)
+    for source_name, category_value in categories.items():
+        source_text = str(source_name).strip()
+        category_text = format_category_label(category_value)
+
+        if not category_text:
+            continue
+
+        if source_text and source_text.lower() not in category_text.lower():
+            signal = f"{category_text} ({source_text})"
+        else:
+            signal = category_text
+
+        normalized = signal.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        signals.append(signal)
 
     return signals
 
@@ -987,6 +1187,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     abuse_result = result.results.get('abuseipdb', {})
     st_result = result.results.get('securitytrails', {})
     dns_result = result.results.get('dns', {})
+    whois_result = result.results.get('whois', {})
     cdn_result = result.results.get('cdn', {})
     network_result = result.results.get('network', {})
     subdomain_result = result.results.get('subdomain', {})
@@ -1032,8 +1233,8 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         if nameservers:
             for nameserver in nameservers:
                 print(f"│   ├── {nameserver}")
-        if reverse_dns and reverse_dns != 'Not available':
-            print(f"├── Reverse DNS: {Colors.dim(reverse_dns)}")
+        reverse_dns_text = reverse_dns if reverse_dns and reverse_dns != 'Not available' else 'not available'
+        print(f"├── Reverse DNS: {Colors.dim(reverse_dns_text)}")
         print(f"└── Mail Servers: {Colors.info(str(len(mail_servers)))} configured")
         if mail_servers:
             for mail_server in mail_servers:
@@ -1041,6 +1242,103 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     else:
         print(f"├── DNS: {Colors.error('FAILED')}")
         print(f"└── Unable to resolve domain")
+
+    print(f"\n{Colors.section_header('WHOIS REGISTRATION', 50)}")
+    if whois_result.get('analysis_status') == 'abgeschlossen':
+        registrar = _format_whois_value(
+            whois_result.get('registrar') or whois_result.get('registrarName')
+        )
+        creation_date = _format_whois_value(
+            whois_result.get('creation_date') or whois_result.get('createdDate')
+        )
+        expiration_date = _format_whois_value(
+            whois_result.get('expiration_date') or whois_result.get('expiresDate')
+        )
+        updated_date = _format_whois_value(
+            whois_result.get('updated_date') or whois_result.get('updatedDate')
+        )
+        registrant_name = _format_whois_value(
+            whois_result.get('registrant_name') or (whois_result.get('registrant') or {}).get('name'),
+            'Not disclosed'
+        )
+        registrant_org = _format_whois_value(
+            whois_result.get('registrant_organization') or (whois_result.get('registrant') or {}).get('organization'),
+            'Not disclosed'
+        )
+        registrant_country = _format_whois_value(
+            whois_result.get('registrant_country') or (whois_result.get('registrant') or {}).get('country')
+        )
+        nameservers = _format_whois_nameservers(whois_result.get('name_servers') or whois_result.get('nameServers'))
+        nameserver_source = 'WHOIS'
+        if not nameservers and dns_result.get('analysis_status') == 'abgeschlossen':
+            nameservers = _extract_nameserver_entries(dns_result)
+            nameserver_source = 'DNS fallback'
+        source = _format_whois_value(whois_result.get('source'))
+
+        print(f"├── Registrar: {Colors.info(registrar)}")
+        print(f"├── Created: {Colors.info(creation_date)}")
+        print(f"├── Expires: {Colors.info(expiration_date)}")
+        print(f"├── Updated: {Colors.info(updated_date)}")
+        print(f"├── Registrant: {Colors.dim(registrant_name)}")
+        if registrant_org != 'Not disclosed':
+            print(f"├── Organization: {Colors.dim(registrant_org)}")
+        print(f"├── Country: {Colors.dim(registrant_country)}")
+        nameserver_label = f"{len(nameservers)} listed"
+        if nameserver_source != 'WHOIS':
+            nameserver_label += f" ({nameserver_source})"
+        print(f"├── Nameservers: {Colors.info(nameserver_label)}")
+        for nameserver in nameservers[:5]:
+            print(f"│   ├── {nameserver}")
+        print(f"└── Source: {Colors.dim(source)}")
+    elif whois_result:
+        error_text = whois_result.get('error') or whois_result.get('failure_type') or 'Data unavailable'
+        print(f"├── WHOIS: {Colors.warning('UNAVAILABLE')}")
+        print(f"└── Detail: {Colors.dim(str(error_text))}")
+    else:
+        print(f"└── WHOIS: {Colors.error('NOT RUN')}")
+
+    print(f"\n{Colors.section_header('DNS FORENSICS', 50)}")
+    if dns_result.get('analysis_status') == 'abgeschlossen':
+        soa_record = dns_result.get('soa_record', {}) or {}
+        txt_records = dns_result.get('txt_records', []) or []
+        spf_record = dns_result.get('spf_record')
+        spf_analysis = dns_result.get('spf_analysis', {}) or {}
+        dmarc_record = dns_result.get('dmarc_record')
+        dmarc_analysis = dns_result.get('dmarc_analysis', {}) or {}
+        dkim = dns_result.get('dkim', {}) or {}
+        caa_entries = _summarize_caa_entries(dns_result)
+        dnssec = dns_result.get('dnssec', {}) or {}
+        zone_transfer = dns_result.get('zone_transfer', {}) or {}
+        dns_config_assessment = dns_result.get('dns_configuration_assessment', {}) or {}
+
+        soa_primary = soa_record.get('primary_nameserver', 'not available')
+        soa_serial = soa_record.get('serial', 'not available')
+        print(f"├── SOA Primary NS: {Colors.info(str(soa_primary))}")
+        print(f"├── SOA Serial: {Colors.info(str(soa_serial))}")
+        print(f"├── TXT Records: {Colors.info(str(len(txt_records)))} observed")
+        print(f"├── SPF Policy: {Colors.info(_format_policy_record(spf_record))}")
+        print(f"├── SPF Analysis: {Colors.info(_format_spf_analysis(spf_analysis))}")
+        print(f"├── DMARC Policy: {Colors.info(_format_policy_record(dmarc_record))}")
+        print(f"├── DMARC Status: {Colors.info(_format_dmarc_analysis(dmarc_analysis))}")
+        print(f"├── DKIM Selectors: {Colors.info(_format_dkim_discovery(dkim))}")
+        if caa_entries:
+            print(f"├── CAA Policy: {Colors.info(', '.join(caa_entries[:3]))}")
+        else:
+            print(f"├── CAA Policy: {Colors.dim('not configured')}")
+        dnssec_status = 'enabled' if dnssec.get('status') == 'enabled' else 'not detected'
+        print(f"├── DNSSEC: {Colors.info(dnssec_status)}")
+        print(f"├── DNS Config Assessment: {Colors.info(_format_dns_config_assessment(dns_config_assessment))}")
+        zone_status = zone_transfer.get('status', 'unknown')
+        if zone_status == 'allowed':
+            zone_label = f"allowed via {zone_transfer.get('successful_nameserver', 'unknown')}"
+            print(f"├── Zone Transfer: {Colors.error(zone_label)}")
+        elif zone_status == 'not_allowed':
+            print(f"├── Zone Transfer: {Colors.success('not allowed or filtered')}")
+        else:
+            print(f"├── Zone Transfer: {Colors.dim('not tested')}")
+        print(f"└── Assessment Findings: {Colors.info(_format_dns_assessment_findings(dns_config_assessment))}")
+    else:
+        print(f"└── DNS Forensics: {Colors.error('UNAVAILABLE')}")
 
     print(f"\n{Colors.section_header('INFRASTRUCTURE', 50)}")
     if cdn_result.get('analysis_status') == 'abgeschlossen':
@@ -1074,8 +1372,14 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         enhanced_path = network_result.get('enhanced_network_path', [])
         response_times = connectivity.get('response_times', {}) if isinstance(connectivity, dict) else {}
         ping_time = response_times.get('ping', 'Unknown') if isinstance(response_times, dict) else 'Unknown'
+        ping_reachable = bool(connectivity.get('ping_reachable')) if isinstance(connectivity, dict) else False
 
-        print(f"├── Connectivity: {Colors.info(f'{ping_time} latency')}")
+        if ping_reachable and ping_time != 'Unknown':
+            print(f"├── Connectivity: {Colors.info(f'Ping reachable ({ping_time} latency)')}")
+        elif ping_reachable:
+            print(f"├── Connectivity: {Colors.info('Ping reachable')}")
+        else:
+            print(f"├── Connectivity: {Colors.warning('Ping unavailable or filtered')}")
         _display_traceroute_details(traceroute, enhanced_path)
     else:
         failure_type = network_result.get('failure_type')
@@ -1137,7 +1441,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             print(f"└── DNS Config: {Colors.info('WILDCARD ENABLED')} (Enumeration resistance)")
         else:
             if sensitive_assets:
-                print(f"├── Critical Exposures:")
+                print(f"├── Findings:")
                 for asset in sensitive_assets[:3]:
                     asset_data = asset.get('asset', {}) if isinstance(asset, dict) else {}
                     subdomain = asset_data.get('full_domain') or asset_data.get('subdomain', 'unknown')
@@ -1251,6 +1555,8 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         api_statuses.append("AbuseIPDB")
     if vt_result.get('api_status') == 'live_data':
         api_statuses.append("VirusTotal")
+    if whois_result.get('source') == 'WhoisXML API':
+        api_statuses.append("WhoisXML")
     
     if api_statuses:
         print(f"├── Live APIs Used: {Colors.success(', '.join(api_statuses))}")

@@ -2,33 +2,76 @@
 # Vollständige, produktionsreife WHOIS-Integration für den Domain Forensic Analyzer
 # MIT License – Copyright (c) 2025 herdacas
 
-import os
 import logging
+import os
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, Optional
 
 import requests
 import whois  # python-whois
 from dotenv import load_dotenv
 
-# --------------------------------------------------------------------------- #
-# Logging-Setup (professioneller Standard)
-# --------------------------------------------------------------------------- #
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
 logger = logging.getLogger("whois_module")
+logger.addHandler(logging.NullHandler())
+logger.propagate = False
 
 # --------------------------------------------------------------------------- #
 # Laden der Umgebungsvariablen (.env)
 # --------------------------------------------------------------------------- #
 load_dotenv()
 
-WHOISXML_API_KEY = os.getenv("WHOISXML_API_KEY")
 SECURITYTRAILS_API_KEY = os.getenv("SECURITYTRAILS_API_KEY")  # falls später genutzt
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
+
+
+def _is_configured_api_key(api_key: Optional[str]) -> bool:
+    """Return True when the configured value looks like a real API key."""
+    if not api_key:
+        return False
+    normalized = api_key.strip()
+    if not normalized:
+        return False
+    placeholder_markers = ("your_key", "your_", "_here", "placeholder")
+    return not any(marker in normalized.lower() for marker in placeholder_markers)
+
+
+def _load_whoisxml_api_key_from_config() -> Optional[str]:
+    """Load WhoisXML API key from config/api_keys.json if no environment key exists."""
+    config_path = Path(__file__).resolve().parents[2] / "config" / "api_keys.json"
+    if not config_path.exists():
+        return None
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as config_file:
+            config_data = json.load(config_file)
+    except Exception as error:
+        logger.warning(f"WHOIS config konnte nicht geladen werden: {error}")
+        return None
+
+    service_config = config_data.get("whoisxml") or config_data.get("whoisxmlapi")
+    if isinstance(service_config, dict):
+        return service_config.get("api_key")
+    if isinstance(service_config, str):
+        return service_config
+    return None
+
+
+def _load_whoisxml_api_key() -> Optional[str]:
+    """Prefer WHOISXML_API_KEY from environment, then config/api_keys.json."""
+    environment_key = os.getenv("WHOISXML_API_KEY")
+    if _is_configured_api_key(environment_key):
+        return environment_key.strip()
+
+    config_key = _load_whoisxml_api_key_from_config()
+    if _is_configured_api_key(config_key):
+        return config_key.strip()
+
+    return None
+
+
+WHOISXML_API_KEY = _load_whoisxml_api_key()
 
 # --------------------------------------------------------------------------- #
 # Hilfsfunktion: Datums-Normalisierung (python-whois liefert unterschiedliche Typen)
@@ -43,6 +86,31 @@ def _normalize_date(date_obj: Any) -> Optional[str]:
     if isinstance(date_obj, str):
         return date_obj
     return str(date_obj)
+
+
+def _extract_whoisxml_nameservers(record: Dict[str, Any], registry_data: Dict[str, Any]) -> list:
+    """Extract nameservers from all WhoisXML locations seen in API responses."""
+    nameservers = []
+
+    for source in (record.get("nameServers"), registry_data.get("nameServers")):
+        if not source:
+            continue
+        if isinstance(source, dict):
+            candidates = source.get("hostNames") or source.get("hostnames") or source.get("hosts")
+        else:
+            candidates = source
+
+        if isinstance(candidates, str):
+            candidates = [candidates]
+        if not isinstance(candidates, list):
+            continue
+
+        for candidate in candidates:
+            text = str(candidate).strip().rstrip(".")
+            if text and text.lower() not in {item.lower() for item in nameservers}:
+                nameservers.append(text)
+
+    return nameservers
 
 # --------------------------------------------------------------------------- #
 # 1. Kostenlose lokale WHOIS-Abfrage (Fallback)
@@ -125,7 +193,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
             "creation_date": record.get("createdDate") or registry_data.get("createdDate"),
             "expiration_date": record.get("expiresDate") or registry_data.get("expiresDate"),
             "updated_date": record.get("updatedDate") or registry_data.get("updatedDate"),
-            "name_servers": record.get("nameServers", {}).get("hostNames"),
+            "name_servers": _extract_whoisxml_nameservers(record, registry_data),
             "status": record.get("status") or registry_data.get("status"),
             "registrant_name": registrant.get("name"),
             "registrant_organization": registrant.get("organization"),

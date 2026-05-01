@@ -267,6 +267,7 @@ class SecurityManager:
         template_data = {
             "securitytrails": "YOUR_SECURITYTRAILS_API_KEY_HERE",
             "virustotal": "YOUR_VIRUSTOTAL_API_KEY_HERE",
+            "whoisxml": "YOUR_WHOISXML_API_KEY_HERE",
             "shodan": "YOUR_SHODAN_API_KEY_HERE",
             "censys": "YOUR_CENSYS_API_KEY_HERE"
         }
@@ -281,6 +282,7 @@ class SecurityManager:
 
 SECURITYTRAILS_API_KEY=your_securitytrails_key_here
 VIRUSTOTAL_API_KEY=your_virustotal_key_here
+WHOISXML_API_KEY=your_whoisxml_key_here
 SHODAN_API_KEY=your_shodan_key_here
 CENSYS_API_KEY=your_censys_key_here
 
