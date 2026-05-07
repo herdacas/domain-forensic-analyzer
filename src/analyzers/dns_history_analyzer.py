@@ -311,12 +311,21 @@ class DNSHistoryAnalyzer:
     def _collect_certificate_transparency(self, domain: str) -> Dict[str, Any]:
         endpoint = "https://crt.sh/"
         params = {"q": f"%.{domain}", "output": "json"}
-        try:
-            response = self.session.get(endpoint, params=params, timeout=25)
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as error:
-            return {"status": "failed", "label": "Certificate Transparency", "events": [], "error": str(error)}
+        max_retries = 2
+        last_error: Exception = None
+        for attempt in range(1, max_retries + 2):  # attempts: 1, 2, 3
+            try:
+                response = self.session.get(endpoint, params=params, timeout=25)
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except Exception as error:
+                last_error = error
+                if attempt <= max_retries:
+                    time.sleep(1)
+        else:
+            return {"status": "failed", "label": "Certificate Transparency", "events": [],
+                    "error": str(last_error)}
 
         seen_names: Set[Tuple[str, str]] = set()
         events = []

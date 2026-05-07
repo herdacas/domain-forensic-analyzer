@@ -14,7 +14,7 @@ import requests
 import getpass
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 # Try to import advanced logging library, fallback to basic logging if not available
@@ -688,29 +688,29 @@ def get_system_metadata() -> dict:
 
 def assess_opsec_risk(external_ip: str, local_ip: str) -> dict:
     """Assess OPSEC risks for forensic analysis"""
-    
-    # Check if we're behind NAT
+
     behind_nat = external_ip != local_ip and local_ip.startswith(('192.168.', '10.', '172.'))
-    
-    # Check if using VPN/Proxy (simple heuristic)
+
+    # VPN/proxy detection: check rDNS of external IP for known provider strings
     potential_vpn = False
     try:
-        # Common VPN/hosting providers (simplified check)
-        if any(keyword in external_ip for keyword in ['amazonaws', 'digitalocean', 'vpn']):
+        import socket
+        rdns = socket.getfqdn(external_ip).lower()
+        if any(k in rdns for k in ('mullvad', 'nordvpn', 'expressvpn', 'protonvpn', 'privateinternetaccess',
+                                    'torguard', 'hidemyass', 'vyprvpn', 'ipvanish', 'surfshark')):
             potential_vpn = True
-    except:
+    except Exception:
         pass
-    
-    # Calculate risk levels
+
     attribution_risk = "LOW" if behind_nat else "MEDIUM"
-    stealth_level = "HIGH" if potential_vpn else "MEDIUM" if behind_nat else "LOW"
-    
-    analysis_type = "PASSIVE OSINT"  # We're only doing passive analysis
-    
+    # MEDIUM is the correct floor: active probes (traceroute, ping, HTTP, zone transfer, DNS) always run.
+    # HIGH would require VPN/proxy; LOW is reserved for future full-passive mode.
+    stealth_level = "HIGH" if potential_vpn else "MEDIUM"
+
     return {
         'attribution_risk': attribution_risk,
         'stealth_level': stealth_level,
-        'analysis_type': analysis_type,
+        'analysis_type': "MIXED - Passive APIs + Active Probes",
         'behind_nat': behind_nat,
         'potential_vpn': potential_vpn
     }
@@ -752,27 +752,38 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
 
 
     # OPSEC Assessment
-    risk_color = (Colors.success if opsec_assessment['attribution_risk'] == 'LOW' else 
-                 Colors.warning if opsec_assessment['attribution_risk'] == 'MEDIUM' else Colors.error)
-    
-    stealth_color = (Colors.success if opsec_assessment['stealth_level'] == 'HIGH' else 
-                    Colors.warning if opsec_assessment['stealth_level'] == 'MEDIUM' else Colors.error)
-    
+    risk_color = (Colors.success if opsec_assessment['attribution_risk'] == 'LOW' else
+                  Colors.warning if opsec_assessment['attribution_risk'] == 'MEDIUM' else Colors.error)
+
+    stealth_color = (Colors.success if opsec_assessment['stealth_level'] == 'HIGH' else
+                     Colors.warning if opsec_assessment['stealth_level'] == 'MEDIUM' else Colors.error)
+
     print(f"\nOPSEC Assessment:")
     print(f"├── Analysis Type: {Colors.info(opsec_assessment['analysis_type'])}")
     print(f"├── Attribution Risk: {risk_color(opsec_assessment['attribution_risk'])}")
     print(f"├── Stealth Level: {stealth_color(opsec_assessment['stealth_level'])}")
-    
-    # Network topology info
+
     if opsec_assessment['behind_nat']:
         print(f"├── Network Topology: {Colors.success('NAT Protected')}")
     else:
         print(f"├── Network Topology: {Colors.warning('Direct Connection')}")
-        
+
     if opsec_assessment['potential_vpn']:
-        print(f"└── Proxy/VPN: {Colors.success('Detected')}")
+        print(f"├── Proxy/VPN: {Colors.success('Detected')}")
     else:
-        print(f"└── Proxy/VPN: {Colors.dim('Not Detected')}")
+        print(f"├── Proxy/VPN: {Colors.dim('Not Detected')}")
+
+    print(f"├── Active Probes (target sees your IP):")
+    print(f"│   ├── DNS resolution (direct nameserver query)")
+    print(f"│   ├── Traceroute (ICMP packets to target)")
+    print(f"│   ├── Ping (ICMP to target)")
+    print(f"│   ├── HTTP/S connectivity check")
+    print(f"│   ├── Zone transfer attempt (direct to NS)")
+    print(f"│   └── Subdomain DNS probes")
+    print(f"└── Passive Sources (target does not see your IP):")
+    print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
+    print(f"    ├── SecurityTrails, RobTex, HackerTarget")
+    print(f"    └── crt.sh, ip-api.com")
     
     print(f"\n{Colors.investigation_separator(80)}")
     print("OSINT Tool | Network Intelligence | Asset Discovery")
@@ -835,8 +846,26 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
     vt_result = result.results.get('virustotal', {})
     abuse_result = result.results.get('abuseipdb', {})
     subdomain_result = result.results.get('subdomain', {})
+    whois_result = result.results.get('whois', {})
     risk_factors = []
     overall_risk = "LOW"
+
+    # Domain age check
+    creation_raw = whois_result.get('creation_date') or whois_result.get('createdDate')
+    if creation_raw:
+        try:
+            date_str = str(creation_raw)[:10]
+            created_dt = datetime.strptime(date_str, '%Y-%m-%d')
+            age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - created_dt).days
+            if age_days < 30:
+                risk_factors.append(f"Newly registered domain ({age_days} days old)")
+                overall_risk = "HIGH"
+            elif age_days < 90:
+                risk_factors.append(f"Recently registered domain ({age_days} days old)")
+                if overall_risk == "LOW":
+                    overall_risk = "MEDIUM"
+        except (ValueError, TypeError):
+            pass
 
     wildcard_detected = bool(
         subdomain_result.get('wildcard_detected')
@@ -1484,6 +1513,9 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         if registrant_org != 'Not disclosed':
             print(f"├── Organization: {Colors.dim(registrant_org)}")
         print(f"├── Country: {Colors.dim(registrant_country)}")
+        privacy_proxy = whois_result.get('privacy_proxy')
+        if privacy_proxy:
+            print(f"├── Privacy Proxy: {Colors.warning(privacy_proxy + ' detected')}")
         nameserver_label = f"{len(nameservers)} listed"
         if nameserver_source != 'WHOIS':
             nameserver_label += f" ({nameserver_source})"

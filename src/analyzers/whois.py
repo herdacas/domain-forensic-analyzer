@@ -95,6 +95,39 @@ def _detect_registry_policy(domain: str) -> Optional[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Privacy proxy / WHOIS shield detection
+# --------------------------------------------------------------------------- #
+_PRIVACY_PROXY_SIGNALS: list = [
+    ('WhoisGuard',                  ['whoisguard']),
+    ('Domains By Proxy',            ['domainsbyproxy']),
+    ('PrivacyProtect',              ['privacyprotect']),
+    ('Withheld for Privacy',        ['withheld for privacy', 'withheldforprivacy']),
+    ('Perfect Privacy',             ['perfect privacy', 'perfectprivacy']),
+    ('Identity Protection Service', ['identity protect']),
+    ('Contact Privacy',             ['contact privacy']),
+    ('Data Protected',              ['data protected']),
+    ('Redacted for Privacy',        ['redacted for privacy']),
+    ('Privacy Guardian',            ['privacyguardian']),
+    ('Anonymize.com',               ['anonymize.com']),
+    ('Whois Privacy Protection',    ['whois privacy protection', 'whois privacy']),
+]
+
+
+def _detect_privacy_proxy(registrar: Optional[str], registrant_email: Optional[str],
+                           registrant_name: Optional[str] = None) -> Optional[str]:
+    """Return proxy service name if a known privacy proxy / WHOIS shield is detected."""
+    haystack = ' '.join(filter(None, [
+        str(registrar or '').lower(),
+        str(registrant_email or '').lower(),
+        str(registrant_name or '').lower(),
+    ]))
+    for proxy_name, keywords in _PRIVACY_PROXY_SIGNALS:
+        if any(kw in haystack for kw in keywords):
+            return proxy_name
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # Hilfsfunktion: Datums-Normalisierung (python-whois liefert unterschiedliche Typen)
 # --------------------------------------------------------------------------- #
 def _normalize_date(date_obj: Any) -> Optional[str]:
@@ -159,6 +192,7 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
             "registrant_country": w.get("country"),
             "registrant_email": w.get("email"),
             "registry_policy": _detect_registry_policy(domain),
+            "privacy_proxy": _detect_privacy_proxy(w.registrar, w.get("email"), w.get("name")),
             "raw_text": str(w)
         }
         logger.debug(f"WHOIS lokal erfolgreich für {domain}")
@@ -227,6 +261,11 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
             "audit_updated_date": record.get("audit", {}).get("updatedDate"),
             "historical_available": bool(record.get("dataHistory")),
             "registry_policy": _detect_registry_policy(domain),
+            "privacy_proxy": _detect_privacy_proxy(
+                record.get("registrarName"),
+                registrant.get("email") or record.get("contactEmail"),
+                registrant.get("name"),
+            ),
             "raw_json": data
         }
         logger.debug(f"WHOIS WhoisXML API erfolgreich für {domain}")

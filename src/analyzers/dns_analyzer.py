@@ -234,71 +234,24 @@ class DNSAnalyzer:
         return result.stdout or ""
 
     def _analyze_mx_records(self, domain: str) -> Dict[str, List[Dict[str, str]]]:
-        """Ermittelt MX-Records ueber nslookup und normalisiert das Ergebnis."""
-        output = self._query_nslookup('MX', domain)
-        if output is None:
+        """Ermittelt MX-Records via dnspython fuer vollstaendige FQDNs."""
+        try:
+            answer = self._create_resolver().resolve(domain, 'MX')
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN,
+                dns.resolver.NoNameservers, dns.exception.Timeout):
+            return {'mx_records': []}
+        except Exception:
             return {'mx_records': []}
 
-        mx_records = self._parse_mx_records(output)
-        return {'mx_records': mx_records}
-    
-    def _parse_mx_records(self, nslookup_output: str) -> List[Dict[str, str]]:
-        """
-        Parst MX-Zeilen aus der nslookup-Ausgabe.
-
-        Die Logik ist absichtlich einfach gehalten:
-        - nur relevante Zeilen mit "mail exchanger"
-        - nur Prioritaet + Zielhost
-        - Duplikate werden ueber den Hostnamen entfernt
-        """
+        seen: set = set()
         mx_records: List[Dict[str, str]] = []
-
-        for line in nslookup_output.splitlines():
-            if 'mail exchanger' not in line.lower():
+        for rdata in sorted(answer, key=lambda r: r.preference):
+            server = str(rdata.exchange).rstrip('.')
+            if not server or server.lower() in seen:
                 continue
-
-            priority, server = self._extract_mx_parts(line)
-            if priority and server:
-                mx_records.append({'priority': priority, 'server': server})
-
-        return self._deduplicate_mx_records(mx_records)
-
-    def _extract_mx_parts(self, line: str) -> tuple[Optional[str], Optional[str]]:
-        """Extrahiert Prioritaet und Zielhost aus einer einzelnen MX-Zeile."""
-        parts = line.strip().split()
-        if not parts:
-            return None, None
-
-        if '=' in parts:
-            equals_index = parts.index('=')
-            if equals_index + 2 < len(parts):
-                priority = self._clean_priority(parts[equals_index + 1])
-                server = self._normalize_hostname(parts[equals_index + 2])
-                if priority and server:
-                    return priority, server
-
-        for index, part in enumerate(parts):
-            priority = self._clean_priority(part)
-            if priority and index + 1 < len(parts):
-                server = self._normalize_hostname(parts[index + 1])
-                if server and server.lower() != 'exchanger':
-                    return priority, server
-
-        return None, None
-
-    def _deduplicate_mx_records(self, mx_records: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """Entfernt doppelte MX-Eintraege anhand des Zielhosts."""
-        unique_records: List[Dict[str, str]] = []
-        seen_servers = set()
-
-        for mx_record in mx_records:
-            server = mx_record['server'].lower()
-            if server in seen_servers:
-                continue
-            seen_servers.add(server)
-            unique_records.append(mx_record)
-
-        return unique_records
+            seen.add(server.lower())
+            mx_records.append({'priority': str(rdata.preference), 'server': server})
+        return {'mx_records': mx_records}
     
     def _analyze_ns_records(self, domain: str) -> Dict[str, List[str]]:
         """Ermittelt NS-Records ueber nslookup und normalisiert das Ergebnis."""
