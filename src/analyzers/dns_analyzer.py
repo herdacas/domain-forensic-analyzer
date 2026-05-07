@@ -45,7 +45,7 @@ class DNSAnalyzer:
         # turning the DNS module into a slow brute-force pass.
         self.common_dkim_selectors = [
             'default', 'selector1', 'selector2', 'google',
-            'dkim', 'mail', 'k1', 'amazonses'
+            'dkim', 'mail', 'k1', 'amazonses', 's1', 'smtp'
         ]
 
     def _create_resolver(self, nameservers: Optional[List[str]] = None) -> dns.resolver.Resolver:
@@ -83,16 +83,11 @@ class DNSAnalyzer:
         Returns:
             Ein kompaktes Ergebnis-Dictionary fuer den Hauptworkflow.
         """
-        print(Colors.header("DNS FOUNDATION ANALYSIS"))
-        print(Colors.investigation_separator(60))
-        
         if not DomainValidator.is_valid_domain(domain):
             error_msg = f"Ungueltige Domain: {domain}"
-            print(Colors.error(error_msg))
             return {'error': error_msg, 'analysis_status': 'fehlgeschlagen'}
-        
+
         clean_domain = DomainValidator.clean_domain(domain)
-        print(f"Analysiere Domain: {Colors.format_domain(clean_domain)}")
         
         # Das Basisschema bleibt absichtlich klein und stabil.
         results = {
@@ -100,12 +95,16 @@ class DNSAnalyzer:
             'ipv4': None,
             'ipv6': None,
             'reverse_dns': None,
+            'a_record_ttl': None,
             'mx_records': [],
+            'mx_record_ttl': None,
             'ns_records': [],
+            'ns_record_ttl': None,
             'soa_record': {},
             'txt_records': [],
             'spf_record': None,
             'spf_analysis': {},
+            'spf_includes': [],
             'dmarc_record': None,
             'dmarc_analysis': {},
             'dkim': {},
@@ -115,22 +114,23 @@ class DNSAnalyzer:
             'dns_configuration_assessment': {},
         }
         
-        print(f"\n{Colors.section_header('DNS RESOLUTION', 50)}")
         results.update(self._resolve_ipv4(clean_domain))
         results.update(self._resolve_ipv6(clean_domain))
-        
+        results.update(self._resolve_a_ttl(clean_domain))
+
         if results.get('ipv4'):
             results.update(self._reverse_dns_lookup(results['ipv4']))
-        
-        print(f"\n{Colors.section_header('DNS RECORDS', 50)}")
-        results.update(self._analyze_mx_records(clean_domain))
-        results.update(self._analyze_ns_records(clean_domain))
 
-        print(f"\n{Colors.section_header('DNS FORENSICS', 50)}")
+        results.update(self._analyze_mx_records(clean_domain))
+        results.update(self._resolve_mx_ttl(clean_domain))
+        results.update(self._analyze_ns_records(clean_domain))
+        results.update(self._resolve_ns_ttl(clean_domain))
+
         results.update(self._analyze_soa_record(clean_domain))
         results.update(self._analyze_txt_records(clean_domain))
         results.update(self._analyze_spf_record(results.get('txt_records', [])))
         results.update(self._analyze_spf_policy(results.get('spf_record')))
+        results.update(self._resolve_spf_includes_chain(results.get('spf_record'), clean_domain))
         results.update(self._analyze_dmarc_record(clean_domain))
         results.update(self._analyze_dmarc_configuration(results.get('dmarc_record')))
         results.update(self._analyze_dkim_selectors(clean_domain))
@@ -149,7 +149,6 @@ class DNSAnalyzer:
         )
         
         results['analysis_status'] = 'abgeschlossen'
-        self._display_summary(results)
         return results
 
     @contextmanager
@@ -174,14 +173,11 @@ class DNSAnalyzer:
             with self._socket_timeout():
                 ipv4_address = socket.gethostbyname(domain)
             
-            print(f"  {Colors.success('IPv4:')} {Colors.format_ip(ipv4_address)}")
             return {'ipv4': ipv4_address}
-            
+
         except socket.gaierror:
-            print(f"  {Colors.error('IPv4:')} Aufloesung fehlgeschlagen")
             return {'ipv4': None}
         except Exception:
-            print(f"  {Colors.error('IPv4:')} Unerwarteter Fehler")
             return {'ipv4': None}
     
     def _resolve_ipv6(self, domain: str) -> Dict[str, Optional[str]]:
@@ -192,14 +188,11 @@ class DNSAnalyzer:
             
             if addr_info:
                 ipv6_address = addr_info[0][4][0]
-                print(f"  {Colors.success('IPv6:')} {Colors.format_ip(ipv6_address)}")
                 return {'ipv6': ipv6_address}
 
-            print(f"  {Colors.warning('IPv6:')} Nicht konfiguriert")
             return {'ipv6': None}
-                
+
         except (socket.gaierror, OSError):
-            print(f"  {Colors.warning('IPv6:')} Nicht verfuegbar")
             return {'ipv6': None}
     
     def _reverse_dns_lookup(self, ip_address: str) -> Dict[str, Optional[str]]:
@@ -208,11 +201,9 @@ class DNSAnalyzer:
             with self._socket_timeout():
                 hostname = socket.gethostbyaddr(ip_address)[0]
             
-            print(f"  {Colors.success('Reverse DNS:')} {Colors.format_domain(hostname)}")
             return {'reverse_dns': hostname}
-            
+
         except (socket.herror, socket.gaierror, OSError):
-            print(f"  {Colors.warning('Reverse DNS:')} Nicht verfuegbar")
             return {'reverse_dns': None}
     
     def _query_nslookup(self, record_type: str, domain: str) -> Optional[str]:
@@ -233,10 +224,8 @@ class DNSAnalyzer:
                 errors='replace'
             )
         except subprocess.TimeoutExpired:
-            print(f"    {Colors.error('Timeout nach')} {self.dns_timeout}s")
             return None
-        except Exception as error:
-            print(f"    {Colors.error('Fehler:')} {error}")
+        except Exception:
             return None
 
         if result.returncode != 0:
@@ -246,23 +235,11 @@ class DNSAnalyzer:
 
     def _analyze_mx_records(self, domain: str) -> Dict[str, List[Dict[str, str]]]:
         """Ermittelt MX-Records ueber nslookup und normalisiert das Ergebnis."""
-        print(f"  {Colors.info('MX-Records:')} Abfrage...")
-
         output = self._query_nslookup('MX', domain)
         if output is None:
             return {'mx_records': []}
 
         mx_records = self._parse_mx_records(output)
-        if mx_records:
-            print(f"    {Colors.success('Gefunden:')} {len(mx_records)} Mail-Server")
-            for index, mx_record in enumerate(mx_records[:3], 1):
-                print(
-                    f"    {index}. {Colors.format_domain(mx_record['server'])} "
-                    f"(Prioritaet: {mx_record['priority']})"
-                )
-        else:
-            print(f"    {Colors.warning('Keine Mail-Server konfiguriert')}")
-
         return {'mx_records': mx_records}
     
     def _parse_mx_records(self, nslookup_output: str) -> List[Dict[str, str]]:
@@ -325,20 +302,11 @@ class DNSAnalyzer:
     
     def _analyze_ns_records(self, domain: str) -> Dict[str, List[str]]:
         """Ermittelt NS-Records ueber nslookup und normalisiert das Ergebnis."""
-        print(f"  {Colors.info('NS-Records:')} Abfrage...")
-
         output = self._query_nslookup('NS', domain)
         if output is None:
             return {'ns_records': []}
 
         ns_records = self._parse_ns_records(output, domain)
-        if ns_records:
-            print(f"    {Colors.success('Gefunden:')} {len(ns_records)} Nameserver")
-            for index, nameserver in enumerate(ns_records[:3], 1):
-                print(f"    {index}. {Colors.format_domain(nameserver)}")
-        else:
-            print(f"    {Colors.warning('Keine Nameserver gefunden')}")
-
         return {'ns_records': ns_records}
     
     def _parse_ns_records(self, nslookup_output: str, domain: str) -> List[str]:
@@ -366,10 +334,8 @@ class DNSAnalyzer:
 
     def _analyze_soa_record(self, domain: str) -> Dict[str, Dict[str, Any]]:
         """Ermittelt den SOA-Record als Grundlage fuer DNS-Zonenvaliditaet."""
-        print(f"  {Colors.info('SOA-Record:')} Abfrage...")
         records = self._resolve_dns_records(domain, 'SOA')
         if not records:
-            print(f"    {Colors.warning('Nicht verfuegbar')}")
             return {'soa_record': {}}
 
         soa = records[0]
@@ -382,31 +348,18 @@ class DNSAnalyzer:
             'expire': int(soa.expire),
             'minimum_ttl': int(soa.minimum),
         }
-        print(f"    {Colors.success('Primary NS:')} {soa_record['primary_nameserver']}")
-        print(f"    {Colors.success('Serial:')} {soa_record['serial']}")
         return {'soa_record': soa_record}
 
     def _analyze_txt_records(self, domain: str) -> Dict[str, List[str]]:
         """Ermittelt TXT-Records fuer SPF- und Policy-bezogene Hinweise."""
-        print(f"  {Colors.info('TXT-Records:')} Abfrage...")
         records = self._resolve_dns_records(domain, 'TXT')
         txt_records = [self._normalize_txt_record(record) for record in records]
         txt_records = [record for record in txt_records if record]
-
-        if txt_records:
-            print(f"    {Colors.success('Gefunden:')} {len(txt_records)} TXT-Records")
-        else:
-            print(f"    {Colors.warning('Keine TXT-Records gefunden')}")
-
         return {'txt_records': txt_records}
 
     def _analyze_spf_record(self, txt_records: List[str]) -> Dict[str, Optional[str]]:
         """Extrahiert den SPF-Record aus bereits gelesenen TXT-Records."""
         spf_record = next((record for record in txt_records if record.lower().startswith('v=spf1')), None)
-        if spf_record:
-            print(f"  {Colors.success('SPF:')} Vorhanden")
-        else:
-            print(f"  {Colors.warning('SPF:')} Nicht gefunden")
         return {'spf_record': spf_record}
 
     def _analyze_spf_policy(self, spf_record: Optional[str]) -> Dict[str, Dict[str, Any]]:
@@ -474,16 +427,9 @@ class DNSAnalyzer:
 
     def _analyze_dmarc_record(self, domain: str) -> Dict[str, Optional[str]]:
         """Ermittelt den DMARC-Record unter _dmarc.<domain>."""
-        print(f"  {Colors.info('DMARC:')} Abfrage...")
         records = self._resolve_dns_records(f'_dmarc.{domain}', 'TXT')
         normalized_records = [self._normalize_txt_record(record) for record in records]
         dmarc_record = next((record for record in normalized_records if record.lower().startswith('v=dmarc1')), None)
-
-        if dmarc_record:
-            print(f"    {Colors.success('Richtlinie erkannt')}")
-        else:
-            print(f"    {Colors.warning('Nicht gefunden')}")
-
         return {'dmarc_record': dmarc_record}
 
     def _parse_policy_directives(self, record: Optional[str]) -> Dict[str, str]:
@@ -505,13 +451,17 @@ class DNSAnalyzer:
         """Bewertet DMARC-Konfiguration inklusive Policy- und Reporting-Status."""
         directives = self._parse_policy_directives(dmarc_record)
         policy = directives.get('p')
-        has_reporting = bool(directives.get('rua') or directives.get('ruf'))
+        rua = directives.get('rua')
+        ruf = directives.get('ruf')
+        has_reporting = bool(rua or ruf)
 
         analysis = {
             'status': 'missing' if not dmarc_record else 'configured',
             'policy': policy or 'not_set',
             'subdomain_policy': directives.get('sp') or policy or 'not_set',
             'reporting_enabled': has_reporting,
+            'rua': rua,
+            'ruf': ruf,
             'alignment': {
                 'adkim': directives.get('adkim', 'r'),
                 'aspf': directives.get('aspf', 'r')
@@ -545,7 +495,6 @@ class DNSAnalyzer:
         verbreiteter Selektoren und melden Funde, ohne den DNS-Teil unnötig zu
         verlangsamen.
         """
-        print(f"  {Colors.info('DKIM-Selectors:')} Heuristische Discovery...")
         discovered = []
         tested_selectors = []
 
@@ -569,14 +518,7 @@ class DNSAnalyzer:
             if len(discovered) >= 3:
                 break
 
-        if discovered:
-            print(f"    {Colors.success('Gefunden:')} {len(discovered)} DKIM-Selector(en)")
-            for entry in discovered:
-                print(f"    - {entry['selector']}._domainkey")
-            status = 'selectors_found'
-        else:
-            print(f"    {Colors.warning('Keine gaengigen DKIM-Selectoren erkannt')}")
-            status = 'not_detected'
+        status = 'selectors_found' if discovered else 'not_detected'
 
         return {
             'dkim': {
@@ -601,27 +543,19 @@ class DNSAnalyzer:
 
     def _analyze_caa_records(self, domain: str) -> Dict[str, List[Dict[str, Any]]]:
         """Ermittelt CAA-Policies fuer Zertifikatsausstellung."""
-        print(f"  {Colors.info('CAA-Records:')} Abfrage...")
         records = self._resolve_dns_records(domain, 'CAA')
-        caa_records = []
-
-        for record in records:
-            caa_records.append({
+        caa_records = [
+            {
                 'flags': int(record.flags),
                 'tag': self._normalize_caa_field(record.tag),
                 'value': self._normalize_caa_field(record.value)
-            })
-
-        if caa_records:
-            print(f"    {Colors.success('Gefunden:')} {len(caa_records)} CAA-Policies")
-        else:
-            print(f"    {Colors.warning('Keine CAA-Policies gefunden')}")
-
+            }
+            for record in records
+        ]
         return {'caa_records': caa_records}
 
     def _analyze_dnssec(self, domain: str) -> Dict[str, Dict[str, Any]]:
         """Prueft, ob DNSSEC-Hinweise wie DS oder DNSKEY vorhanden sind."""
-        print(f"  {Colors.info('DNSSEC:')} Pruefung...")
         ds_records = self._resolve_dns_records(domain, 'DS')
         dnskey_records = self._resolve_dns_records(domain, 'DNSKEY')
 
@@ -630,12 +564,6 @@ class DNSAnalyzer:
             'has_dnskey': bool(dnskey_records),
             'status': 'enabled' if ds_records or dnskey_records else 'not_detected'
         }
-
-        if dnssec['status'] == 'enabled':
-            print(f"    {Colors.success('DNSSEC erkannt')}")
-        else:
-            print(f"    {Colors.warning('Keine DNSSEC-Indikatoren erkannt')}")
-
         return {'dnssec': dnssec}
 
     def _analyze_zone_transfer(self, domain: str, nameservers: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -645,7 +573,6 @@ class DNSAnalyzer:
         Bereits ein erfolgreicher Transfer waere fuer ein professionelles Tool
         ein sehr relevanter Befund.
         """
-        print(f"  {Colors.info('Zone Transfer (AXFR):')} Pruefung...")
         tested_nameservers = []
 
         for nameserver in nameservers[:3]:
@@ -659,7 +586,6 @@ class DNSAnalyzer:
                     )
                     if zone:
                         record_count = len(zone.nodes.keys())
-                        print(f"    {Colors.error('AXFR erlaubt:')} {nameserver} ({record_count} Records)")
                         return {
                             'zone_transfer': {
                                 'status': 'allowed',
@@ -672,7 +598,6 @@ class DNSAnalyzer:
                 except Exception:
                     continue
 
-        print(f"    {Colors.success('Nicht erlaubt oder gefiltert')}")
         return {
             'zone_transfer': {
                 'status': 'not_allowed',
@@ -765,6 +690,100 @@ class DNSAnalyzer:
             }
         }
 
+    # ------------------------------------------------------------------
+    # TTL helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_a_ttl(self, domain: str) -> Dict[str, Any]:
+        """Ermittelt den TTL des A-Records via dnspython rrset."""
+        try:
+            answer = self._create_resolver().resolve(domain, 'A')
+            return {'a_record_ttl': int(answer.rrset.ttl)}
+        except Exception:
+            return {'a_record_ttl': None}
+
+    def _resolve_mx_ttl(self, domain: str) -> Dict[str, Any]:
+        """Ermittelt den TTL des MX-Records via dnspython rrset."""
+        try:
+            answer = self._create_resolver().resolve(domain, 'MX')
+            return {'mx_record_ttl': int(answer.rrset.ttl)}
+        except Exception:
+            return {'mx_record_ttl': None}
+
+    def _resolve_ns_ttl(self, domain: str) -> Dict[str, Any]:
+        """Ermittelt den TTL des NS-Records via dnspython rrset."""
+        try:
+            answer = self._create_resolver().resolve(domain, 'NS')
+            return {'ns_record_ttl': int(answer.rrset.ttl)}
+        except Exception:
+            return {'ns_record_ttl': None}
+
+    # ------------------------------------------------------------------
+    # SPF include-chain resolution (MAX_DEPTH = 2)
+    # ------------------------------------------------------------------
+
+    _SPF_MAX_DEPTH = 2
+
+    def _resolve_spf_includes_chain(self, spf_record: Optional[str], domain: str) -> Dict[str, Any]:
+        """
+        Loest SPF include-Verweise rekursiv auf (max. 2 Ebenen).
+
+        Gibt eine flache Liste von Eintraegen zurueck, wobei jeder Eintrag
+        den aufgeloesten Domain-Namen, die Tiefe und den gefundenen SPF-Record
+        enthaelt.  Bei Fehler oder fehlender SPF-Antwort wird 'record' None
+        gesetzt und 'error' befuellt.
+        """
+        flat: List[Dict[str, Any]] = []
+        self._walk_spf(spf_record, depth=1, seen=set(), flat=flat)
+        return {'spf_includes': flat}
+
+    def _walk_spf(
+        self,
+        spf_record: Optional[str],
+        depth: int,
+        seen: set,
+        flat: List[Dict[str, Any]],
+    ) -> None:
+        """Rekursiver Walker fuer SPF include-Kette."""
+        if not spf_record or depth > self._SPF_MAX_DEPTH:
+            return
+
+        tokens = spf_record.split()
+        targets: List[str] = []
+        for token in tokens:
+            lower = token.lower()
+            if lower.startswith('include:') and ':' in token:
+                targets.append(token.split(':', 1)[1].strip())
+            elif lower.startswith('redirect=') and '=' in token:
+                targets.append(token.split('=', 1)[1].strip())
+
+        for target in targets:
+            if target in seen:
+                continue
+            seen.add(target)
+
+            entry: Dict[str, Any] = {
+                'domain': target,
+                'depth': depth,
+                'record': None,
+                'error': None,
+            }
+            try:
+                txt_records = self._resolve_dns_records(target, 'TXT')
+                normalized = [self._normalize_txt_record(r) for r in txt_records]
+                included_spf = next(
+                    (r for r in normalized if r.lower().startswith('v=spf1')),
+                    None,
+                )
+                entry['record'] = included_spf
+            except Exception as exc:
+                entry['error'] = str(exc)
+
+            flat.append(entry)
+
+            if entry['record'] and depth < self._SPF_MAX_DEPTH:
+                self._walk_spf(entry['record'], depth + 1, seen, flat)
+
     def _normalize_txt_record(self, record: Any) -> str:
         """Normalisiert TXT-Antworten aus dnspython in eine lesbare Zeichenkette."""
         if hasattr(record, 'strings'):
@@ -793,72 +812,6 @@ class DNSAnalyzer:
             return None
         return hostname
     
-    def _display_summary(self, results: Dict[str, Any]) -> None:
-        """Zeigt eine kompakte Modul-Zusammenfassung fuer Standalone-Laeufe."""
-        print(f"\n{Colors.investigation_separator(60)}")
-        print(Colors.header("DNS ANALYSIS SUMMARY"))
-        print(Colors.investigation_separator(60))
-        
-        print(f"Domain: {Colors.format_domain(results['domain'])}")
-        
-        if results.get('ipv4'):
-            print(f"IPv4: {Colors.success('RESOLVED')} -> {Colors.format_ip(results['ipv4'])}")
-            
-            if results.get('reverse_dns'):
-                print(f"Reverse DNS: {Colors.success('AVAILABLE')} -> {Colors.format_domain(results['reverse_dns'])}")
-            else:
-                print(f"Reverse DNS: {Colors.warning('NOT AVAILABLE')}")
-        else:
-            print(f"IPv4: {Colors.error('RESOLUTION FAILED')}")
-        
-        if results.get('ipv6'):
-            print(f"IPv6: {Colors.success('CONFIGURED')} -> {Colors.format_ip(results['ipv6'])}")
-        else:
-            print(f"IPv6: {Colors.warning('NOT CONFIGURED')}")
-        
-        mx_count = len(results.get('mx_records', []))
-        if mx_count > 0:
-            print(f"Mail Servers: {Colors.success(f'{mx_count} CONFIGURED')}")
-        else:
-            print(f"Mail Servers: {Colors.warning('NONE CONFIGURED')}")
-        
-        ns_count = len(results.get('ns_records', []))
-        if ns_count > 0:
-            print(f"Name Servers: {Colors.success(f'{ns_count} FOUND')}")
-        else:
-            print(f"Name Servers: {Colors.warning('NONE FOUND')}")
-
-        if results.get('soa_record'):
-            print(f"SOA: {Colors.success('AVAILABLE')}")
-        else:
-            print(f"SOA: {Colors.warning('NOT AVAILABLE')}")
-
-        if results.get('dmarc_record'):
-            print(f"DMARC: {Colors.success('CONFIGURED')}")
-        else:
-            print(f"DMARC: {Colors.warning('NOT CONFIGURED')}")
-
-        if results.get('dkim', {}).get('status') == 'selectors_found':
-            selector_count = len(results.get('dkim', {}).get('selectors', []) or [])
-            print(f"DKIM: {Colors.success(f'{selector_count} SELECTOR(S) DISCOVERED')}")
-        else:
-            print(f"DKIM: {Colors.warning('NO COMMON SELECTORS DETECTED')}")
-
-        if results.get('dnssec', {}).get('status') == 'enabled':
-            print(f"DNSSEC: {Colors.success('DETECTED')}")
-        else:
-            print(f"DNSSEC: {Colors.warning('NOT DETECTED')}")
-
-        assessment_summary = (
-            results.get('dns_configuration_assessment', {}).get('summary')
-            or 'not assessed'
-        )
-        print(f"DNS Assessment: {Colors.info(str(assessment_summary).upper())}")
-        
-        print(Colors.investigation_separator(60))
-        print(f"Analysis Status: {Colors.success('COMPLETE')}")
-        print(Colors.investigation_separator(60))
-
 def main():
     """
     Einfache Standalone-Smoke-Tests fuer das DNS-Modul.

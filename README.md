@@ -6,7 +6,7 @@ The project is currently CLI-first and report-focused. It is designed for defens
 
 ## Current Capabilities
 
-The analyzer now runs 9 core modules in sequence:
+The analyzer runs 10 core modules in sequence:
 
 1. `dns` - current DNS resolution and DNS hardening checks
 2. `whois` - registration intelligence via WhoisXML API with local WHOIS fallback
@@ -17,6 +17,7 @@ The analyzer now runs 9 core modules in sequence:
 7. `securitytrails` - SecurityTrails domain intelligence
 8. `abuseipdb` - IP reputation intelligence
 9. `virustotal` - domain reputation and category intelligence
+10. `ip_history` - reverse-IP lookup and co-hosted domain intelligence
 
 The final report includes:
 
@@ -39,13 +40,17 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Run the analyzer:
+Run the analyzer interactively:
 
 ```powershell
-python src/core/domain_analyzer.py
+python run.py
 ```
 
-The tool prompts for a target domain and renders a terminal report.
+Or pass the target domain directly to skip the interactive prompt:
+
+```powershell
+python run.py freecash.com
+```
 
 ## API Configuration
 
@@ -107,17 +112,18 @@ WhoisXML also supports the environment-first pattern used by the analyzer:
 
 - A and AAAA records
 - reverse DNS
-- nameservers
-- MX records
-- SOA metadata
+- nameservers with TTL
+- MX records with priority and TTL
+- A record TTL
+- SOA metadata (primary NS, serial)
 - TXT records
-- SPF policy and enforcement mode
-- DMARC policy and reporting
-- heuristic DKIM selector discovery
-- CAA policy
+- SPF policy, enforcement mode, and recursive include chain (depth ≤ 2)
+- DMARC policy, subdomain policy (`sp=`), and reporting addresses (`rua=`, `ruf=`) separately
+- heuristic DKIM selector discovery (10 common selectors including `s1`, `smtp`, `google`, `mail`)
+- CAA policy with explicit `issuewild` reporting
 - DNSSEC detection
 - zone-transfer testing
-- DNS configuration assessment
+- DNS configuration assessment with hardening-gap findings
 
 The final report surfaces DNS hardening gaps such as soft-fail SPF, monitor-only DMARC, missing DMARC, absent DNSSEC, missing CAA, and zone-transfer exposure.
 
@@ -132,8 +138,9 @@ The final report surfaces DNS hardening gaps such as soft-fail SPF, monitor-only
 - registrant name, organization, country, and email when available
 - nameserver extraction
 - source attribution
+- registry policy detection for WHOIS-redacting TLDs
 
-Some registries, especially `.de`, may not expose all registration fields through API or local WHOIS. In those cases the report keeps unknown fields explicit instead of inventing data.
+Registries known to redact WHOIS fields by policy are detected automatically. Affected fields display "Not disclosed by registry (DENIC policy)" instead of a blank "Unknown", and a Registry Note line explains the policy at the top of the WHOIS block. Covered TLDs: `.de` (DENIC), `.at` (nic.at), `.ch` (SWITCH), `.nl` (SIDN), `.fi`, `.no`, `.se`, `.dk`.
 
 ### DNS History Timeline
 
@@ -149,17 +156,20 @@ Data sources:
 The DNS history report includes:
 
 - data source attribution
+- first seen date (earliest across all passive sources and WHOIS creation date)
+- current IP first seen date with age label (relatively recent / established / long-standing)
+- NS record changes grouped by date as real migration events
+- MX record changes grouped by date as real migration events
+- Certificate Transparency history from crt.sh (certificate count and date range)
 - timeline span
 - major change count
-- recent historical events
-- previous and new values where available
-- change classification
+- recent historical events (non-certificate, top 3)
 - change-frequency assessment
 - infrastructure-stability assessment
 - suspicious-pattern detection
 - historical risk events
 
-Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn.
+Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, and A events are kept in dedicated buckets separate from the display timeline so that high-volume CT activity cannot crowd out DNS records.
 
 ### Infrastructure Detection
 
@@ -197,6 +207,16 @@ The report distinguishes:
 
 Wildcard DNS is treated as a semantic constraint, not automatically as a risk.
 
+### IP and Domain History
+
+`src/analyzers/ip_history_analyzer.py` provides reverse-IP and co-hosted domain intelligence:
+
+- domain IP history extracted from the DNS history timeline (deduped, newest first)
+- reverse-IP lookup from three passive sources: VirusTotal, RobTex, and HackerTarget
+- CDN-aware branching: CDN IPs display co-hosted domain samples with count; direct IPs display per-source breakdowns
+- infrastructure assessment: dedicated server, VPS, shared hosting, or CDN shared infrastructure
+- top 20 co-hosted domains merged and deduplicated across sources
+
 ### Threat Intelligence
 
 The analyzer integrates:
@@ -222,6 +242,7 @@ INFRASTRUCTURE
 NETWORK PATH
 ATTACK SURFACE
 THREAT INTELLIGENCE
+IP & DOMAIN HISTORY
 RISK ASSESSMENT
 EXECUTION
 ```
@@ -270,6 +291,12 @@ The test suite covers:
 
 ## Recent Major Updates
 
+- **IP & Domain History module** — reverse-IP lookup from VirusTotal, RobTex, and HackerTarget; domain IP history from passive DNS timeline; CDN-aware co-hosted domain display.
+- **DNS History Timeline extended** — first seen date, current IP first seen with age label, NS/MX change events grouped by date, Certificate Transparency history block. Fixed CT-event inflation of pattern analysis, fixed timeline span computation, fixed bucket isolation so CT cannot crowd out DNS records.
+- **DNS Forensics extended** — TTL values on A/NS/MX records, SPF include chain recursive (depth ≤ 2), DMARC sp=/rua=/ruf= separately, CAA issuewild explicit, DKIM selectors expanded.
+- **WHOIS registry policy awareness** — DENIC and 7 other redacting registries detected; "Not disclosed by registry" replaces silent Unknown; Registry Note line added.
+- **CLI argument support** — `python run.py domain.com` skips interactive prompt.
+- **CDN detector fix** — Cloudflare 104.24–104.27 ranges added; prevents misidentification as Azure.
 - Added WHOIS registration module with WhoisXML support.
 - Added DNS forensics for SPF, DMARC, DKIM, CAA, DNSSEC, SOA, TXT, and zone transfer.
 - Added DNS History Timeline module.

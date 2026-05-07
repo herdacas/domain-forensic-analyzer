@@ -80,9 +80,15 @@ class DNSHistoryAnalyzer:
     def analyze_dns_history(self, domain: str) -> Dict[str, Any]:
         """Build a unified historical DNS timeline for a domain."""
         clean_domain = domain.strip().lower()
+
+        # RobTex is the primary free passive DNS source (no API key required).
+        # VirusTotal provides IP resolution history when an API key is present.
+        # SecurityTrails adds record-level history when quota is available.
+        # crt.sh certificate transparency is kept as opportunistic supplement.
         source_results = {
-            "securitytrails": self._collect_securitytrails_history(clean_domain),
+            "robtex": self._collect_robtex_history(clean_domain),
             "virustotal": self._collect_virustotal_history(clean_domain),
+            "securitytrails": self._collect_securitytrails_history(clean_domain),
             "certificate_transparency": self._collect_certificate_transparency(clean_domain),
         }
 
@@ -90,10 +96,13 @@ class DNSHistoryAnalyzer:
         errors = []
         data_sources = []
         for source_name, source_result in source_results.items():
-            if source_result.get("status") == "success":
+            status = source_result.get("status")
+            if status == "success":
                 if source_result.get("events"):
                     data_sources.append(source_result.get("label", source_name))
                 events.extend(source_result.get("events", []))
+            elif status == "quota_exceeded":
+                errors.append(f"{source_name}: API quota exceeded")
             elif source_result.get("error"):
                 errors.append(f"{source_name}: {source_result['error']}")
 
@@ -102,9 +111,35 @@ class DNSHistoryAnalyzer:
             events.extend(fallback["events"])
             data_sources.append(fallback["label"])
 
-        timeline = self._deduplicate_and_sort_events(events)
+        all_unique = self._deduplicate_events(events)
+        # Span and per-type buckets come from ALL events — not affected by display limit.
+        span = self._calculate_timeline_span(all_unique)
+        a_events = sorted(
+            [e for e in all_unique if e.get("record_type") in ("A", "AAAA")],
+            key=lambda e: self._sort_key(e.get("date")),
+            reverse=True,
+        )[:50]
+        ns_events = sorted(
+            [e for e in all_unique if e.get("record_type") == "NS"],
+            key=lambda e: self._sort_key(e.get("date")),
+        )[:30]
+        mx_events = sorted(
+            [e for e in all_unique if e.get("record_type") == "MX"],
+            key=lambda e: self._sort_key(e.get("date")),
+        )[:30]
+        # Display timeline capped at 60; excludes CT to avoid crowding out DNS events.
+        timeline = sorted(
+            [e for e in all_unique if e.get("record_type") != "CT"],
+            key=lambda e: self._sort_key(e.get("date")),
+            reverse=True,
+        )[:60]
+        # CT events counted separately for the certificate history block.
+        ct_events = sorted(
+            [e for e in all_unique if e.get("record_type") == "CT"],
+            key=lambda e: self._sort_key(e.get("date")),
+            reverse=True,
+        )[:60]
         pattern_analysis = self._analyze_patterns(timeline)
-        span = self._calculate_timeline_span(timeline)
 
         return {
             "analysis_status": "abgeschlossen",
@@ -114,9 +149,67 @@ class DNSHistoryAnalyzer:
             "timeline_span": span,
             "major_changes": len([event for event in timeline if event.get("severity") in ["medium", "high"]]),
             "timeline": timeline,
+            "a_history": a_events,
+            "ns_history": ns_events,
+            "mx_history": mx_events,
+            "ct_history": ct_events,
             "pattern_analysis": pattern_analysis,
             "historical_risk_events": pattern_analysis.get("historical_risk_events", []),
             "source_errors": errors,
+        }
+
+    def _collect_robtex_history(self, domain: str) -> Dict[str, Any]:
+        """Collect passive DNS history from RobTex (free, no API key required).
+
+        Returns one event per unique (rrtype, rrdata) pair with first/last-seen
+        timestamps derived from Unix epoch values in the response.
+        """
+        endpoint = f"https://freeapi.robtex.com/pdns/forward/{domain}"
+        try:
+            response = self.session.get(endpoint, timeout=20)
+            if response.status_code == 404:
+                return {"status": "failed", "label": "RobTex", "events": [], "error": "domain not found"}
+            response.raise_for_status()
+        except Exception as error:
+            return {"status": "failed", "label": "RobTex", "events": [], "error": str(error)}
+
+        events = []
+        for raw_line in response.text.strip().splitlines():
+            raw_line = raw_line.strip()
+            if not raw_line:
+                continue
+            try:
+                entry = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+
+            rrtype = str(entry.get("rrtype", "")).upper()
+            rrdata = str(entry.get("rrdata", "")).strip().rstrip(".")
+            if not rrtype or not rrdata:
+                continue
+
+            time_first = entry.get("time_first")
+            time_last = entry.get("time_last")
+            first_seen = self._normalize_timestamp(time_first)
+            last_seen = self._normalize_timestamp(time_last)
+
+            events.append(self._make_event(
+                event_date=first_seen,
+                change_type=f"{rrtype} record observed",
+                record_type=rrtype,
+                source="RobTex",
+                previous_value=None,
+                new_value=[rrdata],
+                classification=self._classify_change(rrtype.lower(), [rrdata]),
+                severity="low",
+                last_seen=last_seen,
+            ))
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "RobTex",
+            "events": events,
+            "error": None if events else "no records returned",
         }
 
     def _collect_securitytrails_history(self, domain: str) -> Dict[str, Any]:
@@ -133,6 +226,8 @@ class DNSHistoryAnalyzer:
                 response = self.session.get(endpoint, headers=headers, timeout=25)
                 if response.status_code == 404:
                     continue
+                if response.status_code == 429:
+                    return {"status": "quota_exceeded", "label": "SecurityTrails", "events": []}
                 response.raise_for_status()
                 payload = response.json()
                 events.extend(self._parse_securitytrails_records(record_type, payload))
@@ -315,8 +410,9 @@ class DNSHistoryAnalyzer:
             "severity": severity,
         }
 
-    def _deduplicate_and_sort_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        seen = set()
+    def _deduplicate_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Deduplicate events without applying a display limit."""
+        seen: set = set()
         unique_events = []
         for event in events:
             key = (
@@ -329,7 +425,10 @@ class DNSHistoryAnalyzer:
                 continue
             seen.add(key)
             unique_events.append(event)
+        return unique_events
 
+    def _deduplicate_and_sort_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        unique_events = self._deduplicate_events(events)
         return sorted(unique_events, key=lambda item: self._sort_key(item.get("date")), reverse=True)[:60]
 
     def _calculate_timeline_span(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -349,6 +448,7 @@ class DNSHistoryAnalyzer:
         change_events = [
             event for event in timeline
             if event.get("classification") != "Load-balanced resolution set"
+            and event.get("record_type") != "CT"
         ]
         total_events = len(change_events)
         span = self._calculate_timeline_span(timeline)
@@ -384,7 +484,12 @@ class DNSHistoryAnalyzer:
 
         if suspicious:
             risk_level = "MEDIUM" if len(suspicious) < 3 else "HIGH"
-            stability = "volatile"
+            # "volatile" only when change rate is actually high; historical patterns on
+            # established domains (many IPs, NS migrations over years) are "moderately dynamic"
+            if monthly_rate >= 5 or len(suspicious) >= 3:
+                stability = "volatile"
+            else:
+                stability = "moderately dynamic"
         elif load_balanced_sets and not suspicious:
             risk_level = "LOW"
             stability = "load-balanced / distributed"

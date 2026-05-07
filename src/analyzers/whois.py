@@ -74,6 +74,27 @@ def _load_whoisxml_api_key() -> Optional[str]:
 WHOISXML_API_KEY = _load_whoisxml_api_key()
 
 # --------------------------------------------------------------------------- #
+# Registries known to redact WHOIS fields by policy
+# --------------------------------------------------------------------------- #
+REDACTING_REGISTRIES: Dict[str, str] = {
+    '.de': 'DENIC',
+    '.at': 'nic.at',
+    '.ch': 'SWITCH',
+    '.nl': 'SIDN',
+    '.fi': 'Traficom',
+    '.no': 'Norid',
+    '.se': 'IIS',
+    '.dk': 'DK Hostmaster',
+}
+
+
+def _detect_registry_policy(domain: str) -> Optional[str]:
+    """Return registry name if TLD is known to redact WHOIS data by policy."""
+    tld = '.' + domain.strip().lower().rsplit('.', 1)[-1]
+    return REDACTING_REGISTRIES.get(tld)
+
+
+# --------------------------------------------------------------------------- #
 # Hilfsfunktion: Datums-Normalisierung (python-whois liefert unterschiedliche Typen)
 # --------------------------------------------------------------------------- #
 def _normalize_date(date_obj: Any) -> Optional[str]:
@@ -137,6 +158,7 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
             "registrant_organization": w.get("org"),
             "registrant_country": w.get("country"),
             "registrant_email": w.get("email"),
+            "registry_policy": _detect_registry_policy(domain),
             "raw_text": str(w)
         }
         logger.debug(f"WHOIS lokal erfolgreich für {domain}")
@@ -204,6 +226,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
             "audit_created_date": record.get("audit", {}).get("createdDate"),
             "audit_updated_date": record.get("audit", {}).get("updatedDate"),
             "historical_available": bool(record.get("dataHistory")),
+            "registry_policy": _detect_registry_policy(domain),
             "raw_json": data
         }
         logger.debug(f"WHOIS WhoisXML API erfolgreich für {domain}")

@@ -41,6 +41,7 @@ try:
     from src.analyzers.securitytrails_client import SecurityTrailsClient
     from src.analyzers.abuseipdb_client import AbuseIPDBClient
     from src.analyzers.virustotal_client import VirusTotalClient
+    from src.analyzers.ip_history_analyzer import IPHistoryAnalyzer
     CORE_MODULES_AVAILABLE = True
 except ImportError as error:
     CORE_MODULES_AVAILABLE = False
@@ -121,7 +122,7 @@ class DomainAnalyzer:
         # Order in which modules will be executed
         self.module_execution_order = [
             'dns', 'whois', 'dns_history', 'cdn', 'network', 'subdomain',
-            'securitytrails', 'abuseipdb', 'virustotal'
+            'securitytrails', 'abuseipdb', 'virustotal', 'ip_history'
         ]
         
         # Maximum time each module is allowed to run before being stopped
@@ -134,7 +135,8 @@ class DomainAnalyzer:
             'subdomain': 180,
             'securitytrails': 30,
             'abuseipdb': 30,
-            'virustotal': 30
+            'virustotal': 30,
+            'ip_history': 45
         }
         
         # Variables to track current analysis state
@@ -189,7 +191,8 @@ class DomainAnalyzer:
             'network': NetworkIntelligence,
             'securitytrails': SecurityTrailsClient,
             'abuseipdb': AbuseIPDBClient,
-            'virustotal': VirusTotalClient
+            'virustotal': VirusTotalClient,
+            'ip_history': IPHistoryAnalyzer
         }
         
         # Try to create each module, log warnings for any that fail
@@ -310,7 +313,14 @@ class DomainAnalyzer:
         ])
         if dns_history_used_external:
             api_success += 1
-        api_total = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
+        ip_history_succeeded = (
+            self.execution_metrics.get('ip_history') is not None
+            and self.execution_metrics['ip_history'].success
+        )
+        if ip_history_succeeded:
+            api_success += 1
+        _base_api_total = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
+        api_total = _base_api_total + (1 if 'ip_history' in modules_to_run else 0)
         
         print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful | "
               f"{failed} failed | {timeout} timeout | APIs: {api_success}/{api_total} | Total: {total_time:.1f}s")
@@ -506,7 +516,18 @@ class DomainAnalyzer:
         elif module_name == 'virustotal':
             # VirusTotal can check domain directly
             return module.analyze_domain_reputation(domain)
-        
+
+        elif module_name == 'ip_history':
+            current = self.current_analysis or {}
+            dns_result = current.get('results', {}).get('dns', {})
+            ip_address = dns_result.get('ipv4')
+            if not ip_address:
+                ip_address = dns_result.get('fallback_data', {}).get('ipv4')
+            if ip_address:
+                return module.analyze_reverse_ip(ip_address, domain)
+            else:
+                raise Exception("No IP address available for reverse IP analysis")
+
         else:
             raise Exception(f"Unknown module: {module_name}")
     
@@ -594,6 +615,13 @@ class DomainAnalyzer:
                     'threat_level': 'UNKNOWN',
                     'threat_description': 'Analysis failed'
                 }
+            },
+            'ip_history': {
+                'ip_address': 'unknown',
+                'domain': domain,
+                'sources': {},
+                'total_co_hosted': 0,
+                'top_co_hosted': []
             }
         }
         
@@ -764,28 +792,37 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     }
 
 def get_domain_input() -> str:
-    """Get domain name from user input with validation - minimal version for pre-header use"""
+    """Get domain name from user input or CLI argument with validation."""
+    # Accept domain from command-line argument if provided
+    if len(sys.argv) > 1:
+        candidate = sys.argv[1].strip()
+        if DomainValidator.is_valid_domain(candidate):
+            return DomainValidator.clean_domain(candidate)
+        else:
+            print(f"Invalid domain argument: {candidate!r}")
+            sys.exit(1)
+
     print(Colors.header("DOMAIN FORENSIC ANALYZER"))
     print("Target Domain Selection")
     print(Colors.investigation_separator(40))
-    
+
     while True:
         try:
             domain = input(f"Enter target domain: ").strip()
-            
+
             if not domain:
                 print("Please enter a domain.")
                 continue
-            
+
             if domain.lower() in ['exit', 'quit', 'q']:
                 print("Goodbye!")
                 sys.exit(0)
-            
+
             if DomainValidator.is_valid_domain(domain):
                 return DomainValidator.clean_domain(domain)
             else:
                 print("Invalid domain format. Try again.")
-                
+
         except KeyboardInterrupt:
             print("\nGoodbye!")
             sys.exit(0)
@@ -999,18 +1036,6 @@ def _format_policy_record(value: Any, max_length: int = 90) -> str:
         return 'not configured'
     return text if len(text) <= max_length else f"{text[:max_length - 3]}..."
 
-
-def _summarize_caa_entries(dns_result: Dict[str, Any]) -> List[str]:
-    """Render compact CAA labels for display."""
-    entries = []
-    for record in dns_result.get('caa_records', []) or []:
-        if not isinstance(record, dict):
-            continue
-        tag = str(record.get('tag', '')).strip()
-        value = str(record.get('value', '')).strip()
-        if tag and value:
-            entries.append(f"{tag} {value}")
-    return entries
 
 
 def _format_spf_analysis(spf_analysis: Dict[str, Any]) -> str:
@@ -1243,6 +1268,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     whois_result = result.results.get('whois', {})
     dns_history_result = result.results.get('dns_history', {})
     cdn_result = result.results.get('cdn', {})
+    ip_history_result = result.results.get('ip_history', {})
     network_result = result.results.get('network', {})
     subdomain_result = result.results.get('subdomain', {})
     wildcard_detected = bool(
@@ -1299,16 +1325,27 @@ def display_forensic_summary(result: UnifiedResult) -> None:
 
     print(f"\n{Colors.section_header('WHOIS REGISTRATION', 50)}")
     if whois_result.get('analysis_status') == 'abgeschlossen':
-        registrar = _format_whois_value(
+        registry_policy = whois_result.get('registry_policy')  # e.g. 'DENIC'
+        domain_tld = '.' + (whois_result.get('domain') or '').rsplit('.', 1)[-1].lower()
+        redacted_note = f'Not disclosed by registry ({registry_policy} policy)' if registry_policy else None
+
+        def _whois_field(raw_value: Any, field_default: str = 'Unknown') -> tuple:
+            """Return (display_value, is_redacted)."""
+            val = _format_whois_value(raw_value, field_default)
+            if val == 'Unknown' and redacted_note:
+                return redacted_note, True
+            return val, False
+
+        registrar, reg_redacted = _whois_field(
             whois_result.get('registrar') or whois_result.get('registrarName')
         )
-        creation_date = _format_whois_value(
+        creation_date, cd_redacted = _whois_field(
             whois_result.get('creation_date') or whois_result.get('createdDate')
         )
-        expiration_date = _format_whois_value(
+        expiration_date, ed_redacted = _whois_field(
             whois_result.get('expiration_date') or whois_result.get('expiresDate')
         )
-        updated_date = _format_whois_value(
+        updated_date, _ = _whois_field(
             whois_result.get('updated_date') or whois_result.get('updatedDate')
         )
         registrant_name = _format_whois_value(
@@ -1329,9 +1366,12 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             nameserver_source = 'DNS fallback'
         source = _format_whois_value(whois_result.get('source'))
 
-        print(f"├── Registrar: {Colors.info(registrar)}")
-        print(f"├── Created: {Colors.info(creation_date)}")
-        print(f"├── Expires: {Colors.info(expiration_date)}")
+        if registry_policy:
+            print(f"├── Registry Note: {Colors.dim(f'{registry_policy} ({domain_tld}) redacts registrar and date fields by policy')}")
+
+        print(f"├── Registrar: {Colors.dim(registrar) if reg_redacted else Colors.info(registrar)}")
+        print(f"├── Created: {Colors.dim(creation_date) if cd_redacted else Colors.info(creation_date)}")
+        print(f"├── Expires: {Colors.dim(expiration_date) if ed_redacted else Colors.info(expiration_date)}")
         print(f"├── Updated: {Colors.info(updated_date)}")
         print(f"├── Registrant: {Colors.dim(registrant_name)}")
         if registrant_org != 'Not disclosed':
@@ -1357,28 +1397,100 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         txt_records = dns_result.get('txt_records', []) or []
         spf_record = dns_result.get('spf_record')
         spf_analysis = dns_result.get('spf_analysis', {}) or {}
+        spf_includes = dns_result.get('spf_includes', []) or []
         dmarc_record = dns_result.get('dmarc_record')
         dmarc_analysis = dns_result.get('dmarc_analysis', {}) or {}
         dkim = dns_result.get('dkim', {}) or {}
-        caa_entries = _summarize_caa_entries(dns_result)
+        caa_records_raw = dns_result.get('caa_records', []) or []
         dnssec = dns_result.get('dnssec', {}) or {}
         zone_transfer = dns_result.get('zone_transfer', {}) or {}
         dns_config_assessment = dns_result.get('dns_configuration_assessment', {}) or {}
+        ns_records = dns_result.get('ns_records', []) or []
+        mx_records = dns_result.get('mx_records', []) or []
+        a_ttl = dns_result.get('a_record_ttl')
+        mx_ttl = dns_result.get('mx_record_ttl')
+        ns_ttl = dns_result.get('ns_record_ttl')
 
         soa_primary = soa_record.get('primary_nameserver', 'not available')
         soa_serial = soa_record.get('serial', 'not available')
         print(f"├── SOA Primary NS: {Colors.info(str(soa_primary))}")
         print(f"├── SOA Serial: {Colors.info(str(soa_serial))}")
+
+        # NS Records
+        if ns_records:
+            ns_ttl_str = f"  [TTL {ns_ttl}s]" if ns_ttl is not None else ""
+            print(f"├── NS Records: {Colors.info(str(len(ns_records)))} nameservers{Colors.dim(ns_ttl_str)}")
+            for ns in ns_records:
+                print(f"│   ├── {ns}")
+        else:
+            print(f"├── NS Records: {Colors.dim('none')}")
+
+        # MX Records
+        if mx_records:
+            mx_ttl_str = f"  [TTL {mx_ttl}s]" if mx_ttl is not None else ""
+            sorted_mx = sorted(mx_records, key=lambda x: int(x.get('priority', 99)) if str(x.get('priority', 99)).isdigit() else 99)
+            print(f"├── MX Records: {Colors.info(str(len(mx_records)))} mail servers{Colors.dim(mx_ttl_str)}")
+            for mx in sorted_mx:
+                print(f"│   ├── {mx.get('priority', '?'):>3}  {mx.get('server', '?')}")
+        else:
+            print(f"├── MX Records: {Colors.dim('none configured')}")
+
+        # A Record TTL
+        if a_ttl is not None:
+            print(f"├── A Record TTL: {Colors.info(str(a_ttl) + 's')}")
+
         print(f"├── TXT Records: {Colors.info(str(len(txt_records)))} observed")
+
+        # SPF
         print(f"├── SPF Policy: {Colors.info(_format_policy_record(spf_record))}")
         print(f"├── SPF Analysis: {Colors.info(_format_spf_analysis(spf_analysis))}")
+        if spf_includes:
+            print(f"├── SPF Include Chain (depth <= 2):")
+            for entry in spf_includes:
+                depth = entry.get('depth', 1)
+                indent = "│   " + "    " * (depth - 1)
+                label = entry.get('domain', '?')
+                record = entry.get('record')
+                if entry.get('error'):
+                    print(f"{indent}├── {label}: {Colors.dim('lookup failed')}")
+                elif record:
+                    short = record[:72] + '...' if len(record) > 72 else record
+                    print(f"{indent}├── {label}: {Colors.dim(short)}")
+                else:
+                    print(f"{indent}├── {label}: {Colors.dim('no SPF')}")
+
+        # DMARC
         print(f"├── DMARC Policy: {Colors.info(_format_policy_record(dmarc_record))}")
         print(f"├── DMARC Status: {Colors.info(_format_dmarc_analysis(dmarc_analysis))}")
+        sp = dmarc_analysis.get('subdomain_policy')
+        if sp and sp != 'not_set':
+            print(f"├── DMARC Subdomain (sp=): {Colors.info(str(sp))}")
+        rua = dmarc_analysis.get('rua')
+        ruf = dmarc_analysis.get('ruf')
+        if rua or ruf:
+            parts = []
+            if rua:
+                parts.append(f"rua: {rua}")
+            if ruf:
+                parts.append(f"ruf: {ruf}")
+            print(f"├── DMARC Reporting: {Colors.dim(', '.join(parts))}")
+
+        # DKIM
         print(f"├── DKIM Selectors: {Colors.info(_format_dkim_discovery(dkim))}")
-        if caa_entries:
-            print(f"├── CAA Policy: {Colors.info(', '.join(caa_entries[:3]))}")
+
+        # CAA — issuewild explicitly separated
+        if caa_records_raw:
+            issuewild_tags = [r for r in caa_records_raw if r.get('tag') == 'issuewild']
+            all_labels = [f"{r.get('tag')} {r.get('value')}" for r in caa_records_raw]
+            print(f"├── CAA Policy: {Colors.info(', '.join(all_labels[:4]))}")
+            if issuewild_tags:
+                wild_vals = ', '.join(r.get('value', '') for r in issuewild_tags)
+                print(f"│   ├── issuewild: {Colors.info(wild_vals)}")
+            else:
+                print(f"│   └── {Colors.dim('no issuewild restriction (wildcard certs unrestricted)')}")
         else:
             print(f"├── CAA Policy: {Colors.dim('not configured')}")
+
         dnssec_status = 'enabled' if dnssec.get('status') == 'enabled' else 'not detected'
         print(f"├── DNSSEC: {Colors.info(dnssec_status)}")
         print(f"├── DNS Config Assessment: {Colors.info(_format_dns_config_assessment(dns_config_assessment))}")
@@ -1405,26 +1517,134 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         start_date = timeline_span.get('start_date') or 'unknown'
         end_date = timeline_span.get('end_date') or 'unknown'
         span_days = timeline_span.get('days', 0)
+
         print(f"├── Data Sources: {Colors.info(', '.join(data_sources) if data_sources else 'none')}")
+
+        # --- First Seen: earliest across timeline sources and WHOIS creation date ---
+        whois_creation_raw = whois_result.get('creation_date') or whois_result.get('createdDate')
+        whois_created_str = _format_history_date(whois_creation_raw) if whois_creation_raw else None
+        first_seen_candidates = [
+            d for d in [start_date, whois_created_str]
+            if d and d not in ('unknown', 'unknown date') and len(d) >= 10
+        ]
+        first_seen = min(first_seen_candidates) if first_seen_candidates else 'unknown'
+        if first_seen != 'unknown':
+            if whois_created_str and first_seen == whois_created_str and first_seen != start_date:
+                fs_source = ' (WHOIS)'
+            else:
+                fs_source = f" ({data_sources[0]})" if data_sources else ''
+        else:
+            fs_source = ''
+        print(f"├── First Seen: {Colors.info(first_seen)}{fs_source}")
+
+        # --- Current IP first seen ---
+        current_ip = dns_result.get('ipv4') or (dns_result.get('fallback_data') or {}).get('ipv4')
+        if current_ip:
+            # Use dedicated a_history bucket (all A events, not limited by timeline[:60])
+            a_history = dns_history_result.get('a_history') or []
+            ip_a_events = [
+                e for e in a_history
+                if current_ip in e.get('new', [])
+            ]
+            ip_dates = [
+                e['date'] for e in ip_a_events
+                if e.get('date') and e['date'] not in ('unknown',)
+            ]
+            if ip_dates:
+                ip_first_str = min(ip_dates)[:10]
+                try:
+                    ip_dt = datetime.strptime(ip_first_str, '%Y-%m-%d')
+                    days_ago = (datetime.now() - ip_dt).days
+                    if days_ago < 365:
+                        age_label = 'relatively recent'
+                    elif days_ago < 3 * 365:
+                        age_label = 'established'
+                    else:
+                        age_label = 'long-standing'
+                except Exception:
+                    age_label = ''
+                age_suffix = f' – {age_label}' if age_label else ''
+                print(f"├── Current IP {current_ip} first seen: {Colors.info(ip_first_str)}{age_suffix}")
+            elif ip_a_events:
+                print(f"├── Current IP {current_ip} first seen: {Colors.dim('no date in history')}")
+            else:
+                cdn_provider = cdn_result.get('provider_detected')
+                cdn_note = f' (CDN anycast – not tracked in passive DNS)' if cdn_provider else ''
+                print(f"├── Current IP {current_ip} first seen: {Colors.dim('not found in history')}{cdn_note}")
+
         print(f"├── Timeline Span: {Colors.info(f'{start_date} to {end_date} ({span_days} days)')}")
+
+        # --- NS Record Changes (from dedicated bucket, grouped by date) ---
+        ns_history = dns_history_result.get('ns_history') or []
+        ns_grouped: Dict[str, List[str]] = {}
+        for e in ns_history:
+            d = _format_history_date(e.get('date'))
+            for v in e.get('new', []):
+                ns_grouped.setdefault(d, [])
+                if v not in ns_grouped[d]:
+                    ns_grouped[d].append(v)
+        if ns_grouped:
+            print(f"├── NS Record Changes: {Colors.info(str(len(ns_grouped)))} change events")
+            visible_ns = list(ns_grouped.items())[:4]
+            for idx, (d, vals) in enumerate(visible_ns):
+                connector = '└──' if idx == len(visible_ns) - 1 else '├──'
+                ns_vals = _format_history_value(vals, max_items=4, max_length=68)
+                print(f"│   {connector} {d}: {Colors.dim(ns_vals)}")
+        else:
+            print(f"├── NS Record Changes: {Colors.dim('no NS changes in history')}")
+
+        # --- MX Record Changes (from dedicated bucket, grouped by date) ---
+        mx_history = dns_history_result.get('mx_history') or []
+        mx_grouped: Dict[str, List[str]] = {}
+        for e in mx_history:
+            d = _format_history_date(e.get('date'))
+            for v in e.get('new', []):
+                mx_grouped.setdefault(d, [])
+                if v not in mx_grouped[d]:
+                    mx_grouped[d].append(v)
+        if mx_grouped:
+            print(f"├── MX Record Changes: {Colors.info(str(len(mx_grouped)))} change events")
+            visible_mx = list(mx_grouped.items())[:4]
+            for idx, (d, vals) in enumerate(visible_mx):
+                connector = '└──' if idx == len(visible_mx) - 1 else '├──'
+                mx_vals = _format_history_value(vals, max_items=4, max_length=68)
+                print(f"│   {connector} {d}: {Colors.dim(mx_vals)}")
+        else:
+            print(f"├── MX Record Changes: {Colors.dim('no MX changes in history')}")
+
+        # --- Certificate History (from dedicated ct_history bucket) ---
+        ct_history = dns_history_result.get('ct_history') or []
+        if ct_history:
+            ct_dates = [
+                e['date'] for e in ct_history
+                if e.get('date') and e['date'] not in ('unknown',)
+            ]
+            ct_earliest = min(ct_dates)[:10] if ct_dates else 'unknown'
+            ct_latest = max(ct_dates)[:10] if ct_dates else 'unknown'
+            print(f"├── Certificate History (crt.sh): {Colors.info(str(len(ct_history)))} certificates")
+            print(f"│   └── Earliest: {ct_earliest}, Latest: {ct_latest}")
+        else:
+            print(f"├── Certificate History (crt.sh): {Colors.dim('no certificate data')}")
+
         print(f"├── Major Changes: {Colors.info(str(dns_history_result.get('major_changes', 0)))} detected")
 
-        if timeline:
-            for event in timeline[:5]:
-                print(f"├── {_format_history_date(event.get('date'))}: {Colors.info(event.get('change_type', 'Historical change'))}")
-                print(f"│   ├── Source: {event.get('source', 'unknown')}")
-                print(f"│   ├── Previous: {_format_history_value(event.get('previous'))}")
-                print(f"│   ├── New: {_format_history_value(event.get('new'))}")
-                print(f"│   └── Change Type: {event.get('classification', 'unclassified')}")
-        else:
-            print(f"├── Timeline: {Colors.dim('no historical events returned')}")
+        # --- Recent Events (top 3, non-CT) ---
+        recent_events = [e for e in timeline if e.get('record_type') != 'CT'][:3]
+        if recent_events:
+            print(f"├── Recent Events:")
+            for idx, event in enumerate(recent_events):
+                connector = '└──' if idx == len(recent_events) - 1 else '├──'
+                rec_vals = _format_history_value(event.get('new'), max_items=2, max_length=58)
+                rtype = event.get('record_type', '?')
+                print(f"│   {connector} {_format_history_date(event.get('date'))}: [{rtype}] {Colors.dim(rec_vals)}")
 
+        # --- Pattern Analysis ---
         suspicious_patterns = pattern_analysis.get('suspicious_patterns', ['not assessed'])
-        if isinstance(suspicious_patterns, list):
-            suspicious_text = '; '.join(str(item) for item in suspicious_patterns[:3])
-        else:
-            suspicious_text = str(suspicious_patterns)
-
+        suspicious_text = (
+            '; '.join(str(p) for p in suspicious_patterns[:3])
+            if isinstance(suspicious_patterns, list)
+            else str(suspicious_patterns)
+        )
         print(f"├── Pattern Analysis:")
         print(f"│   ├── Change Frequency: {Colors.info(str(pattern_analysis.get('change_frequency', 'not assessed')))}")
         print(f"│   ├── Infrastructure Stability: {Colors.info(str(pattern_analysis.get('infrastructure_stability', 'unknown')))}")
@@ -1634,7 +1854,110 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         else:
             print(f"├── SecurityTrails History: {Colors.dim('No historical data')} [{status_text}]")
     else:
-        print(f"├── SecurityTrails History: {Colors.error('ANALYSIS FAILED')}")
+        st_api_status = st_result.get('api_status', '')
+        if st_api_status in ('quota_exceeded', 'demo_mode'):
+            print(f"└── SecurityTrails: {Colors.dim('nicht verfügbar – Limit erreicht oder kein API Key')}")
+        else:
+            print(f"└── SecurityTrails: {Colors.dim('nicht verfügbar')}")
+
+    print(f"\n{Colors.section_header('IP & DOMAIN HISTORY', 50)}")
+    current_ip = dns_result.get('ipv4')
+    is_cdn = cdn_result.get('infrastructure_type') == 'cdn'
+    cdn_name = cdn_result.get('provider_name', 'CDN')
+
+    if current_ip:
+        print(f"├── Current IP: {Colors.format_ip(current_ip)}")
+
+    # --- Domain IP History (extracted from dns_history timeline) ---
+    timeline = dns_history_result.get('timeline', []) or []
+    a_events = [e for e in timeline if e.get('record_type') == 'A']
+    ip_dates: Dict[str, str] = {}
+    for event in a_events:
+        date_val = event.get('date') or 'unknown'
+        for ip_val in event.get('new', []):
+            ip_str = str(ip_val).strip()
+            if ip_str and (ip_str not in ip_dates or date_val > ip_dates[ip_str]):
+                ip_dates[ip_str] = date_val
+    if ip_dates:
+        sorted_ips = sorted(ip_dates.items(), key=lambda x: x[1], reverse=True)
+        print(f"├── Domain IP History ({len(sorted_ips)} unique IPs observed):")
+        for ip_val, date_str in sorted_ips[:5]:
+            date_short = date_str[:10] if date_str != 'unknown' else 'unknown'
+            marker = " (current)" if ip_val == current_ip else ""
+            print(f"│   ├── {date_short}: {Colors.format_ip(ip_val)}{Colors.dim(marker)}")
+        if len(sorted_ips) > 5:
+            print(f"│   └── {Colors.dim(f'... and {len(sorted_ips) - 5} more')}")
+    else:
+        print(f"├── Domain IP History: {Colors.dim('no historical data')}")
+
+    # --- Reverse IP Lookup ---
+    if ip_history_result.get('analysis_status') == 'abgeschlossen' and current_ip:
+        total_co_hosted = ip_history_result.get('total_co_hosted', 0)
+        top_co_hosted = ip_history_result.get('top_co_hosted', []) or []
+        sources = ip_history_result.get('sources', {}) or {}
+
+        print(f"├── Reverse IP ({Colors.format_ip(current_ip)}):")
+
+        if is_cdn:
+            print(f"│   ├── {Colors.warning(f'CDN infrastructure ({cdn_name}) — shared IPs serve many domains')}")
+            if total_co_hosted > 0:
+                print(f"│   ├── Co-hosted domains sampled: {Colors.info(str(len(top_co_hosted)))} (of {total_co_hosted}+ found)")
+                for entry in top_co_hosted[:5]:
+                    name = entry.get('domain', '')
+                    ls = entry.get('last_seen', '')
+                    suffix = f" ({ls})" if ls else ""
+                    print(f"│   │   ├── {name}{Colors.dim(suffix)}")
+                if total_co_hosted > 5:
+                    print(f"│   │   └── {Colors.dim('... many more (CDN shared infrastructure)')}")
+            else:
+                print(f"│   └── {Colors.dim('No co-hosted domain data available')}")
+        else:
+            for source_key, source_label in [
+                ('virustotal', 'VirusTotal'),
+                ('robtex', 'RobTex'),
+                ('hackertarget', 'HackerTarget'),
+            ]:
+                src = sources.get(source_key, {})
+                src_status = src.get('status', 'unknown')
+                src_domains = src.get('domains', []) or []
+                src_count = len(src_domains)
+
+                if src_status == 'skipped':
+                    print(f"│   ├── {source_label}: {Colors.dim('no API key')}")
+                elif src_status in ('quota_exceeded', 'rate_limited'):
+                    print(f"│   ├── {source_label}: {Colors.warning('rate limited')}")
+                elif src_status in ('error', 'not_found', 'no_data') or src_count == 0:
+                    print(f"│   ├── {source_label}: {Colors.dim('no data')}")
+                else:
+                    print(f"│   ├── {source_label} ({src_count} domains):")
+                    for entry in src_domains[:3]:
+                        name = entry.get('domain', '')
+                        ls = entry.get('last_seen', '')
+                        suffix = f" ({ls})" if ls else ""
+                        print(f"│   │   ├── {name}{Colors.dim(suffix)}")
+                    if src_count > 3:
+                        print(f"│   │   └── {Colors.dim(f'... +{src_count - 3} more')}")
+
+            if total_co_hosted > 0:
+                print(f"│   └── Total unique co-hosted: {Colors.info(str(total_co_hosted))}")
+            else:
+                print(f"│   └── {Colors.dim('No co-hosted domains found')}")
+
+        # Infrastructure classification
+        if is_cdn:
+            infra_label, infra_color = "CDN shared infrastructure", Colors.info
+        elif total_co_hosted == 0:
+            infra_label, infra_color = "dedicated / single-tenant", Colors.success
+        elif total_co_hosted > 50:
+            infra_label, infra_color = "shared hosting (high density)", Colors.warning
+        elif total_co_hosted > 10:
+            infra_label, infra_color = "shared hosting", Colors.info
+        else:
+            infra_label, infra_color = "small shared / VPS", Colors.success
+        print(f"└── Assessment: {infra_color(infra_label)}")
+    else:
+        print(f"├── Reverse IP: {Colors.dim('not analyzed')}")
+        print(f"└── Assessment: {Colors.dim('unavailable')}")
 
     print(f"\n{Colors.section_header('RISK ASSESSMENT', 50)}")
     print(f"├── Overall Risk: {risk_color(overall_risk)}")
@@ -1663,6 +1986,12 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     ]
     if dns_history_sources:
         api_statuses.append(f"DNS History ({', '.join(dns_history_sources[:3])})")
+    ip_history_sources = [
+        k for k, v in (ip_history_result.get('sources') or {}).items()
+        if v.get('status') == 'success'
+    ]
+    if ip_history_sources:
+        api_statuses.append(f"Reverse IP ({', '.join(ip_history_sources)})")
     
     if api_statuses:
         print(f"├── Live APIs Used: {Colors.success(', '.join(api_statuses))}")

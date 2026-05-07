@@ -47,19 +47,34 @@ class SecurityTrailsClient:
             return self._get_demo_result(domain)
         
         try:
-            # Get domain general info
             domain_info = self._get_domain_info(domain)
-            
-            # Get historical DNS data  
             historical_dns = self._get_historical_dns_summary(domain)
-            
-            # Get subdomains
             subdomains_data = self._get_subdomains(domain)
-            
+
+            any_succeeded = any(
+                d.get('status') == 'success'
+                for d in (domain_info, historical_dns, subdomains_data)
+            )
+            quota_exceeded = any(
+                d.get('status') == 'quota_exceeded'
+                for d in (domain_info, historical_dns, subdomains_data)
+            )
+
+            if quota_exceeded and not any_succeeded:
+                return {
+                    'analysis_status': 'failed',
+                    'domain': domain,
+                    'api_status': 'quota_exceeded',
+                    'error': 'SecurityTrails API quota exceeded',
+                    'domain_details': {'subdomain_count': 0},
+                }
+
+            api_status = 'live_data' if any_succeeded else 'api_error'
+
             return {
-                'analysis_status': 'abgeschlossen',
+                'analysis_status': 'abgeschlossen' if any_succeeded else 'failed',
                 'domain': domain,
-                'api_status': 'live_data',
+                'api_status': api_status,
                 'domain_details': domain_info,
                 'historical_dns': historical_dns,
                 'subdomain_intelligence': subdomains_data,
@@ -67,7 +82,7 @@ class SecurityTrailsClient:
                     domain_info, historical_dns, subdomains_data
                 )
             }
-            
+
         except Exception as error:
             return {
                 'analysis_status': 'failed',
@@ -81,8 +96,9 @@ class SecurityTrailsClient:
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}"
             response = self.session.get(endpoint, timeout=30)
+            if response.status_code == 429:
+                return {'status': 'quota_exceeded'}
             response.raise_for_status()
-            
             data = response.json()
             return {
                 'hostname': data.get('hostname', domain),
@@ -108,10 +124,12 @@ class SecurityTrailsClient:
             a_endpoint = f"{self.config.base_url}/history/{domain}/dns/a"
             a_response = self.session.get(a_endpoint, timeout=30)
             
+            if a_response.status_code == 429:
+                historical_data['status'] = 'quota_exceeded'
+                return historical_data
             if a_response.status_code == 200:
                 a_data = a_response.json()
-                records = a_data.get('records', [])[:5]  # Last 5 changes
-                
+                records = a_data.get('records', [])[:5]
                 for record in records:
                     historical_data['a_records'].append({
                         'first_seen': record.get('first_seen'),
@@ -119,14 +137,15 @@ class SecurityTrailsClient:
                         'ip_addresses': [val.get('ip') for val in record.get('values', [])],
                         'organizations': record.get('organizations', [])
                     })
-            
-            # Rate limiting
+
             time.sleep(0.5)
-            
-            # Get MX record history
-            mx_endpoint = f"{self.config.base_url}/history/{domain}/dns/mx" 
+
+            mx_endpoint = f"{self.config.base_url}/history/{domain}/dns/mx"
             mx_response = self.session.get(mx_endpoint, timeout=30)
-            
+
+            if mx_response.status_code == 429:
+                historical_data['status'] = 'quota_exceeded'
+                return historical_data
             if mx_response.status_code == 200:
                 mx_data = mx_response.json()
                 mx_records = mx_data.get('records', [])[:3]  # Last 3 changes
@@ -148,6 +167,8 @@ class SecurityTrailsClient:
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}/subdomains"
             response = self.session.get(endpoint, timeout=30)
+            if response.status_code == 429:
+                return {'status': 'quota_exceeded'}
             response.raise_for_status()
             
             data = response.json()

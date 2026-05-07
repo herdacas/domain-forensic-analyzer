@@ -37,7 +37,8 @@ class CDNDetector:
             'cloudflare': {
                 'ip_ranges': [
                     '104.16.', '104.17.', '104.18.', '104.19.', '104.20.', '104.21.',
-                    '104.22.', '104.23.', '162.159.', '172.64.', '172.65.', '172.66.',
+                    '104.22.', '104.23.', '104.24.', '104.25.', '104.26.', '104.27.',
+                    '162.159.', '172.64.', '172.65.', '172.66.',
                     '172.67.', '172.68.', '172.69.', '172.70.', '172.71.'
                 ],
                 'type': 'cdn',
@@ -107,19 +108,10 @@ class CDNDetector:
         Returns:
             dict: Infrastructure-Analyseergebnisse
         """
-        print(Colors.header("INFRASTRUCTURE CLASSIFICATION"))
-        print(Colors.investigation_separator(60))
-        
         if not ip_address:
             error_msg = "Keine IP-Adresse fuer Analyse verfuegbar"
-            print(Colors.error(error_msg))
             return {'error': error_msg, 'analysis_status': 'fehlgeschlagen'}
-        
-        print(f"Analysiere IP-Adresse: {Colors.format_ip(ip_address)}")
-        if domain:
-            print(f"Zugehoerige Domain: {Colors.format_domain(domain)}")
-        
-        # Ergebnis-Dictionary initialisieren
+
         results = {
             'ip_address': ip_address,
             'domain': domain,
@@ -134,30 +126,21 @@ class CDNDetector:
             'analysis_status': 'gestartet'
         }
         
-        # Provider-Erkennung durchfuehren
-        print(f"\n{Colors.section_header('PROVIDER DETECTION', 50)}")
         provider_info = self._detect_provider(ip_address)
         results.update(provider_info)
-        
-        # Geolocation-Analyse
-        print(f"\n{Colors.section_header('GEOLOCATION ANALYSIS', 50)}")
+
         geo_info = self._analyze_geolocation(ip_address)
         results['geolocation'] = geo_info
-        
-        # ASN und Organization-Info
+
         if geo_info.get('as') or geo_info.get('org'):
             results['asn_info'] = {
                 'asn': geo_info.get('as'),
                 'organization': geo_info.get('org'),
                 'isp': geo_info.get('isp')
             }
-        
-        # Analyse abschliessen
+
         results['analysis_status'] = 'abgeschlossen'
         self.results = results
-        
-        # Zusammenfassung anzeigen
-        self._display_summary(results)
         return results
     
     def _detect_provider(self, ip_address: str) -> Dict[str, Any]:
@@ -170,21 +153,9 @@ class CDNDetector:
         Returns:
             dict: Provider-Erkennungsergebnisse
         """
-        print(f"  {Colors.info('Provider-Erkennung:')} Analysiere IP-Bereiche...")
-        
-        # Provider-Datenbank durchsuchen
         for provider_key, provider_data in self.provider_database.items():
             for ip_range in provider_data['ip_ranges']:
                 if ip_address.startswith(ip_range):
-                    print(f"    {Colors.success('Provider erkannt:')} {provider_data['name']}")
-                    print(f"    {Colors.info('Typ:')} {provider_data['type'].title()}")
-                    print(f"    {Colors.info('Schutz-Level:')} {provider_data['protection_level'].title()}")
-                    
-                    # Features anzeigen
-                    if provider_data.get('features'):
-                        features_text = ', '.join(provider_data['features'][:3])
-                        print(f"    {Colors.info('Features:')} {features_text}")
-                    
                     return {
                         'provider_detected': provider_key,
                         'provider_name': provider_data['name'],
@@ -192,9 +163,7 @@ class CDNDetector:
                         'protection_level': provider_data['protection_level'],
                         'features': provider_data.get('features', [])
                     }
-        
-        # Kein bekannter Provider gefunden
-        print(f"    {Colors.warning('Provider:')} Unbekannt/Direct Hosting")
+
         return {
             'provider_detected': None,
             'provider_name': 'Unknown/Direct',
@@ -213,20 +182,17 @@ class CDNDetector:
         Returns:
             dict: Geolocation-Daten
         """
-        print(f"  {Colors.info('Geolocation-Analyse:')} Abfrage laeuft...")
-        
         try:
-            # IP-API.com fuer Geolocation (kostenlos, kein API-Key noetig)
             url = f"http://ip-api.com/json/{ip_address}?fields=status,country,city,region,org,as,isp,timezone"
-            
+
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
-            
+
             with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
                 data = json.loads(response.read().decode())
-                
+
                 if data.get('status') == 'success':
-                    geo_info = {
+                    return {
                         'country': data.get('country'),
                         'city': data.get('city'),
                         'region': data.get('region'),
@@ -236,86 +202,15 @@ class CDNDetector:
                         'isp': data.get('isp'),
                         'status': 'success'
                     }
-                    
-                    # Erfolgreiche Geolocation anzeigen
-                    print(f"    {Colors.success('Land:')} {geo_info.get('country', 'Unbekannt')}")
-                    print(f"    {Colors.success('Stadt:')} {geo_info.get('city', 'Unbekannt')}")
-                    if geo_info.get('org'):
-                        print(f"    {Colors.success('Organisation:')} {geo_info['org']}")
-                    if geo_info.get('as'):
-                        print(f"    {Colors.success('ASN:')} {geo_info['as']}")
-                    
-                    return geo_info
                 else:
-                    print(f"    {Colors.warning('Geolocation:')} API-Abfrage fehlgeschlagen")
                     return {'status': 'failed', 'error': 'API returned failure status'}
-                    
+
         except urllib.error.URLError as error:
-            print(f"    {Colors.error('Geolocation:')} Netzwerk-Fehler")
             return {'status': 'error', 'error': f'Network error: {str(error)}'}
         except json.JSONDecodeError:
-            print(f"    {Colors.error('Geolocation:')} JSON-Parsing-Fehler")
             return {'status': 'error', 'error': 'JSON parsing failed'}
         except Exception as error:
-            print(f"    {Colors.error('Geolocation:')} Unerwarteter Fehler")
             return {'status': 'error', 'error': str(error)}
-    
-    def _display_summary(self, results: Dict[str, Any]) -> None:
-        """
-        Zeigt Infrastructure-Analyse Zusammenfassung
-        
-        Args:
-            results (dict): Analyseergebnisse
-        """
-        print(f"\n{Colors.investigation_separator(60)}")
-        print(Colors.header("INFRASTRUCTURE ANALYSIS SUMMARY"))
-        print(Colors.investigation_separator(60))
-        
-        # IP und Domain
-        print(f"IP Address: {Colors.format_ip(results['ip_address'])}")
-        if results.get('domain'):
-            print(f"Domain: {Colors.format_domain(results['domain'])}")
-        
-        # Provider-Informationen
-        provider_name = results.get('provider_name', 'Unknown')
-        infra_type = results.get('infrastructure_type', 'unknown').title()
-        
-        if results.get('provider_detected'):
-            print(f"Provider: {Colors.success(provider_name)} ({infra_type})")
-        else:
-            print(f"Provider: {Colors.warning(provider_name)} ({infra_type})")
-        
-        # Schutz-Level
-        protection = results.get('protection_level', 'unknown').title()
-        if protection == 'High':
-            protection_colored = Colors.success(protection)
-        elif protection == 'Medium':
-            protection_colored = Colors.warning(protection)
-        else:
-            protection_colored = Colors.error(protection)
-        
-        print(f"Protection Level: {protection_colored}")
-        
-        # Geolocation
-        geo = results.get('geolocation', {})
-        if geo.get('status') == 'success':
-            location = f"{geo.get('city', 'Unknown')}, {geo.get('country', 'Unknown')}"
-            print(f"Location: {Colors.info(location)}")
-            
-            if geo.get('org'):
-                print(f"Organization: {Colors.info(geo['org'])}")
-        else:
-            print(f"Location: {Colors.warning('Analysis failed')}")
-        
-        # Features (wenn verfuegbar)
-        features = results.get('features', [])
-        if features:
-            features_text = ', '.join(features[:3])
-            print(f"Security Features: {Colors.highlight(features_text)}")
-        
-        print(Colors.investigation_separator(60))
-        print(f"Analysis Status: {Colors.success('COMPLETE')}")
-        print(Colors.investigation_separator(60))
     
     def get_results(self) -> Dict[str, Any]:
         """
