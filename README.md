@@ -288,9 +288,12 @@ The test suite covers:
 - Certificate Transparency provides certificate issuance history, not authoritative DNS history.
 - Subdomain discovery is DNS-pattern based and becomes candidate-only under wildcard DNS.
 - The risk model is heuristic and should support investigation, not replace analyst judgment.
+- DNS history pattern analysis counts raw NS record entries rather than distinct migration events. Domains with 4+ nameservers that migrated once can incorrectly show "multiple nameserver changes" in the DNS History sub-risk. The top-level overall risk is not affected.
 
 ## Recent Major Updates
 
+- **GEO & ASN block** — new report section after TARGET; shows country (ISO code + name), region, city, ASN number, ASN organisation, ISP, hosting type classification, and geographic risk. Data sourced from ip-api.com (no API key required). Hosting type derived from CDN provider classification, domain TLD, and ISP/org string matching.
+- **CDN provider detection extended** — hostname-pattern matching pass added (takes priority over IP prefix); 6 new providers: Outscale (French Government Cloud), OVHcloud, Hetzner, IONOS/1&1, Deutsche Telekom (DTAG), Bundescloud/BWI. New infrastructure types: `gov-cloud`, `hosting`, `transit`.
 - **IP & Domain History module** — reverse-IP lookup from VirusTotal, RobTex, and HackerTarget; domain IP history from passive DNS timeline; CDN-aware co-hosted domain display.
 - **DNS History Timeline extended** — first seen date, current IP first seen with age label, NS/MX change events grouped by date, Certificate Transparency history block. Fixed CT-event inflation of pattern analysis, fixed timeline span computation, fixed bucket isolation so CT cannot crowd out DNS records.
 - **DNS Forensics extended** — TTL values on A/NS/MX records, SPF include chain recursive (depth ≤ 2), DMARC sp=/rua=/ruf= separately, CAA issuewild explicit, DKIM selectors expanded.

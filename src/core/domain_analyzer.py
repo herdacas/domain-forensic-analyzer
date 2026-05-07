@@ -466,14 +466,16 @@ class DomainAnalyzer:
             # CDN analyzer needs IP address from DNS results
             dns_result = self.current_analysis['results'].get('dns', {})
             ip_address = dns_result.get('ipv4')
-            
+            rdns_hostname = dns_result.get('reverse_dns')
+
             if not ip_address:
-                # Try backup data if main DNS result failed
                 fallback_data = dns_result.get('fallback_data', {})
                 ip_address = fallback_data.get('ipv4')
-            
+                if not rdns_hostname:
+                    rdns_hostname = fallback_data.get('reverse_dns')
+
             if ip_address:
-                return module.analyze_infrastructure(ip_address, domain)
+                return module.analyze_infrastructure(ip_address, domain, rdns_hostname)
             else:
                 raise Exception("No IP address available from DNS analysis")
         
@@ -1179,11 +1181,86 @@ def _format_provider_type(provider_type: Any) -> str:
         return 'Direct'
     if value == 'cloud':
         return 'Cloud'
+    if value == 'gov-cloud':
+        return 'Government Cloud'
+    if value == 'hosting':
+        return 'Hosting'
+    if value == 'transit':
+        return 'Transit / ISP'
     if value == 'platform':
         return 'Platform'
     if value == 'unknown':
         return 'Unknown'
     return str(provider_type).strip().title()
+
+
+def _classify_hosting_type(cdn_result: Dict[str, Any], domain: str = '') -> str:
+    """Derive hosting type from CDN provider classification, domain TLD, and ISP/org strings."""
+    provider_type = str(cdn_result.get('infrastructure_type', '')).lower()
+
+    if provider_type == 'cdn':
+        return 'CDN'
+    if provider_type == 'gov-cloud':
+        return 'Government'
+    if provider_type in ('cloud', 'hosting'):
+        return 'Cloud'
+    if provider_type == 'transit':
+        return 'Transit / ISP'
+
+    d = domain.lower()
+
+    # TLD-based government check (.gov, .gv.at, .gouv.fr, .bund.de, etc.)
+    gov_tld_patterns = ('.gov', '.gv.at', '.gouv.', '.bund.de', '.mil', '.gc.ca', '.gov.uk')
+    if any(p in d for p in gov_tld_patterns):
+        return 'Government'
+
+    # Domain name keyword check — countries that use ccTLD for government (e.g. .de)
+    gov_domain_prefixes = (
+        'bundesregierung.', 'bundestag.', 'bundesrat.', 'bundeswehr.',
+        'bundesamt', 'bundeskanzler', 'bundesministerium',
+        'bundespolizei.', 'bundesnetzagentur.',
+    )
+    if any(p in d for p in gov_domain_prefixes):
+        return 'Government'
+
+    geo = cdn_result.get('geolocation', {}) or {}
+    asn_info = cdn_result.get('asn_info', {}) or {}
+    combined = ' '.join([
+        str(asn_info.get('organization', '')),
+        str(asn_info.get('isp', '')),
+        str(geo.get('org', '')),
+        str(geo.get('isp', '')),
+    ]).lower()
+
+    # Known government-exclusive IT providers (DACH region)
+    gov_org_keywords = ('conet deutschland', 'babiel', 'bundesrechenzentrum',
+                        'dataport', 'brz gmbh', 'govix')
+    if any(k in combined for k in gov_org_keywords):
+        return 'Government'
+
+    edu_keywords = ('universit', 'hochschule', 'college', 'education', 'research', 'akademie', 'institut')
+    if any(k in combined for k in edu_keywords):
+        return 'Education'
+
+    cloud_keywords = ('amazon', 'microsoft', 'google', 'hetzner', 'ovh', 'digitalocean',
+                      'linode', 'vultr', 'cloudflare', 'akamai', 'fastly', 'outscale',
+                      'ionos', '1&1', 'contabo', 'leaseweb', 'choopa', 'data center',
+                      'datacenter', 'hosting', 'server', 'cloud')
+    if any(k in combined for k in cloud_keywords):
+        return 'Cloud'
+
+    return 'Commercial'
+
+
+def _get_geographic_risk(country_code: str) -> str:
+    """Return HIGH / MEDIUM / LOW risk label based on ISO country code."""
+    high_risk = {'CN', 'RU', 'KP', 'IR'}
+    medium_risk = {'BY', 'SY', 'VE', 'CU', 'MM', 'SD', 'AF', 'IQ', 'LY', 'SO', 'YE'}
+    if country_code in high_risk:
+        return 'HIGH'
+    if country_code in medium_risk:
+        return 'MEDIUM'
+    return 'LOW'
 
 
 def _format_category_name(category: str) -> str:
@@ -1322,6 +1399,36 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     else:
         print(f"├── DNS: {Colors.error('FAILED')}")
         print(f"└── Unable to resolve domain")
+
+    print(f"\n{Colors.section_header('GEO & ASN', 50)}")
+    geo = (cdn_result.get('geolocation') or {})
+    asn_info = (cdn_result.get('asn_info') or {})
+    if geo.get('status') == 'success':
+        country = geo.get('country', 'Unknown')
+        country_code = geo.get('countryCode', '')
+        region = geo.get('region', 'Unknown')
+        city = geo.get('city', 'Unknown')
+        asn_raw = str(asn_info.get('asn') or geo.get('as') or '')
+        asn_parts = asn_raw.split(' ', 1)
+        asn_number = asn_parts[0] if asn_raw else 'Unknown'
+        asn_org = asn_parts[1] if len(asn_parts) > 1 else (asn_info.get('organization') or 'Unknown')
+        isp = str(asn_info.get('isp') or geo.get('isp') or 'Unknown')
+        country_display = f"{country_code} – {country}" if country_code else country
+        hosting_type = _classify_hosting_type(cdn_result, result.domain)
+        geo_risk = _get_geographic_risk(country_code)
+        geo_risk_color = (Colors.error if geo_risk == 'HIGH' else
+                          Colors.warning if geo_risk == 'MEDIUM' else Colors.success)
+        print(f"├── IP: {Colors.format_ip(dns_result.get('ipv4', 'Unknown'))}")
+        print(f"├── Country: {Colors.info(country_display)}")
+        print(f"├── Region: {Colors.info(region)}")
+        print(f"├── City: {Colors.info(city)}")
+        print(f"├── ASN: {Colors.info(asn_number)}")
+        print(f"├── ASN Organisation: {Colors.info(asn_org)}")
+        print(f"├── ISP: {Colors.info(isp)}")
+        print(f"├── Hosting Type: {Colors.info(hosting_type)}")
+        print(f"└── Geographic Risk: {geo_risk_color(geo_risk)}")
+    else:
+        print(f"└── GeoIP: {Colors.dim('not available (CDN module not run or geo lookup failed)')}")
 
     print(f"\n{Colors.section_header('WHOIS REGISTRATION', 50)}")
     if whois_result.get('analysis_status') == 'abgeschlossen':
