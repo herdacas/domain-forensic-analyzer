@@ -201,6 +201,13 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# AI agent / Claude Code internal files (not for public repo)
+CLAUDE.md
+.agent.md
+.claude/
+audit_modules.py
+audit_results.json
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

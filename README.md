@@ -49,7 +49,7 @@ python run.py
 Or pass the target domain directly to skip the interactive prompt:
 
 ```powershell
-python run.py freecash.com
+python run.py example.com
 ```
 
 ## API Configuration
