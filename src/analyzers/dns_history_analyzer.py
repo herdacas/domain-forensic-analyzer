@@ -183,6 +183,9 @@ class DNSHistoryAnalyzer:
             except json.JSONDecodeError:
                 continue
 
+            if not isinstance(entry, dict):
+                continue
+
             rrtype = str(entry.get("rrtype", "")).upper()
             rrdata = str(entry.get("rrdata", "")).strip().rstrip(".")
             if not rrtype or not rrdata:

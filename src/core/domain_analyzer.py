@@ -2171,9 +2171,9 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     else:
         st_api_status = st_result.get('api_status', '')
         if st_api_status in ('quota_exceeded', 'demo_mode'):
-            print(f"└── SecurityTrails: {Colors.dim('nicht verfügbar – Limit erreicht oder kein API Key')}")
+            print(f"└── SecurityTrails: {Colors.dim('not available - quota exceeded or no API key')}")
         else:
-            print(f"└── SecurityTrails: {Colors.dim('nicht verfügbar')}")
+            print(f"└── SecurityTrails: {Colors.dim('not available')}")
 
     print(f"\n{Colors.section_header('IP & DOMAIN HISTORY', 50)}")
     current_ip = dns_result.get('ipv4')
