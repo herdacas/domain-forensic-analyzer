@@ -1,12 +1,12 @@
 # Domain Forensic Analyzer
 
-Domain Forensic Analyzer is a terminal-based OSINT workflow for investigating a domain across DNS, WHOIS registration data, DNS history, infrastructure, network path, attack surface, and external threat-intelligence sources.
+Domain Forensic Analyzer is a terminal-based OSINT workflow for investigating a domain across DNS, WHOIS registration data, DNS history, infrastructure, SSL/TLS certificates, network path, attack surface, and external threat-intelligence sources.
 
 The project is currently CLI-first and report-focused. It is designed for defensive investigation, infrastructure review, and forensic triage of domain posture.
 
 ## Current Capabilities
 
-The analyzer runs 10 core modules in sequence:
+The analyzer runs 11 core modules in sequence:
 
 1. `dns` - current DNS resolution and DNS hardening checks
 2. `whois` - registration intelligence via WhoisXML API with local WHOIS fallback
@@ -14,22 +14,25 @@ The analyzer runs 10 core modules in sequence:
 4. `cdn` - CDN, WAF, hosting, and edge-protection detection
 5. `network` - connectivity and traceroute path analysis
 6. `subdomain` - DNS-based subdomain discovery with wildcard handling
-7. `securitytrails` - SecurityTrails domain intelligence
-8. `abuseipdb` - IP reputation intelligence
-9. `virustotal` - domain reputation and category intelligence
-10. `ip_history` - reverse-IP lookup and co-hosted domain intelligence
+7. `ssl` - TLS certificate inspection and protocol analysis
+8. `securitytrails` - SecurityTrails domain intelligence
+9. `abuseipdb` - IP reputation intelligence
+10. `virustotal` - domain reputation and category intelligence
+11. `ip_history` - reverse-IP lookup and co-hosted domain intelligence
 
 The final report includes:
 
 - forensic session metadata and OPSEC context
-- target DNS summary
+- target DNS summary with GEO and ASN context
 - WHOIS registration summary
 - DNS forensic posture
 - DNS history timeline
-- infrastructure/CDN/WAF assessment
 - network path and traceroute details
+- SSL/TLS certificate inspection
+- infrastructure and CDN/WAF assessment
 - attack-surface findings
 - threat-intelligence summary
+- IP and domain history
 - risk assessment and execution summary
 
 ## Quick Start
@@ -50,6 +53,12 @@ Or pass the target domain directly to skip the interactive prompt:
 
 ```powershell
 python run.py example.com
+```
+
+Analyze multiple domains from a file:
+
+```powershell
+python run.py --list domains.txt
 ```
 
 ## API Configuration
@@ -111,6 +120,7 @@ WhoisXML also supports the environment-first pattern used by the analyzer:
 `src/analyzers/dns_analyzer.py` collects current DNS state:
 
 - A and AAAA records
+- CNAME record (shown only when present; root apex domains rarely have one)
 - reverse DNS
 - nameservers with TTL
 - MX records with priority and TTL
@@ -139,6 +149,7 @@ The final report surfaces DNS hardening gaps such as soft-fail SPF, monitor-only
 - nameserver extraction
 - source attribution
 - registry policy detection for WHOIS-redacting TLDs
+- privacy proxy detection (WhoisGuard, Domains By Proxy, Withheld for Privacy, and 9 others)
 
 Registries known to redact WHOIS fields by policy are detected automatically. Affected fields display "Not disclosed by registry (DENIC policy)" instead of a blank "Unknown", and a Registry Note line explains the policy at the top of the WHOIS block. Covered TLDs: `.de` (DENIC), `.at` (nic.at), `.ch` (SWITCH), `.nl` (SIDN), `.fi`, `.no`, `.se`, `.dk`.
 
@@ -171,15 +182,43 @@ The DNS history report includes:
 
 Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, and A events are kept in dedicated buckets separate from the display timeline so that high-volume CT activity cannot crowd out DNS records.
 
+### SSL/TLS Certificate Inspection
+
+`src/analyzers/ssl_analyzer.py` inspects TLS certificate and protocol details via a direct connection to port 443:
+
+- two-pass connection: verified first, then unverified fallback for expired or self-signed certificates
+- issuer (organization and CN, displayed as `Org (CN)`)
+- certificate validity window (valid from / valid until)
+- days to expiry with color-coded status
+- certificate type: Wildcard, Multi-SAN, or Single
+- TLS protocol version
+- Subject Alternative Names (SANs), capped at 10 with overflow count
+- self-signed detection
+- overall assessment label
+
+Risk flags fed into the risk model:
+
+- expired certificate → HIGH
+- expiring in under 14 days → HIGH
+- expiring in under 30 days → MEDIUM
+- self-signed certificate → MEDIUM
+- deprecated TLS version (TLS 1.0, TLS 1.1) → risk factor added
+
+No API key is required. The `cryptography` library is used for certificate parsing.
+
 ### Infrastructure Detection
 
 `src/analyzers/cdn_detector.py` estimates:
 
-- CDN and edge provider
+- CDN and edge provider via two-pass detection (rDNS hostname matching first, IP prefix fallback)
 - direct hosting versus CDN-backed infrastructure
 - protection level
 - WAF or edge-protection availability
-- geolocation context
+- geolocation context (country, region, city, ASN, ISP)
+- hosting type classification (CDN, gov-cloud, cloud, hosting, transit, government, education, commercial)
+- geographic risk (HIGH for CN/RU/KP/IR, MEDIUM for other elevated-risk countries)
+
+Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri, OVHcloud, Hetzner, IONOS, Outscale (French Government Cloud), Deutsche Telekom, and Bundescloud/BWI.
 
 ### Network Intelligence
 
@@ -213,9 +252,10 @@ Wildcard DNS is treated as a semantic constraint, not automatically as a risk.
 
 - domain IP history extracted from the DNS history timeline (deduped, newest first)
 - reverse-IP lookup from three passive sources: VirusTotal, RobTex, and HackerTarget
-- CDN-aware branching: CDN IPs display co-hosted domain samples with count; direct IPs display per-source breakdowns
+- results merged and deduplicated across all sources; top 20 shown with per-entry source attribution
+- total co-hosted count always displayed regardless of display limit
+- CDN-aware branching: CDN IPs display 5 co-hosted domain samples; direct IPs display the full top-20 merged list
 - infrastructure assessment: dedicated server, VPS, shared hosting, or CDN shared infrastructure
-- top 20 co-hosted domains merged and deduplicated across sources
 
 ### Threat Intelligence
 
@@ -230,16 +270,16 @@ The execution summary lists which live APIs were used in the run.
 
 ## Current Output Sections
 
-Typical report sections:
-
 ```text
 SUMMARY
 TARGET
+GEO & ASN
 WHOIS REGISTRATION
 DNS FORENSICS
 DNS HISTORY TIMELINE
-INFRASTRUCTURE
 NETWORK PATH
+SSL / TLS
+INFRASTRUCTURE
 ATTACK SURFACE
 THREAT INTELLIGENCE
 IP & DOMAIN HISTORY
@@ -280,6 +320,7 @@ The test suite covers:
 - Do not commit `.env`.
 - Rotate API keys if they were pasted into logs, issues, chat, or commits.
 - The analyzer performs passive OSINT-style collection, but external API and lookup providers can still observe queries.
+- The SSL/TLS module makes a direct TCP/TLS connection to port 443 on the target host.
 
 ## Known Limitations
 
@@ -292,18 +333,15 @@ The test suite covers:
 
 ## Recent Major Updates
 
-- **GEO & ASN block** — new report section after TARGET; shows country (ISO code + name), region, city, ASN number, ASN organisation, ISP, hosting type classification, and geographic risk. Data sourced from ip-api.com (no API key required). Hosting type derived from CDN provider classification, domain TLD, and ISP/org string matching.
+- **SSL/TLS module** — direct TLS handshake to port 443; two-pass connection handles expired and self-signed certificates; extracts issuer, validity window, days to expiry, SANs, cert type, and TLS version; expiry and self-signed risk flags feed into the overall risk model.
+- **CNAME records** — DNS FORENSICS block now includes CNAME when present; omitted for domains where none exists.
+- **Reverse IP global limit** — co-hosted domains from all sources are merged and deduplicated before display; top 20 shown with per-entry source attribution; total count always visible.
+- **GEO & ASN block** — report section after TARGET; shows country (ISO code + name), region, city, ASN number, ASN organisation, ISP, hosting type classification, and geographic risk. Data sourced from ip-api.com (no API key required).
 - **CDN provider detection extended** — hostname-pattern matching pass added (takes priority over IP prefix); 6 new providers: Outscale (French Government Cloud), OVHcloud, Hetzner, IONOS/1&1, Deutsche Telekom (DTAG), Bundescloud/BWI. New infrastructure types: `gov-cloud`, `hosting`, `transit`.
 - **IP & Domain History module** — reverse-IP lookup from VirusTotal, RobTex, and HackerTarget; domain IP history from passive DNS timeline; CDN-aware co-hosted domain display.
-- **DNS History Timeline extended** — first seen date, current IP first seen with age label, NS/MX change events grouped by date, Certificate Transparency history block. Fixed CT-event inflation of pattern analysis, fixed timeline span computation, fixed bucket isolation so CT cannot crowd out DNS records.
+- **DNS History Timeline extended** — first seen date, current IP first seen with age label, NS/MX change events grouped by date, Certificate Transparency history block.
 - **DNS Forensics extended** — TTL values on A/NS/MX records, SPF include chain recursive (depth ≤ 2), DMARC sp=/rua=/ruf= separately, CAA issuewild explicit, DKIM selectors expanded.
-- **WHOIS registry policy awareness** — DENIC and 7 other redacting registries detected; "Not disclosed by registry" replaces silent Unknown; Registry Note line added.
+- **WHOIS registry policy awareness** — DENIC and 7 other redacting registries detected; "Not disclosed by registry" replaces silent Unknown.
+- **Privacy proxy detection** — 12 known proxy services detected in WHOIS registrant fields.
 - **CLI argument support** — `python run.py domain.com` skips interactive prompt.
-- **CDN detector fix** — Cloudflare 104.24–104.27 ranges added; prevents misidentification as Azure.
-- Added WHOIS registration module with WhoisXML support.
-- Added DNS forensics for SPF, DMARC, DKIM, CAA, DNSSEC, SOA, TXT, and zone transfer.
-- Added DNS History Timeline module.
-- Improved traceroute handling for partial and timeout cases.
-- Improved VirusTotal category formatting.
-- Added API config template support for WhoisXML.
-- Cleaned test layout so active pytest tests live under `tests/`.
+- **List mode** — `python run.py --list domains.txt` runs all domains sequentially with a per-domain status summary table.
