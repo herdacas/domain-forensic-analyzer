@@ -9,19 +9,67 @@ from typing import Optional, Dict, List
 class DomainValidator:
     """
     Professionelle Domain-Validierung fuer forensische Analysen
-    
+
     Implementiert RFC-konforme Domain-Validierung und bietet erweiterte
     Parsing-Funktionen fuer forensische Domain-Untersuchungen.
     """
-    
+
     # RFC-konforme Domain-Regex (vereinfacht aber robust)
     DOMAIN_PATTERN = r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'
-    
+
     # Top-Level-Domains fuer erweiterte Validierung
     COMMON_TLDS = {
-        'com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'de', 'uk', 'fr', 
+        'com', 'org', 'net', 'edu', 'gov', 'mil', 'int', 'de', 'uk', 'fr',
         'jp', 'au', 'ca', 'ru', 'cn', 'in', 'br', 'mx', 'it', 'es', 'nl'
     }
+
+    # RFC 2606 / RFC 6761 reserved TLDs — guaranteed non-operational in public DNS
+    RESERVED_TLDS = {'invalid', 'local', 'test', 'localhost', 'example'}
+
+    # Compound second-level ccTLDs where apex is SLD.2ndLevel.ccTLD (3 labels)
+    COMPOUND_TLDS = {
+        'co.uk', 'co.jp', 'co.kr', 'co.in', 'co.nz', 'co.za', 'co.id', 'co.il',
+        'com.au', 'com.br', 'com.ar', 'com.mx', 'com.sg', 'com.my', 'com.hk',
+        'org.uk', 'net.au', 'gov.uk', 'ac.uk', 'me.uk', 'org.au',
+    }
+
+    @staticmethod
+    def preprocess_domain(raw: str):
+        """
+        Normalizes a domain input before scanning.
+
+        Returns (domain, message):
+          - domain is None  -> skip; message explains why
+          - domain != raw   -> was normalized; message describes the change
+          - message is None -> input accepted unchanged
+
+        Rules:
+          1. Reserved TLDs (RFC 2606/6761) -> skip entirely
+          2. Any subdomain -> strip to apex SLD.TLD (subdomain scanning is v2.0)
+        """
+        cleaned = DomainValidator.clean_domain(raw)
+        if not cleaned:
+            return None, f"Skipping '{raw}': invalid format"
+
+        parts = cleaned.split('.')
+        tld = parts[-1].lower() if parts else ''
+
+        # Rule 1: reserved TLDs — never scannable
+        if tld in DomainValidator.RESERVED_TLDS:
+            return None, (
+                f"Skipping '{cleaned}': .{tld} is a reserved TLD "
+                f"(RFC 2606/6761) and does not exist in public DNS"
+            )
+
+        # Rule 2: reduce any subdomain to apex domain
+        two_part = '.'.join(p.lower() for p in parts[-2:]) if len(parts) >= 2 else ''
+        apex_depth = 3 if two_part in DomainValidator.COMPOUND_TLDS else 2
+
+        if len(parts) > apex_depth:
+            apex = '.'.join(parts[-apex_depth:])
+            return apex, f"'{cleaned}' -> scanning apex '{apex}'"
+
+        return cleaned, None
     
     @staticmethod
     def is_valid_domain(domain: str) -> bool:

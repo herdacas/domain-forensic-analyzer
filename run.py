@@ -23,14 +23,17 @@ def _parse_domain_list(path_str: str):
         sys.exit(1)
 
     domains = []
+    seen = set()
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if DomainValidator.is_valid_domain(line):
-            domains.append(DomainValidator.clean_domain(line))
-        else:
-            print(f"Warning: skipping invalid domain {line!r}")
+        domain, msg = DomainValidator.preprocess_domain(line)
+        if msg:
+            print(f"  [input] {msg}")
+        if domain and domain not in seen:
+            seen.add(domain)
+            domains.append(domain)
     return domains
 
 

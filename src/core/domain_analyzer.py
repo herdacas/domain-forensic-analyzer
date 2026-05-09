@@ -821,11 +821,13 @@ def get_domain_input() -> str:
     # Accept domain from command-line argument if provided
     if len(sys.argv) > 1:
         candidate = sys.argv[1].strip()
-        if DomainValidator.is_valid_domain(candidate):
-            return DomainValidator.clean_domain(candidate)
-        else:
-            print(f"Invalid domain argument: {candidate!r}")
+        domain, msg = DomainValidator.preprocess_domain(candidate)
+        if domain is None:
+            print(f"Error: {msg}")
             sys.exit(1)
+        if msg:
+            print(f"[input] {msg}")
+        return domain
 
     print(Colors.header("DOMAIN FORENSIC ANALYZER"))
     print("Target Domain Selection")
@@ -833,20 +835,23 @@ def get_domain_input() -> str:
 
     while True:
         try:
-            domain = input(f"Enter target domain: ").strip()
+            raw = input(f"Enter target domain: ").strip()
 
-            if not domain:
+            if not raw:
                 print("Please enter a domain.")
                 continue
 
-            if domain.lower() in ['exit', 'quit', 'q']:
+            if raw.lower() in ['exit', 'quit', 'q']:
                 print("Goodbye!")
                 sys.exit(0)
 
-            if DomainValidator.is_valid_domain(domain):
-                return DomainValidator.clean_domain(domain)
-            else:
-                print("Invalid domain format. Try again.")
+            domain, msg = DomainValidator.preprocess_domain(raw)
+            if domain is None:
+                print(f"  {msg}")
+                continue
+            if msg:
+                print(f"  [input] {msg}")
+            return domain
 
         except KeyboardInterrupt:
             print("\nGoodbye!")
