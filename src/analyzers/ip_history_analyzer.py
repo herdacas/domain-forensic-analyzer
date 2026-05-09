@@ -55,14 +55,19 @@ class IPHistoryAnalyzer:
         merged: List[Dict[str, Any]] = []
         clean_domain = domain.lower().strip().rstrip(".")
 
-        for source_data in sources.values():
+        source_labels = {
+            "virustotal": "VirusTotal",
+            "robtex": "RobTex",
+            "hackertarget": "HackerTarget",
+        }
+        for source_key, source_data in sources.items():
             for entry in source_data.get("domains", []):
                 name = entry.get("domain", "").lower().strip().rstrip(".")
                 if not name or name == clean_domain:
                     continue
                 if name not in seen:
                     seen.add(name)
-                    merged.append(entry)
+                    merged.append({**entry, "source": source_labels.get(source_key, source_key)})
 
         total_found = len(seen)
         merged.sort(

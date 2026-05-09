@@ -4,3 +4,4 @@ urllib3>=1.26.0
 python-whois>=0.7.3
 loguru>=0.7.2
 python-dotenv>=1.0.0
+cryptography>=41.0.0

@@ -42,6 +42,7 @@ try:
     from src.analyzers.abuseipdb_client import AbuseIPDBClient
     from src.analyzers.virustotal_client import VirusTotalClient
     from src.analyzers.ip_history_analyzer import IPHistoryAnalyzer
+    from src.analyzers.ssl_analyzer import SSLAnalyzer
     CORE_MODULES_AVAILABLE = True
 except ImportError as error:
     CORE_MODULES_AVAILABLE = False
@@ -121,7 +122,7 @@ class DomainAnalyzer:
         
         # Order in which modules will be executed
         self.module_execution_order = [
-            'dns', 'whois', 'dns_history', 'cdn', 'network', 'subdomain',
+            'dns', 'whois', 'dns_history', 'cdn', 'network', 'subdomain', 'ssl',
             'securitytrails', 'abuseipdb', 'virustotal', 'ip_history'
         ]
         
@@ -133,6 +134,7 @@ class DomainAnalyzer:
             'cdn': 45, 
             'network': 90,
             'subdomain': 180,
+            'ssl': 25,
             'securitytrails': 30,
             'abuseipdb': 30,
             'virustotal': 30,
@@ -192,7 +194,8 @@ class DomainAnalyzer:
             'securitytrails': SecurityTrailsClient,
             'abuseipdb': AbuseIPDBClient,
             'virustotal': VirusTotalClient,
-            'ip_history': IPHistoryAnalyzer
+            'ip_history': IPHistoryAnalyzer,
+            'ssl': SSLAnalyzer
         }
         
         # Try to create each module, log warnings for any that fail
@@ -530,6 +533,9 @@ class DomainAnalyzer:
             else:
                 raise Exception("No IP address available for reverse IP analysis")
 
+        elif module_name == 'ssl':
+            return module.analyze_ssl(domain)
+
         else:
             raise Exception(f"Unknown module: {module_name}")
     
@@ -624,6 +630,11 @@ class DomainAnalyzer:
                 'sources': {},
                 'total_co_hosted': 0,
                 'top_co_hosted': []
+            },
+            'ssl': {
+                'domain': domain,
+                'available': False,
+                'error': 'module did not run',
             }
         }
         
@@ -779,7 +790,8 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"│   ├── Ping (ICMP to target)")
     print(f"│   ├── HTTP/S connectivity check")
     print(f"│   ├── Zone transfer attempt (direct to NS)")
-    print(f"│   └── Subdomain DNS probes")
+    print(f"│   ├── Subdomain DNS probes")
+    print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
     print(f"└── Passive Sources (target does not see your IP):")
     print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
     print(f"    ├── SecurityTrails, RobTex, HackerTarget")
@@ -847,6 +859,7 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
     abuse_result = result.results.get('abuseipdb', {})
     subdomain_result = result.results.get('subdomain', {})
     whois_result = result.results.get('whois', {})
+    ssl_result = result.results.get('ssl', {})
     risk_factors = []
     overall_risk = "LOW"
 
@@ -898,6 +911,30 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
         risk_factors.append(f"Moderate IP abuse reports ({abuse_confidence}%)")
         if overall_risk == "LOW":
             overall_risk = "MEDIUM"
+
+    # SSL/TLS certificate risk checks
+    if ssl_result.get('available'):
+        days_to_expiry = ssl_result.get('days_to_expiry')
+        if days_to_expiry is not None:
+            if days_to_expiry < 0:
+                risk_factors.append(f"Certificate expired {abs(days_to_expiry)} days ago")
+                if overall_risk not in ("CRITICAL", "HIGH"):
+                    overall_risk = "HIGH"
+            elif days_to_expiry < 14:
+                risk_factors.append(f"Certificate expiring in {days_to_expiry} days")
+                if overall_risk not in ("CRITICAL", "HIGH"):
+                    overall_risk = "HIGH"
+            elif days_to_expiry < 30:
+                risk_factors.append("Certificate expiring soon")
+                if overall_risk == "LOW":
+                    overall_risk = "MEDIUM"
+        if ssl_result.get('self_signed'):
+            risk_factors.append("Self-signed certificate detected")
+            if overall_risk == "LOW":
+                overall_risk = "MEDIUM"
+        tls_ver = ssl_result.get('tls_version', '')
+        if tls_ver in ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2'):
+            risk_factors.append(f"TLS 1.3 not supported ({tls_ver} in use)")
 
     if overall_risk == "CRITICAL":
         recommendation = "LIKELY MALICIOUS - Multiple high-confidence indicators"
@@ -1376,6 +1413,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     cdn_result = result.results.get('cdn', {})
     ip_history_result = result.results.get('ip_history', {})
     network_result = result.results.get('network', {})
+    ssl_result = result.results.get('ssl', {})
     subdomain_result = result.results.get('subdomain', {})
     wildcard_detected = bool(
         subdomain_result.get('wildcard_detected')
@@ -1549,6 +1587,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         a_ttl = dns_result.get('a_record_ttl')
         mx_ttl = dns_result.get('mx_record_ttl')
         ns_ttl = dns_result.get('ns_record_ttl')
+        cname_target = dns_result.get('cname_target')
 
         soa_primary = soa_record.get('primary_nameserver', 'not available')
         soa_serial = soa_record.get('serial', 'not available')
@@ -1577,6 +1616,10 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         # A Record TTL
         if a_ttl is not None:
             print(f"├── A Record TTL: {Colors.info(str(a_ttl) + 's')}")
+
+        # CNAME (only shown when present — root apex rarely has one)
+        if cname_target:
+            print(f"├── CNAME: {Colors.info(domain)} → {Colors.info(cname_target)}")
 
         print(f"├── TXT Records: {Colors.info(str(len(txt_records)))} observed")
 
@@ -1799,31 +1842,6 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     else:
         print(f"└── DNS History: {Colors.error('NOT RUN')}")
 
-    print(f"\n{Colors.section_header('INFRASTRUCTURE', 50)}")
-    if cdn_result.get('analysis_status') == 'abgeschlossen':
-        provider = cdn_result.get('provider_name', 'Unknown')
-        provider_type = cdn_result.get('provider_type') or cdn_result.get('infrastructure_type', 'Unknown')
-        protection = str(cdn_result.get('protection_level', 'Unknown')).title()
-        location = (cdn_result.get('location') or 
-                   cdn_result.get('geolocation') or 
-                   cdn_result.get('geo_data') or {})
-
-        if location and isinstance(location, dict):
-            country = location.get('country', 'Unknown')
-            city = location.get('city', 'Unknown')
-        else:
-            country = cdn_result.get('country', 'Unknown')
-            city = cdn_result.get('city', 'Unknown')
-        
-        edge_summary, waf_summary = _get_edge_protection_summary(cdn_result)
-        print(f"├── Infrastructure: {Colors.info(provider)} ({_format_provider_type(provider_type)})")
-        print(f"├── Protection Level: {Colors.info(protection)}")
-        print(f"├── Edge Protection: {Colors.info(edge_summary)}")
-        print(f"├── WAF Assessment: {Colors.info(waf_summary)}")
-        print(f"└── Location: {Colors.info(f'{city}, {country}')}")
-    else:
-        print(f"└── CDN / Hosting: {Colors.error('UNAVAILABLE')}")
-
     print(f"\n{Colors.section_header('NETWORK PATH', 50)}")
     if network_result.get('analysis_status') == 'abgeschlossen':
         connectivity = network_result.get('connectivity_test', {})
@@ -1848,6 +1866,82 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             print(f"└── Detail: {Colors.dim('Network analysis exceeded configured timeout')}")
         else:
             print(f"└── Network Path: {Colors.error('UNAVAILABLE')}")
+
+    print(f"\n{Colors.section_header('SSL / TLS', 50)}")
+    if ssl_result.get('analysis_status') == 'abgeschlossen':
+        if not ssl_result.get('available'):
+            err = ssl_result.get('error', 'unknown error')
+            print(f"└── SSL/TLS: {Colors.dim(f'not available ({err})')}")
+        elif ssl_result.get('parse_error'):
+            _parse_err = ssl_result.get('parse_error', '')[:80]
+            print(f"├── TLS Version: {Colors.info(ssl_result.get('tls_version', 'Unknown'))}")
+            print(f"└── Certificate: {Colors.warning(f'parse error: {_parse_err}')}")
+        else:
+            issuer_org = ssl_result.get('issuer_org') or ''
+            issuer_cn = ssl_result.get('issuer_cn') or ''
+            if issuer_org and issuer_cn and issuer_org != issuer_cn:
+                issuer_str = f"{issuer_org} ({issuer_cn})"
+            else:
+                issuer_str = issuer_org or issuer_cn or 'Unknown'
+
+            days = ssl_result.get('days_to_expiry', 0)
+            if days < 0:
+                expiry_color = Colors.error
+            elif days < 14:
+                expiry_color = Colors.warning
+            elif days < 30:
+                expiry_color = Colors.warning
+            else:
+                expiry_color = Colors.success
+
+            assessment = ssl_result.get('assessment', '')
+            if assessment.startswith('INVALID') or assessment.startswith('WARNING'):
+                assessment_color = Colors.error if assessment.startswith('INVALID') else Colors.warning
+            else:
+                assessment_color = Colors.success
+
+            sans = ssl_result.get('sans', []) or []
+            print(f"├── Issuer: {Colors.info(issuer_str)}")
+            print(f"├── Valid From: {Colors.info(ssl_result.get('valid_from', 'Unknown'))}")
+            print(f"├── Valid Until: {Colors.info(ssl_result.get('valid_until', 'Unknown'))}")
+            print(f"├── Days to Expiry: {expiry_color(f'{days} days')}")
+            print(f"├── Certificate Type: {Colors.info(ssl_result.get('cert_type', 'Unknown'))}")
+            print(f"├── TLS Version: {Colors.info(ssl_result.get('tls_version', 'Unknown'))}")
+            if sans:
+                san_limit = 10
+                print(f"├── Subject Alternative Names ({len(sans)} total):")
+                for san in sans[:san_limit]:
+                    print(f"│   ├── {san}")
+                if len(sans) > san_limit:
+                    print(f"│   └── {Colors.dim(f'... +{len(sans) - san_limit} more')}")
+            print(f"└── Assessment: {assessment_color(assessment)}")
+    else:
+        print(f"└── SSL/TLS: {Colors.dim('not analyzed')}")
+
+    print(f"\n{Colors.section_header('INFRASTRUCTURE', 50)}")
+    if cdn_result.get('analysis_status') == 'abgeschlossen':
+        provider = cdn_result.get('provider_name', 'Unknown')
+        provider_type = cdn_result.get('provider_type') or cdn_result.get('infrastructure_type', 'Unknown')
+        protection = str(cdn_result.get('protection_level', 'Unknown')).title()
+        location = (cdn_result.get('location') or
+                   cdn_result.get('geolocation') or
+                   cdn_result.get('geo_data') or {})
+
+        if location and isinstance(location, dict):
+            country = location.get('country', 'Unknown')
+            city = location.get('city', 'Unknown')
+        else:
+            country = cdn_result.get('country', 'Unknown')
+            city = cdn_result.get('city', 'Unknown')
+
+        edge_summary, waf_summary = _get_edge_protection_summary(cdn_result)
+        print(f"├── Infrastructure: {Colors.info(provider)} ({_format_provider_type(provider_type)})")
+        print(f"├── Protection Level: {Colors.info(protection)}")
+        print(f"├── Edge Protection: {Colors.info(edge_summary)}")
+        print(f"├── WAF Assessment: {Colors.info(waf_summary)}")
+        print(f"└── Location: {Colors.info(f'{city}, {country}')}")
+    else:
+        print(f"└── CDN / Hosting: {Colors.error('UNAVAILABLE')}")
 
     print(f"\n{Colors.section_header('ATTACK SURFACE', 50)}")
     if subdomain_result.get('analysis_status') == 'abgeschlossen':
@@ -2035,52 +2129,35 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         top_co_hosted = ip_history_result.get('top_co_hosted', []) or []
         sources = ip_history_result.get('sources', {}) or {}
 
-        print(f"├── Reverse IP ({Colors.format_ip(current_ip)}):")
+        display_limit = 5 if is_cdn else 20
+        showing = min(len(top_co_hosted), display_limit)
+        if total_co_hosted > display_limit:
+            print(f"├── Reverse IP ({Colors.format_ip(current_ip)}, showing top {display_limit} of {total_co_hosted} total):")
+        elif total_co_hosted > 0:
+            print(f"├── Reverse IP ({Colors.format_ip(current_ip)}, {total_co_hosted} total):")
+        else:
+            print(f"├── Reverse IP ({Colors.format_ip(current_ip)}):")
 
         if is_cdn:
             print(f"│   ├── {Colors.warning(f'CDN infrastructure ({cdn_name}) — shared IPs serve many domains')}")
-            if total_co_hosted > 0:
-                print(f"│   ├── Co-hosted domains sampled: {Colors.info(str(len(top_co_hosted)))} (of {total_co_hosted}+ found)")
-                for entry in top_co_hosted[:5]:
-                    name = entry.get('domain', '')
-                    ls = entry.get('last_seen', '')
-                    suffix = f" ({ls})" if ls else ""
-                    print(f"│   │   ├── {name}{Colors.dim(suffix)}")
-                if total_co_hosted > 5:
-                    print(f"│   │   └── {Colors.dim('... many more (CDN shared infrastructure)')}")
-            else:
-                print(f"│   └── {Colors.dim('No co-hosted domain data available')}")
+
+        if total_co_hosted > 0:
+            for entry in top_co_hosted[:display_limit]:
+                name = entry.get('domain', '')
+                ls = entry.get('last_seen', '')
+                src = entry.get('source', '')
+                parts = []
+                if src:
+                    parts.append(src)
+                if ls:
+                    parts.append(ls)
+                suffix = f" ({', '.join(parts)})" if parts else ""
+                print(f"│   ├── {name}{Colors.dim(suffix)}")
+            if total_co_hosted > display_limit:
+                print(f"│   ├── {Colors.dim(f'... +{total_co_hosted - display_limit} more')}")
+            print(f"│   └── Total unique co-hosted: {Colors.info(str(total_co_hosted))}")
         else:
-            for source_key, source_label in [
-                ('virustotal', 'VirusTotal'),
-                ('robtex', 'RobTex'),
-                ('hackertarget', 'HackerTarget'),
-            ]:
-                src = sources.get(source_key, {})
-                src_status = src.get('status', 'unknown')
-                src_domains = src.get('domains', []) or []
-                src_count = len(src_domains)
-
-                if src_status == 'skipped':
-                    print(f"│   ├── {source_label}: {Colors.dim('no API key')}")
-                elif src_status in ('quota_exceeded', 'rate_limited'):
-                    print(f"│   ├── {source_label}: {Colors.warning('rate limited')}")
-                elif src_status in ('error', 'not_found', 'no_data') or src_count == 0:
-                    print(f"│   ├── {source_label}: {Colors.dim('no data')}")
-                else:
-                    print(f"│   ├── {source_label} ({src_count} domains):")
-                    for entry in src_domains[:3]:
-                        name = entry.get('domain', '')
-                        ls = entry.get('last_seen', '')
-                        suffix = f" ({ls})" if ls else ""
-                        print(f"│   │   ├── {name}{Colors.dim(suffix)}")
-                    if src_count > 3:
-                        print(f"│   │   └── {Colors.dim(f'... +{src_count - 3} more')}")
-
-            if total_co_hosted > 0:
-                print(f"│   └── Total unique co-hosted: {Colors.info(str(total_co_hosted))}")
-            else:
-                print(f"│   └── {Colors.dim('No co-hosted domains found')}")
+            print(f"│   └── {Colors.dim('No co-hosted domains found')}")
 
         # Infrastructure classification
         if is_cdn:

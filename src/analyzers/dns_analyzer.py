@@ -108,6 +108,7 @@ class DNSAnalyzer:
             'dmarc_record': None,
             'dmarc_analysis': {},
             'dkim': {},
+            'cname_target': None,
             'caa_records': [],
             'dnssec': {},
             'zone_transfer': {},
@@ -134,6 +135,7 @@ class DNSAnalyzer:
         results.update(self._analyze_dmarc_record(clean_domain))
         results.update(self._analyze_dmarc_configuration(results.get('dmarc_record')))
         results.update(self._analyze_dkim_selectors(clean_domain))
+        results.update(self._analyze_cname_record(clean_domain))
         results.update(self._analyze_caa_records(clean_domain))
         results.update(self._analyze_dnssec(clean_domain))
         results.update(self._analyze_zone_transfer(clean_domain, results.get('ns_records', [])))
@@ -493,6 +495,18 @@ class DNSAnalyzer:
         if isinstance(value, bytes):
             return value.decode('utf-8', errors='replace').strip().strip('"')
         return str(value).strip().strip('"')
+
+    def _analyze_cname_record(self, domain: str) -> Dict[str, Any]:
+        """Ermittelt CNAME-Record falls vorhanden (Root-Apex hat selten einen)."""
+        try:
+            answer = self._create_resolver().resolve(domain, 'CNAME')
+            target = str(answer[0].target).rstrip('.')
+            return {'cname_target': target}
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN,
+                dns.resolver.NoNameservers, dns.exception.Timeout):
+            return {'cname_target': None}
+        except Exception:
+            return {'cname_target': None}
 
     def _analyze_caa_records(self, domain: str) -> Dict[str, List[Dict[str, Any]]]:
         """Ermittelt CAA-Policies fuer Zertifikatsausstellung."""
