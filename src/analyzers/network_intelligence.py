@@ -376,98 +376,81 @@ class NetworkIntelligence:
         try:
             if self.is_windows:
                 cmd = ['tracert', '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
-            else:
-                cmd = ['traceroute', '-m', str(self.max_traceroute_hops), '-w', str(max(1, self.traceroute_probe_timeout_ms // 1000)), ip_address]
+                process = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    encoding=self.encoding, errors='replace'
+                )
 
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                encoding=self.encoding if self.is_windows else 'utf-8',
-                errors='replace'
-            )
+                output_lines = []
+                start_time = time.monotonic()
+                consecutive_no_response_hops = 0
 
-            output_lines = []
-            start_time = time.monotonic()
-            consecutive_no_response_hops = 0
+                while True:
+                    if time.monotonic() - start_time > timeout:
+                        return self._stop_traceroute_process(
+                            process, output_lines, metadata,
+                            f'Traceroute command timed out after {timeout}s'
+                        )
 
-            while True:
-                if time.monotonic() - start_time > timeout:
-                    return self._stop_traceroute_process(
-                        process,
-                        output_lines,
-                        metadata,
-                        'Traceroute command timed out after '
-                        f'{timeout}s'
-                    )
+                    line = process.stdout.readline() if process.stdout else ''
+                    if line:
+                        output_lines.append(line)
+                        hop_info = self._parse_traceroute_line(line.strip())
+                        if hop_info:
+                            if hop_info.get('status') == 'responsive':
+                                consecutive_no_response_hops = 0
+                            else:
+                                consecutive_no_response_hops += 1
+                                if consecutive_no_response_hops >= self.max_consecutive_no_response_hops:
+                                    return self._stop_traceroute_process(
+                                        process, output_lines, metadata,
+                                        f'Traceroute stopped after {self.max_consecutive_no_response_hops} consecutive no-response hops'
+                                    )
+                        continue
 
-                line = process.stdout.readline() if process.stdout else ''
-                if line:
-                    output_lines.append(line)
-                    hop_info = self._parse_traceroute_line(line.strip())
-                    if hop_info:
-                        if hop_info.get('status') == 'responsive':
-                            consecutive_no_response_hops = 0
-                        else:
-                            consecutive_no_response_hops += 1
-                            if consecutive_no_response_hops >= self.max_consecutive_no_response_hops:
-                                return self._stop_traceroute_process(
-                                    process,
-                                    output_lines,
-                                    metadata,
-                                    'Traceroute stopped after '
-                                    f'{self.max_consecutive_no_response_hops} consecutive no-response hops'
-                                )
-                    continue
+                    if process.poll() is not None:
+                        break
 
-                if process.poll() is not None:
-                    break
+                    time.sleep(0.05)
 
-                time.sleep(0.05)
+                remaining_stdout, _ = process.communicate(timeout=2)
+                if remaining_stdout:
+                    output_lines.append(remaining_stdout)
 
-            remaining_stdout, _ = process.communicate(timeout=2)
-            if remaining_stdout:
-                output_lines.append(remaining_stdout)
-
-            full_output = ''.join(output_lines)
-
-            if process.returncode == 0 or full_output:
-                hops = self._parse_traceroute_output(full_output)
-                metadata.update(self._summarize_traceroute_progress(hops))
-                print(f"    {Colors.success('Traceroute abgeschlossen:')} {len(hops)} Hops analysiert")
-                return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
-            else:
+                full_output = ''.join(output_lines)
+                if process.returncode == 0 or full_output:
+                    hops = self._parse_traceroute_output(full_output)
+                    metadata.update(self._summarize_traceroute_progress(hops))
+                    return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
                 return {'status': 'failed', 'error': 'No route found', **metadata}
+
+            else:
+                # Linux: use tracepath directly (pre-installed on most distributions)
+                cmd = ['tracepath', '-m', str(self.max_traceroute_hops), ip_address]
+                process = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    text=True, encoding='utf-8', errors='replace'
+                )
+                try:
+                    stdout, _ = process.communicate(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout, _ = process.communicate()
+                hops = self._parse_tracepath_output(stdout)
+                if hops:
+                    metadata.update(self._summarize_traceroute_progress(hops))
+                    return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
+                return {'status': 'failed', 'error': 'No route found', **metadata}
+
         except FileNotFoundError:
-            if not self.is_windows:
-                return self._try_tracepath_fallback(ip_address, metadata)
-            return {'status': 'error', 'error': 'tracert not found', **metadata}
+            tool = 'tracert' if self.is_windows else 'tracepath'
+            install = '' if self.is_windows else ' - run: sudo apt install iputils-tracepath'
+            return {'status': 'error', 'error': f'{tool} not found{install}', **metadata}
         except Exception as error:
             return {'status': 'error', 'error': str(error), **metadata}
         finally:
             if process and process.poll() is None:
                 process.kill()
-
-    def _try_tracepath_fallback(self, ip_address: str, metadata: dict) -> Dict[str, Any]:
-        """Try tracepath when traceroute is not installed (common on minimal Linux systems)."""
-        try:
-            cmd = ['tracepath', '-m', str(self.max_traceroute_hops), ip_address]
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding='utf-8', errors='replace'
-            )
-            stdout, _ = process.communicate(timeout=60)
-            hops = self._parse_tracepath_output(stdout)
-            if hops:
-                metadata.update(self._summarize_traceroute_progress(hops))
-                return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
-            return {'status': 'failed', 'error': 'tracepath returned no hops', **metadata}
-        except FileNotFoundError:
-            return {
-                'status': 'error',
-                'error': 'traceroute/tracepath not installed - run: sudo apt install traceroute',
-                **metadata,
-            }
-        except Exception as e:
-            return {'status': 'error', 'error': str(e), **metadata}
 
     def _parse_tracepath_output(self, output: str) -> List[Dict[str, Any]]:
         """Parse tracepath output into hop list compatible with traceroute hop format."""
