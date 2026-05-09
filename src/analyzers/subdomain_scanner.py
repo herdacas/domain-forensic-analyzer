@@ -209,16 +209,20 @@ class SubdomainScanner:
                 socket.setdefaulttimeout(old_timeout)
                 resolved_ips.append(None)
         
-        # Auswertung: Wildcard wenn >= 2 IPs identisch und nicht None
+        # Catch-all / wildcard: any 2+ random subdomains resolving = catch-all DNS.
+        # IP uniformity is NOT required — load-balanced pools return different IPs
+        # per query but still resolve every subdomain (false negative before this fix).
         valid_ips = [ip for ip in resolved_ips if ip is not None]
-        
+
         if len(valid_ips) >= 2:
             unique_ips = set(valid_ips)
             if len(unique_ips) == 1:
-                print(f"    {Colors.warning('Wildcard erkannt:')} Alle Random-Subdomains -> {valid_ips[0]}")
-                return True
-        
-        print(f"    {Colors.success('Kein Wildcard:')} Random-Subdomains nicht aufgeloest")
+                print(f"    {Colors.warning('Wildcard detected:')} random subdomains -> {valid_ips[0]}")
+            else:
+                print(f"    {Colors.warning('Catch-all detected:')} random subdomains resolve to IP pool {unique_ips}")
+            return True
+
+        print(f"    {Colors.success('No wildcard/catch-all:')} random subdomains did not resolve")
         return False
     
     def _enumerate_subdomains(self, domain: str, subdomains_to_test: List[str]) -> List[Dict[str, Any]]:
