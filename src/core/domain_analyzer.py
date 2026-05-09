@@ -914,14 +914,6 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
         if overall_risk == "LOW":
             overall_risk = "MEDIUM"
 
-    # HTTP/S behavior risk checks
-    if http_behavior:
-        https_reachable = http_behavior.get('https_status') is not None
-        if https_reachable and not http_behavior.get('has_redirect') and http_behavior.get('http_status') is not None:
-            risk_factors.append("HTTP served without redirect to HTTPS")
-        if https_reachable and not http_behavior.get('hsts'):
-            risk_factors.append("HSTS not configured")
-
     # SSL/TLS certificate risk checks
     if ssl_result.get('available'):
         days_to_expiry = ssl_result.get('days_to_expiry')
@@ -945,6 +937,14 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
         tls_ver = ssl_result.get('tls_version', '')
         if tls_ver in ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2'):
             risk_factors.append(f"TLS 1.3 not supported ({tls_ver} in use)")
+
+    # HTTP/S behavior risk checks
+    if http_behavior:
+        https_reachable = http_behavior.get('https_status') is not None
+        if https_reachable and not http_behavior.get('has_redirect') and http_behavior.get('http_status') is not None:
+            risk_factors.append("HTTP served without redirect to HTTPS")
+        if https_reachable and not http_behavior.get('hsts'):
+            risk_factors.append("HSTS not configured")
 
     if overall_risk == "CRITICAL":
         recommendation = "LIKELY MALICIOUS - Multiple high-confidence indicators"

@@ -22,12 +22,13 @@ The analyzer runs 11 core modules in sequence:
 
 The final report includes:
 
-- forensic session metadata and OPSEC context
+- forensic session metadata and OPSEC context (analysis type, stealth level, active probes, passive sources)
 - target DNS summary with GEO and ASN context
 - WHOIS registration summary
 - DNS forensic posture
 - DNS history timeline
 - network path and traceroute details
+- HTTP/S behavior (redirect chain, HSTS, server header)
 - SSL/TLS certificate inspection
 - infrastructure and CDN/WAF assessment
 - attack-surface findings
@@ -235,6 +236,24 @@ Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri,
 
 Partial routes are preserved in the report instead of being collapsed into generic failure output.
 
+### HTTP/S Behavior
+
+`src/analyzers/network_intelligence.py` also probes HTTP/S behavior via `_test_http_behavior()`:
+
+- HTTP probe with `allow_redirects=False` — detects 301/302 redirect to HTTPS
+- HTTPS probe with manual redirect following (up to 5 hops)
+- extracts `Server` header and `Strict-Transport-Security` from the final response
+- HSTS shown as `max-age=N; includeSubDomains` when present, "not configured" when absent
+- redirect chain displayed as `http://domain -> https://domain/ (N hop)`
+- assessment labels: Strong (HTTPS + redirect + HSTS), Moderate (HTTPS + one of the two), Weak (HTTP only)
+
+Risk flags fed into the risk model:
+
+- HTTP served without redirect to HTTPS → risk factor (LOW, no overall_risk upgrade)
+- HSTS not configured → risk factor (LOW, no overall_risk upgrade)
+
+No API key is required.
+
 ### Attack Surface
 
 `src/analyzers/subdomain_scanner.py` performs DNS-based subdomain discovery and categorization.
@@ -278,6 +297,7 @@ WHOIS REGISTRATION
 DNS FORENSICS
 DNS HISTORY TIMELINE
 NETWORK PATH
+HTTP/S BEHAVIOR
 SSL / TLS
 INFRASTRUCTURE
 ATTACK SURFACE
@@ -319,8 +339,9 @@ The test suite covers:
 - Do not commit `config/api_keys.json`.
 - Do not commit `.env`.
 - Rotate API keys if they were pasted into logs, issues, chat, or commits.
-- The analyzer performs passive OSINT-style collection, but external API and lookup providers can still observe queries.
+- The analyzer is a mixed passive/active tool. External API and lookup providers observe queries; the target host observes active probes.
 - The SSL/TLS module makes a direct TCP/TLS connection to port 443 on the target host.
+- The HTTP/S behavior module makes real HTTP and HTTPS requests to the target host.
 
 ## Known Limitations
 
@@ -333,7 +354,13 @@ The test suite covers:
 
 ## Recent Major Updates
 
+- **HTTP/S Behavior block** — new report block between NETWORK PATH and SSL/TLS; HTTP probe detects redirect to HTTPS; HTTPS probe follows redirect chain (up to 5 hops) and extracts Server header and HSTS policy; assessment: Strong / Moderate / Weak; risk flags for missing redirect and absent HSTS.
+- **OPSEC Assessment corrected** — analysis type changed from "PASSIVE OSINT" to "MIXED - Passive APIs + Active Probes"; stealth level floor raised to MEDIUM unconditionally; Active Probes and Passive Sources listed explicitly in the OPSEC block.
 - **SSL/TLS module** — direct TLS handshake to port 443; two-pass connection handles expired and self-signed certificates; extracts issuer, validity window, days to expiry, SANs, cert type, and TLS version; expiry and self-signed risk flags feed into the overall risk model.
+- **Domain age risk flag** — newly registered domains (< 30 days) flagged HIGH; recently registered (30–90 days) flagged MEDIUM in the risk summary.
+- **MX FQDN fix** — MX records now resolved via `dnspython` `dns.resolver.resolve()` giving full FQDNs; nslookup-based parsing removed.
+- **Privacy proxy detection** — 12 known proxy services (WhoisGuard, Domains By Proxy, PrivacyProtect, and others) detected in WHOIS registrant fields.
+- **crt.sh retry logic** — Certificate Transparency collection retries up to 3 times (max_retries=2, 1s backoff) before reporting failure.
 - **CNAME records** — DNS FORENSICS block now includes CNAME when present; omitted for domains where none exists.
 - **Reverse IP global limit** — co-hosted domains from all sources are merged and deduplicated before display; top 20 shown with per-entry source attribution; total count always visible.
 - **GEO & ASN block** — report section after TARGET; shows country (ISO code + name), region, city, ASN number, ASN organisation, ISP, hosting type classification, and geographic risk. Data sourced from ip-api.com (no API key required).
@@ -342,6 +369,5 @@ The test suite covers:
 - **DNS History Timeline extended** — first seen date, current IP first seen with age label, NS/MX change events grouped by date, Certificate Transparency history block.
 - **DNS Forensics extended** — TTL values on A/NS/MX records, SPF include chain recursive (depth ≤ 2), DMARC sp=/rua=/ruf= separately, CAA issuewild explicit, DKIM selectors expanded.
 - **WHOIS registry policy awareness** — DENIC and 7 other redacting registries detected; "Not disclosed by registry" replaces silent Unknown.
-- **Privacy proxy detection** — 12 known proxy services detected in WHOIS registrant fields.
 - **CLI argument support** — `python run.py domain.com` skips interactive prompt.
 - **List mode** — `python run.py --list domains.txt` runs all domains sequentially with a per-domain status summary table.
