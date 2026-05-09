@@ -233,6 +233,10 @@ class ResultAggregator:
         # Subdomain assets - FIXED mit comprehensive key search
         subdomain_result = module_results.get('subdomain', {})
         if subdomain_result.get('analysis_status') == 'abgeschlossen':
+            wildcard_detected = bool(
+                subdomain_result.get('wildcard_detected')
+                or subdomain_result.get('dns_configuration', {}).get('wildcard_detected', False)
+            )
             sensitive_assets = subdomain_result.get('sensitive_assets', [])
             risk_by_subdomain = {}
 
@@ -335,6 +339,10 @@ class ResultAggregator:
                             else:
                                 risk_level = 'informational'
                         
+                        # Wildcard domains: candidates only, never critical/high
+                        if wildcard_detected:
+                            risk_level = 'informational'
+
                         # Create standardized asset
                         standardized = StandardizedAsset(
                             asset_id=f"subdomain_{subdomain_name}",
