@@ -15,6 +15,9 @@ import urllib.request
 import urllib.error
 import socket
 import re
+import requests as _requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -100,6 +103,12 @@ class NetworkIntelligence:
         print(f"\n{Colors.section_header('CONNECTIVITY', 50)}")
         connectivity = self._test_connectivity(ip_address, domain)
         results['connectivity_test'] = connectivity
+
+        # HTTP/S behavior analysis (headers, redirects, HSTS)
+        if domain:
+            results['http_behavior'] = self._test_http_behavior(domain)
+        else:
+            results['http_behavior'] = {'available': False, 'assessment': 'unavailable'}
         
         # Traceroute-Analyse
         print(f"\n{Colors.section_header('TRACEROUTE', 50)}")
@@ -234,7 +243,124 @@ class NetworkIntelligence:
                 pass
         
         return connectivity
-    
+
+    def _test_http_behavior(self, domain: str) -> Dict[str, Any]:
+        """
+        Probe HTTP and HTTPS separately with redirect tracking.
+        Uses requests with allow_redirects=False for each hop.
+        """
+        result: Dict[str, Any] = {
+            'available': False,
+            'http_status': None,
+            'https_status': None,
+            'server': None,
+            'hsts': False,
+            'hsts_max_age': None,
+            'hsts_include_subdomains': False,
+            'has_redirect': False,
+            'redirect_chain': [],
+            'assessment': 'unavailable',
+        }
+
+        session = _requests.Session()
+        session.headers['User-Agent'] = 'Domain-Forensic-Analyzer/1.0'
+
+        # --- HTTP probe (single hop, no redirect following) ---
+        try:
+            r = session.get(
+                f"http://{domain}",
+                allow_redirects=False,
+                timeout=10,
+                verify=False,
+            )
+            result['http_status'] = r.status_code
+            if r.status_code in (301, 302, 303, 307, 308):
+                result['has_redirect'] = True
+                result['redirect_chain'] = [
+                    {'url': f"http://{domain}", 'status': r.status_code}
+                ]
+                location = r.headers.get('Location', '')
+                if location and not location.startswith('http'):
+                    location = f"http://{domain}{location}"
+                if location:
+                    result['redirect_chain'].append({'url': location, 'status': None})
+        except Exception:
+            pass
+
+        # --- HTTPS probe: follow up to 5 hops manually ---
+        try:
+            url = f"https://{domain}"
+            visited: set = set()
+            chain: list = []
+            final_resp = None
+
+            for _ in range(5):
+                if url in visited:
+                    break
+                visited.add(url)
+                resp = session.get(url, allow_redirects=False, timeout=10, verify=False)
+                chain.append({'url': url, 'status': resp.status_code})
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get('Location', '')
+                    if not location:
+                        break
+                    if not location.startswith('http'):
+                        from urllib.parse import urlparse
+                        p = urlparse(url)
+                        location = f"{p.scheme}://{p.netloc}{location}"
+                    url = location
+                else:
+                    final_resp = resp
+                    break
+
+            if final_resp is not None:
+                result['https_status'] = final_resp.status_code
+                result['available'] = True
+
+                server = (
+                    final_resp.headers.get('Server')
+                    or final_resp.headers.get('server')
+                )
+                if server:
+                    result['server'] = server.strip()
+
+                hsts_val = (
+                    final_resp.headers.get('Strict-Transport-Security')
+                    or final_resp.headers.get('strict-transport-security')
+                )
+                if hsts_val:
+                    result['hsts'] = True
+                    for part in hsts_val.split(';'):
+                        part = part.strip()
+                        if part.lower().startswith('max-age='):
+                            try:
+                                result['hsts_max_age'] = int(part.split('=', 1)[1])
+                            except ValueError:
+                                pass
+                        if part.lower() == 'includesubdomains':
+                            result['hsts_include_subdomains'] = True
+
+        except Exception:
+            pass
+
+        # --- Assessment ---
+        https_ok = (
+            result['https_status'] is not None
+            and 200 <= result['https_status'] < 400
+        )
+        if https_ok and result['has_redirect'] and result['hsts']:
+            result['assessment'] = 'strong'
+        elif https_ok and result['hsts']:
+            result['assessment'] = 'moderate'
+        elif https_ok and result['has_redirect']:
+            result['assessment'] = 'moderate'
+        elif https_ok:
+            result['assessment'] = 'weak'
+        elif result['http_status'] is not None and not https_ok:
+            result['assessment'] = 'unavailable'
+
+        return result
+
     def _perform_traceroute(self, ip_address: str) -> Dict[str, Any]:
         """Fuehrt Traceroute durch"""
         print(f"  {Colors.info('Traceroute-Analyse:')} Ermittle Netzwerkpfad...")

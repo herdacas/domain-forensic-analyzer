@@ -860,6 +860,8 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
     subdomain_result = result.results.get('subdomain', {})
     whois_result = result.results.get('whois', {})
     ssl_result = result.results.get('ssl', {})
+    network_result = result.results.get('network', {})
+    http_behavior = network_result.get('http_behavior', {})
     risk_factors = []
     overall_risk = "LOW"
 
@@ -911,6 +913,14 @@ def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
         risk_factors.append(f"Moderate IP abuse reports ({abuse_confidence}%)")
         if overall_risk == "LOW":
             overall_risk = "MEDIUM"
+
+    # HTTP/S behavior risk checks
+    if http_behavior:
+        https_reachable = http_behavior.get('https_status') is not None
+        if https_reachable and not http_behavior.get('has_redirect') and http_behavior.get('http_status') is not None:
+            risk_factors.append("HTTP served without redirect to HTTPS")
+        if https_reachable and not http_behavior.get('hsts'):
+            risk_factors.append("HSTS not configured")
 
     # SSL/TLS certificate risk checks
     if ssl_result.get('available'):
@@ -1413,6 +1423,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     cdn_result = result.results.get('cdn', {})
     ip_history_result = result.results.get('ip_history', {})
     network_result = result.results.get('network', {})
+    http_behavior = network_result.get('http_behavior', {})
     ssl_result = result.results.get('ssl', {})
     subdomain_result = result.results.get('subdomain', {})
     wildcard_detected = bool(
@@ -1866,6 +1877,72 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             print(f"└── Detail: {Colors.dim('Network analysis exceeded configured timeout')}")
         else:
             print(f"└── Network Path: {Colors.error('UNAVAILABLE')}")
+
+    print(f"\n{Colors.section_header('HTTP/S BEHAVIOR', 50)}")
+    if http_behavior.get('assessment', 'unavailable') == 'unavailable' and not http_behavior.get('http_status') and not http_behavior.get('https_status'):
+        print(f"└── HTTP/S Behavior: {Colors.dim('not available (connection refused or timeout)')}")
+    else:
+        # HTTP Status
+        http_st = http_behavior.get('http_status')
+        if http_st is not None:
+            if http_behavior.get('has_redirect'):
+                print(f"├── HTTP Status: {Colors.info(str(http_st))} {Colors.dim('HTTPS redirect')}")
+            else:
+                print(f"├── HTTP Status: {Colors.warning(f'{http_st} OK (no redirect)')}")
+        else:
+            print(f"├── HTTP Status: {Colors.dim('not reachable')}")
+
+        # HTTPS Status
+        https_st = http_behavior.get('https_status')
+        if https_st is not None:
+            https_color = Colors.success if 200 <= https_st < 300 else Colors.warning
+            print(f"├── HTTPS Status: {https_color(f'{https_st} OK')}")
+        else:
+            print(f"├── HTTPS Status: {Colors.warning('not reachable')}")
+
+        # Server
+        server = http_behavior.get('server')
+        if server:
+            print(f"├── Server: {Colors.info(server)}")
+
+        # HSTS
+        if http_behavior.get('hsts'):
+            max_age = http_behavior.get('hsts_max_age')
+            inc_sub = http_behavior.get('hsts_include_subdomains', False)
+            hsts_parts = []
+            if max_age is not None:
+                hsts_parts.append(f"max-age={max_age}")
+            if inc_sub:
+                hsts_parts.append("includeSubDomains")
+            hsts_str = "; ".join(hsts_parts) if hsts_parts else "present"
+            print(f"├── HSTS: {Colors.success(hsts_str)}")
+        else:
+            print(f"├── HSTS: {Colors.warning('not configured')}")
+
+        # Redirect Chain
+        chain = http_behavior.get('redirect_chain', [])
+        if chain:
+            chain_urls = [e['url'] for e in chain if e.get('url')]
+            hop_count = len(chain) - 1
+            if hop_count < 0:
+                hop_count = 0
+            chain_str = " -> ".join(chain_urls)
+            hop_label = f"({hop_count} hop)" if hop_count == 1 else f"({hop_count} hops)"
+            print(f"├── Redirect Chain: {Colors.dim(chain_str)} {Colors.dim(hop_label)}")
+
+        # Assessment
+        assessment = http_behavior.get('assessment', 'unavailable')
+        if assessment == 'strong':
+            print(f"└── Assessment: {Colors.success('Strong - HTTPS enforced, HSTS active')}")
+        elif assessment == 'moderate':
+            if not http_behavior.get('hsts'):
+                print(f"└── Assessment: {Colors.info('Moderate - HTTPS available, HSTS missing')}")
+            else:
+                print(f"└── Assessment: {Colors.info('Moderate - HTTPS available, no HTTP redirect')}")
+        elif assessment == 'weak':
+            print(f"└── Assessment: {Colors.warning('Weak - HTTP served without redirect to HTTPS')}")
+        else:
+            print(f"└── Assessment: {Colors.dim('unavailable')}")
 
     print(f"\n{Colors.section_header('SSL / TLS', 50)}")
     if ssl_result.get('analysis_status') == 'abgeschlossen':
