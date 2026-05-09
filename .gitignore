@@ -208,6 +208,11 @@ CLAUDE.md
 audit_modules.py
 audit_results.json
 
+# Local user files — stay on this machine, never committed
+domains.txt
+validate_export.py
+reports/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

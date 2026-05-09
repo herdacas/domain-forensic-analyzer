@@ -6,82 +6,48 @@ The project is currently CLI-first and report-focused. It is designed for defens
 
 ## Current Capabilities
 
-The analyzer runs 11 core modules in sequence:
-
-1. `dns` - current DNS resolution and DNS hardening checks
-2. `whois` - registration intelligence via WhoisXML API with local WHOIS fallback
-3. `dns_history` - historical DNS timeline from passive sources
-4. `cdn` - CDN, WAF, hosting, and edge-protection detection
-5. `network` - connectivity and traceroute path analysis
-6. `subdomain` - DNS-based subdomain discovery with wildcard handling
-7. `ssl` - TLS certificate inspection and protocol analysis
-8. `securitytrails` - SecurityTrails domain intelligence
-9. `abuseipdb` - IP reputation intelligence
-10. `virustotal` - domain reputation and category intelligence
-11. `ip_history` - reverse-IP lookup and co-hosted domain intelligence
-
 The final report includes:
 
 - forensic session metadata and OPSEC context (analysis type, stealth level, active probes, passive sources)
 - target DNS summary with GEO and ASN context
-- WHOIS registration summary
-- DNS forensic posture
-- DNS history timeline
+- WHOIS registration summary with registry policy and privacy proxy detection
+- DNS forensic posture (SPF, DMARC, DKIM, CAA, DNSSEC, CNAME, full NS/MX with TTL)
+- DNS history timeline with first seen dates, NS/MX migration events, and Certificate Transparency history
 - network path and traceroute details
-- HTTP/S behavior (redirect chain, HSTS, server header)
-- SSL/TLS certificate inspection
-- infrastructure and CDN/WAF assessment
-- attack-surface findings
-- threat-intelligence summary
-- IP and domain history
-- risk assessment and execution summary
+- HTTP/S behavior (redirect chain, HSTS, server header, assessment)
+- SSL/TLS certificate inspection (issuer, validity, SANs, TLS version, expiry risk)
+- infrastructure and CDN/WAF assessment with hosting type and geographic risk
+- attack surface findings from subdomain discovery
+- threat intelligence summary from integrated reputation APIs
+- IP and domain history with reverse-IP co-hosted domain intelligence
+- risk assessment with ordered risk factors and overall risk level
+- execution summary with per-module status and API attribution
 
-## Quick Start
+## Installation
 
-Install dependencies:
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/herdacas/domain-forensic-analyzer.git
+cd domain-forensic-analyzer
+```
+
+### 2. Create and activate a virtual environment (recommended)
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-Run the analyzer interactively:
+### 4. Configure API keys
 
-```powershell
-python run.py
-```
-
-Or pass the target domain directly to skip the interactive prompt:
-
-```powershell
-python run.py example.com
-```
-
-Analyze multiple domains from a file:
-
-```powershell
-python run.py --list domains.txt
-```
-
-## API Configuration
-
-API keys can be provided through environment variables or local config files. Local secret files are intentionally git-ignored.
-
-Supported environment variables:
-
-```text
-SECURITYTRAILS_API_KEY
-ABUSEIPDB_API_KEY
-VIRUSTOTAL_API_KEY
-WHOISXML_API_KEY
-```
-
-The JSON config path is:
-
-```text
-config/api_keys.json
-```
-
-Example structure:
+Create `config/api_keys.json` with your API keys (the file is git-ignored):
 
 ```json
 {
@@ -108,11 +74,131 @@ Example structure:
 }
 ```
 
-WhoisXML also supports the environment-first pattern used by the analyzer:
+Alternatively, export environment variables instead of editing the file:
+
+```powershell
+$env:VIRUSTOTAL_API_KEY    = "your_key"
+$env:ABUSEIPDB_API_KEY     = "your_key"
+$env:WHOISXML_API_KEY      = "your_key"
+$env:SECURITYTRAILS_API_KEY = "your_key"
+```
+
+The analyzer falls back gracefully when keys are missing: modules requiring an absent key are skipped and marked SKIPPED in the execution summary. GEO/ASN and SSL/TLS modules require no API key.
+
+## Usage
+
+Run the analyzer interactively (prompts for domain):
+
+```powershell
+python run.py
+```
+
+Pass the target domain directly to skip the interactive prompt:
+
+```powershell
+python run.py example.com
+```
+
+Analyze multiple domains from a list file:
+
+```powershell
+python run.py --list domains.txt
+```
+
+The list file is a plain text file with one domain per line. Empty lines and lines starting with `#` are ignored, so you can use comments to organize your targets:
+
+```text
+# Production infrastructure
+example.com
+example.org
+
+# Third-party services
+github.com
+cloudflare.com
+```
+
+Create the file anywhere you like and pass the path to `--list`. The file is never committed — add it to `.gitignore` or keep it outside the repository to avoid accidentally publishing your target list.
+
+Reports are written automatically to `reports/` after each scan. No additional flags are required.
+
+## Program Structure
+
+```text
+domain-forensic-analyzer/
+├── run.py                          Entry point — CLI arg handling, list mode, report export trigger
+├── requirements.txt                Python dependencies
+├── domains.txt                     Example domain list for --list mode
+│
+├── config/
+│   └── api_keys.json               API credentials (git-ignored, never committed)
+│
+├── reports/                        Auto-created on first run (git-ignored, stays local)
+│   ├── NNNN_domain.json            Structured JSON report per scan (scan ID + full result payload)
+│   └── raw/
+│       └── NNNN_domain.txt         Raw console output per scan (with ANSI codes, exact terminal copy)
+│
+├── src/
+│   ├── core/
+│   │   ├── domain_analyzer.py      Orchestrator, report renderer, risk model, OPSEC block, display logic
+│   │   └── report_exporter.py      JSON + raw TXT export; stdout capture; scan-ID management
+│   │
+│   ├── analyzers/
+│   │   ├── dns_analyzer.py         DNS records (A/AAAA/CNAME/NS/MX/TXT/SOA), hardening checks,
+│   │   │                           SPF include chain, DMARC sp/rua/ruf, DKIM selectors, CAA, DNSSEC
+│   │   ├── whois.py                WHOIS via WhoisXML API + python-whois fallback;
+│   │   │                           registry policy detection; privacy proxy detection
+│   │   ├── dns_history_analyzer.py Historical DNS timeline — SecurityTrails, VirusTotal, crt.sh;
+│   │   │                           NS/MX change grouping; first-seen dates; CT history
+│   │   ├── cdn_detector.py         CDN/cloud/hosting/gov-cloud detection (hostname + IP prefix);
+│   │   │                           GEO & ASN via ip-api.com; geographic risk classification
+│   │   ├── ip_history_analyzer.py  Reverse-IP lookup (VirusTotal, RobTex, HackerTarget);
+│   │   │                           co-hosted domain intelligence; domain IP history
+│   │   ├── network_intelligence.py Ping, traceroute, HTTP/S behavior probe (redirect chain, HSTS,
+│   │   │                           Server header, assessment label)
+│   │   ├── ssl_analyzer.py         TLS certificate inspection via direct port 443 connection
+│   │   │                           (stdlib ssl + cryptography); two-pass verified/unverified
+│   │   ├── subdomain_scanner.py    DNS-based subdomain discovery; wildcard DNS handling
+│   │   ├── securitytrails_client.py SecurityTrails domain intelligence API
+│   │   ├── abuseipdb_client.py     AbuseIPDB IP reputation API
+│   │   └── virustotal_client.py    VirusTotal domain + IP reputation API
+│   │
+│   ├── config/                     Runtime API config loader
+│   └── utils/
+│       └── colors.py               Terminal color helpers
+│
+└── tests/
+    ├── test_dns_analyzer.py
+    ├── test_dns_history_analyzer.py
+    └── test_result_aggregator.py
+```
+
+Each analyzer module is self-contained and exposes a single primary `analyze_*()` method. The orchestrator in `domain_analyzer.py` calls all 11 modules in sequence and merges results into a `UnifiedResult` object used for both terminal display and JSON export.
+
+## API Configuration
+
+API keys are resolved in priority order:
+
+1. environment variable (e.g. `WHOISXML_API_KEY`)
+2. `config/api_keys.json` under the matching key
+3. graceful fallback (python-whois for WHOIS; module skipped for reputation APIs)
+
+The WhoisXML fallback chain is:
 
 1. use `WHOISXML_API_KEY` if present
 2. otherwise read `config/api_keys.json` under `whoisxml`
-3. otherwise fall back to local `python-whois`
+3. otherwise use local `python-whois`
+
+API key sources per module:
+
+| Module | Key | Free tier |
+|---|---|---|
+| WHOIS | `WHOISXML_API_KEY` | 500 req/month |
+| VirusTotal | `VIRUSTOTAL_API_KEY` | 500 req/day |
+| AbuseIPDB | `ABUSEIPDB_API_KEY` | 1 000 req/day |
+| SecurityTrails | `SECURITYTRAILS_API_KEY` | 50 req/month |
+| SSL/TLS | — | no key required |
+| GEO & ASN | — | no key required (ip-api.com) |
+| HTTP/S Behavior | — | no key required |
 
 ## Module Details
 
@@ -124,7 +210,7 @@ WhoisXML also supports the environment-first pattern used by the analyzer:
 - CNAME record (shown only when present; root apex domains rarely have one)
 - reverse DNS
 - nameservers with TTL
-- MX records with priority and TTL
+- MX records with priority and TTL (resolved via dnspython for full FQDNs)
 - A record TTL
 - SOA metadata (primary NS, serial)
 - TXT records
@@ -142,17 +228,15 @@ The final report surfaces DNS hardening gaps such as soft-fail SPF, monitor-only
 
 `src/analyzers/whois.py` provides registration intelligence:
 
-- WhoisXML API support
-- local `python-whois` fallback
-- registrar
-- creation, expiration, and updated dates
+- WhoisXML API support with local `python-whois` fallback
+- registrar, creation, expiration, and updated dates
 - registrant name, organization, country, and email when available
-- nameserver extraction
-- source attribution
+- nameserver extraction and source attribution
 - registry policy detection for WHOIS-redacting TLDs
-- privacy proxy detection (WhoisGuard, Domains By Proxy, Withheld for Privacy, and 9 others)
 
 Registries known to redact WHOIS fields by policy are detected automatically. Affected fields display "Not disclosed by registry (DENIC policy)" instead of a blank "Unknown", and a Registry Note line explains the policy at the top of the WHOIS block. Covered TLDs: `.de` (DENIC), `.at` (nic.at), `.ch` (SWITCH), `.nl` (SIDN), `.fi`, `.no`, `.se`, `.dk`.
+
+Privacy proxy detection identifies 12 known proxy services (WhoisGuard, Domains By Proxy, PrivacyProtect, Withheld for Privacy, Perfect Privacy, Identity Protection Service, Contact Privacy, Data Protected, Redacted for Privacy, Privacy Guardian, Anonymize.com, Whois Privacy Protection). When detected, the proxy service name is shown in the WHOIS block.
 
 ### DNS History Timeline
 
@@ -162,7 +246,7 @@ Data sources:
 
 - SecurityTrails DNS history endpoints
 - VirusTotal domain resolutions
-- Certificate Transparency through `crt.sh`
+- Certificate Transparency through `crt.sh` (with retry logic: up to 3 attempts, 1s backoff)
 - native fallback when no external history is available
 
 The DNS history report includes:
@@ -173,15 +257,11 @@ The DNS history report includes:
 - NS record changes grouped by date as real migration events
 - MX record changes grouped by date as real migration events
 - Certificate Transparency history from crt.sh (certificate count and date range)
-- timeline span
-- major change count
-- recent historical events (non-certificate, top 3)
-- change-frequency assessment
-- infrastructure-stability assessment
-- suspicious-pattern detection
+- timeline span, major change count, and change-frequency assessment
+- infrastructure-stability assessment and suspicious-pattern detection
 - historical risk events
 
-Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, and A events are kept in dedicated buckets separate from the display timeline so that high-volume CT activity cannot crowd out DNS records.
+Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, A, and CT events are kept in dedicated buckets so that high-volume CT activity cannot crowd out DNS records.
 
 ### SSL/TLS Certificate Inspection
 
@@ -194,8 +274,7 @@ Same-day load-balanced VirusTotal resolution sets are grouped so large providers
 - certificate type: Wildcard, Multi-SAN, or Single
 - TLS protocol version
 - Subject Alternative Names (SANs), capped at 10 with overflow count
-- self-signed detection
-- overall assessment label
+- self-signed detection and overall assessment label
 
 Risk flags fed into the risk model:
 
@@ -213,13 +292,12 @@ No API key is required. The `cryptography` library is used for certificate parsi
 
 - CDN and edge provider via two-pass detection (rDNS hostname matching first, IP prefix fallback)
 - direct hosting versus CDN-backed infrastructure
-- protection level
-- WAF or edge-protection availability
-- geolocation context (country, region, city, ASN, ISP)
+- protection level and WAF/edge-protection availability
+- geolocation context (country, region, city, ASN, ISP) via ip-api.com (no API key)
 - hosting type classification (CDN, gov-cloud, cloud, hosting, transit, government, education, commercial)
 - geographic risk (HIGH for CN/RU/KP/IR, MEDIUM for other elevated-risk countries)
 
-Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri, OVHcloud, Hetzner, IONOS, Outscale (French Government Cloud), Deutsche Telekom, and Bundescloud/BWI.
+Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri, OVHcloud, Hetzner, IONOS/1&1, Outscale (French Government Cloud), Deutsche Telekom (DTAG), and Bundescloud/BWI.
 
 ### Network Intelligence
 
@@ -227,12 +305,7 @@ Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri,
 
 - ping reachability checks
 - HTTP/HTTPS connectivity checks
-- traceroute collection
-- hop parsing
-- RTT extraction
-- partial traceroute handling
-- timeout reporting
-- hop classification
+- traceroute collection with hop parsing, RTT extraction, and partial traceroute handling
 
 Partial routes are preserved in the report instead of being collapsed into generic failure output.
 
@@ -249,8 +322,8 @@ Partial routes are preserved in the report instead of being collapsed into gener
 
 Risk flags fed into the risk model:
 
-- HTTP served without redirect to HTTPS → risk factor (LOW, no overall_risk upgrade)
-- HSTS not configured → risk factor (LOW, no overall_risk upgrade)
+- HTTP served without redirect to HTTPS → risk factor (LOW)
+- HSTS not configured → risk factor (LOW)
 
 No API key is required.
 
@@ -260,8 +333,8 @@ No API key is required.
 
 The report distinguishes:
 
-- standard-resolution domains: findings are shown as discovered subdomains
-- wildcard DNS domains: findings are shown as candidates only
+- standard-resolution domains: findings shown as discovered subdomains
+- wildcard DNS domains: findings shown as candidates only
 
 Wildcard DNS is treated as a semantic constraint, not automatically as a risk.
 
@@ -271,7 +344,7 @@ Wildcard DNS is treated as a semantic constraint, not automatically as a risk.
 
 - domain IP history extracted from the DNS history timeline (deduped, newest first)
 - reverse-IP lookup from three passive sources: VirusTotal, RobTex, and HackerTarget
-- results merged and deduplicated across all sources; top 20 shown with per-entry source attribution
+- results merged and deduplicated; top 20 shown with per-entry source attribution
 - total co-hosted count always displayed regardless of display limit
 - CDN-aware branching: CDN IPs display 5 co-hosted domain samples; direct IPs display the full top-20 merged list
 - infrastructure assessment: dedicated server, VPS, shared hosting, or CDN shared infrastructure
@@ -286,6 +359,29 @@ The analyzer integrates:
 - WhoisXML for registration intelligence
 
 The execution summary lists which live APIs were used in the run.
+
+## Report Export
+
+After each scan, two files are written automatically to the `reports/` directory. No flag is required; export is always enabled.
+
+### JSON report
+
+`reports/NNNN_domain.json` — structured payload including:
+
+- `scan_id` — zero-padded 4-digit sequential ID (e.g. `0012`)
+- `timestamp` — ISO 8601 UTC timestamp
+- `domain` — target domain
+- `scan_duration_seconds` — wall-clock time for the full scan
+- `analyst` — IP, system platform, and OPSEC metadata
+- `result` — full analysis result (`UnifiedResult.to_dict()`) with all module outputs
+
+### Raw console capture
+
+`reports/raw/NNNN_domain.txt` — exact terminal output including ANSI color codes. Useful for archiving or diffing report output between runs.
+
+### Scan ID
+
+Scan IDs are assigned by reading the highest existing `NNNN_` prefix in `reports/`, incrementing by one. IDs are stable across restarts and never reused. The same ID appears in both the `.json` and `.txt` filenames for a given scan.
 
 ## Current Output Sections
 
@@ -307,17 +403,21 @@ RISK ASSESSMENT
 EXECUTION
 ```
 
-## Project Structure
+## Core Modules
 
-```text
-config/                 Local configuration templates and settings
-docs/                   Supplemental docs
-src/analyzers/          Individual analyzer modules
-src/config/             Runtime API config loader
-src/core/               CLI orchestration and result aggregation
-src/utils/              Colors, formatting, validators
-tests/                  Pytest tests
-```
+The analyzer runs 11 core modules in sequence:
+
+1. `dns` — current DNS resolution and DNS hardening checks
+2. `whois` — registration intelligence via WhoisXML API with local WHOIS fallback
+3. `dns_history` — historical DNS timeline from passive sources
+4. `cdn` — CDN, WAF, hosting, and edge-protection detection; GEO & ASN data
+5. `network` — connectivity, traceroute path analysis, and HTTP/S behavior probes
+6. `subdomain` — DNS-based subdomain discovery with wildcard handling
+7. `ssl` — TLS certificate inspection and protocol analysis
+8. `securitytrails` — SecurityTrails domain intelligence
+9. `abuseipdb` — IP reputation intelligence
+10. `virustotal` — domain reputation and category intelligence
+11. `ip_history` — reverse-IP lookup and co-hosted domain intelligence
 
 ## Testing
 
@@ -354,6 +454,7 @@ The test suite covers:
 
 ## Recent Major Updates
 
+- **Report export** — after each scan, a structured JSON report and a raw console capture (with ANSI codes) are written to `reports/`. Scan IDs are sequential and stable across restarts. Export never interrupts the scan.
 - **HTTP/S Behavior block** — new report block between NETWORK PATH and SSL/TLS; HTTP probe detects redirect to HTTPS; HTTPS probe follows redirect chain (up to 5 hops) and extracts Server header and HSTS policy; assessment: Strong / Moderate / Weak; risk flags for missing redirect and absent HSTS.
 - **OPSEC Assessment corrected** — analysis type changed from "PASSIVE OSINT" to "MIXED - Passive APIs + Active Probes"; stealth level floor raised to MEDIUM unconditionally; Active Probes and Passive Sources listed explicitly in the OPSEC block.
 - **SSL/TLS module** — direct TLS handshake to port 443; two-pass connection handles expired and self-signed certificates; extracts issuer, validity window, days to expiry, SANs, cert type, and TLS version; expiry and self-signed risk flags feed into the overall risk model.

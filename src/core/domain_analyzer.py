@@ -2299,37 +2299,51 @@ def display_forensic_summary(result: UnifiedResult) -> None:
 
 def main():
     """Main program entry point with forensic metadata collection"""
+    from src.core.report_exporter import ReportExporter, capture_console
+
+    analysis_start_time = datetime.now()
+    exporter = ReportExporter()
+    forensic_metadata: dict = {}
+    result = None
+
     try:
-        # Record analysis start time immediately
-        analysis_start_time = datetime.now()
-        
         # Get domain input first (before showing header)
         domain = get_domain_input()
-        
-        # Display comprehensive forensic header with metadata
-        forensic_metadata = display_forensic_header(domain, analysis_start_time)
-        
-        # Initialize the domain analyzer with all modules
-        analyzer = DomainAnalyzer()
-        
-        # Log forensic metadata to analyzer
-        if hasattr(analyzer, 'logger'):
-            analyzer.logger.info("Forensic session started", 
-                               session_id=forensic_metadata['session_id'],
-                               external_ip=forensic_metadata['external_ip'],
-                               target_domain=domain,
-                               opsec_risk=forensic_metadata['opsec_assessment']['attribution_risk'])
-        
-        # Execute comprehensive domain analysis
-        result = analyzer.analyze_domain(domain)
-        
-        # Display clean forensic analysis results
-        display_forensic_summary(result)
-        
-        # Add forensic session closure
-        print(f"\nForensic session {forensic_metadata['session_id']} complete.")
-        print(f"Check logs for detailed technical information and audit trail.")
-        
+
+        with capture_console() as _console_buf:
+            # Display comprehensive forensic header with metadata
+            forensic_metadata = display_forensic_header(domain, analysis_start_time)
+
+            # Initialize the domain analyzer with all modules
+            analyzer = DomainAnalyzer()
+
+            # Log forensic metadata to analyzer
+            if hasattr(analyzer, 'logger'):
+                analyzer.logger.info("Forensic session started",
+                                   session_id=forensic_metadata['session_id'],
+                                   external_ip=forensic_metadata['external_ip'],
+                                   target_domain=domain,
+                                   opsec_risk=forensic_metadata['opsec_assessment']['attribution_risk'])
+
+            # Execute comprehensive domain analysis
+            result = analyzer.analyze_domain(domain)
+
+            # Display clean forensic analysis results
+            display_forensic_summary(result)
+
+            # Add forensic session closure
+            print(f"\nForensic session {forensic_metadata['session_id']} complete.")
+            print(f"Check logs for detailed technical information and audit trail.")
+
+        if result is not None:
+            exporter.export(
+                domain=domain,
+                result=result,
+                forensic_metadata=forensic_metadata,
+                raw_console_output=_console_buf.getvalue(),
+                scan_duration=(datetime.now() - analysis_start_time).total_seconds(),
+            )
+
     except KeyboardInterrupt:
         print("\nAnalysis interrupted. Goodbye!")
     except Exception as error:

@@ -41,6 +41,7 @@ def run_list_mode(file_path: str) -> None:
         display_forensic_summary,
         _compute_risk_summary,
     )
+    from src.core.report_exporter import ReportExporter, capture_console
 
     domains = _parse_domain_list(file_path)
     if not domains:
@@ -58,22 +59,36 @@ def run_list_mode(file_path: str) -> None:
     print(f"{'=' * 80}\n")
 
     analyzer = DomainAnalyzer()
+    exporter = ReportExporter()
     summary_rows = []
 
     for idx, domain in enumerate(domains, 1):
         t0 = time.monotonic()
+        domain_start = datetime.now()
         print(f"\n{'─' * 80}")
         print(f"  [{idx}/{total}] {domain.upper()}")
         print(f"{'─' * 80}")
 
+        forensic_metadata: dict = {}
+        result = None
+
         try:
-            forensic_metadata = display_forensic_header(domain, datetime.now())
-            result = analyzer.analyze_domain(domain)
-            display_forensic_summary(result)
-            overall_risk, _, _ = _compute_risk_summary(result)
-            elapsed = int(time.monotonic() - t0)
-            print(f"\nForensic session {forensic_metadata['session_id']} complete.")
-            summary_rows.append((domain, "COMPLETE", elapsed, overall_risk))
+            with capture_console() as _console_buf:
+                forensic_metadata = display_forensic_header(domain, domain_start)
+                result = analyzer.analyze_domain(domain)
+                display_forensic_summary(result)
+                overall_risk, _, _ = _compute_risk_summary(result)
+                elapsed = int(time.monotonic() - t0)
+                print(f"\nForensic session {forensic_metadata['session_id']} complete.")
+                summary_rows.append((domain, "COMPLETE", elapsed, overall_risk))
+
+            exporter.export(
+                domain=domain,
+                result=result,
+                forensic_metadata=forensic_metadata,
+                raw_console_output=_console_buf.getvalue(),
+                scan_duration=(datetime.now() - domain_start).total_seconds(),
+            )
         except Exception as exc:
             elapsed = int(time.monotonic() - t0)
             print(f"\n[!] {domain}: analysis failed — {exc}")
