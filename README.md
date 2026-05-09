@@ -27,25 +27,49 @@ The final report includes:
 
 ### 1. Clone the repository
 
-```powershell
+```bash
 git clone https://github.com/herdacas/domain-forensic-analyzer.git
 cd domain-forensic-analyzer
 ```
 
-### 2. Create and activate a virtual environment (recommended)
+### 2. Create and activate a virtual environment
 
+**Linux / macOS:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**Windows (PowerShell):**
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-### 3. Install dependencies
+### 3. Install Python dependencies
 
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure API keys
+### 4. Install system dependencies (Linux)
+
+Traceroute is an optional system binary used by the NETWORK PATH module. On most Linux distributions it is not installed by default:
+
+```bash
+sudo apt install traceroute      # Debian / Ubuntu
+sudo yum install traceroute      # RHEL / CentOS / Fedora
+```
+
+If `traceroute` is not installed, the module automatically falls back to `tracepath` (usually available without installation). If neither is present, the NETWORK PATH block reports the missing dependency and all other modules continue normally.
+
+Ping is used for reachability checks. It is included in most distributions via `iputils-ping`:
+
+```bash
+sudo apt install iputils-ping    # if missing
+```
+
+### 5. Configure API keys
 
 Create `config/api_keys.json` with your API keys (the file is git-ignored):
 
@@ -74,35 +98,45 @@ Create `config/api_keys.json` with your API keys (the file is git-ignored):
 }
 ```
 
-Alternatively, export environment variables instead of editing the file:
+Alternatively, set environment variables instead of editing the file.
 
+**Linux / macOS:**
+```bash
+export VIRUSTOTAL_API_KEY="your_key"
+export ABUSEIPDB_API_KEY="your_key"
+export WHOISXML_API_KEY="your_key"
+export SECURITYTRAILS_API_KEY="your_key"
+```
+
+**Windows (PowerShell):**
 ```powershell
-$env:VIRUSTOTAL_API_KEY    = "your_key"
-$env:ABUSEIPDB_API_KEY     = "your_key"
-$env:WHOISXML_API_KEY      = "your_key"
+$env:VIRUSTOTAL_API_KEY     = "your_key"
+$env:ABUSEIPDB_API_KEY      = "your_key"
+$env:WHOISXML_API_KEY       = "your_key"
 $env:SECURITYTRAILS_API_KEY = "your_key"
 ```
 
-The analyzer falls back gracefully when keys are missing: modules requiring an absent key are skipped and marked SKIPPED in the execution summary. GEO/ASN and SSL/TLS modules require no API key.
+The analyzer falls back gracefully when keys are missing: modules requiring an absent key are skipped and marked FAILED in the execution summary. GEO/ASN and SSL/TLS modules require no API key.
 
 ## Usage
 
 Run the analyzer interactively (prompts for domain):
 
-```powershell
-python run.py
+```bash
+python3 run.py          # Linux / macOS
+python run.py           # Windows
 ```
 
 Pass the target domain directly to skip the interactive prompt:
 
-```powershell
-python run.py example.com
+```bash
+python3 run.py example.com
 ```
 
 Analyze multiple domains from a list file:
 
-```powershell
-python run.py --list domains.txt
+```bash
+python3 run.py --list domains.txt
 ```
 
 The list file is a plain text file with one domain per line. Empty lines and lines starting with `#` are ignored, so you can use comments to organize your targets:
@@ -307,7 +341,7 @@ Supported providers include Cloudflare, AWS, Azure, GCP, Akamai, Fastly, Sucuri,
 - HTTP/HTTPS connectivity checks
 - traceroute collection with hop parsing, RTT extraction, and partial traceroute handling
 
-Partial routes are preserved in the report instead of being collapsed into generic failure output.
+On Linux the module calls `traceroute` if available, then falls back to `tracepath`. If neither is installed, the NETWORK PATH block reports the missing dependency and all other modules continue normally. Partial routes are preserved in the report instead of being collapsed into generic failure output.
 
 ### HTTP/S Behavior
 

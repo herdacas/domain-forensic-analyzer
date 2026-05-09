@@ -436,11 +436,69 @@ class NetworkIntelligence:
                 return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
             else:
                 return {'status': 'failed', 'error': 'No route found', **metadata}
+        except FileNotFoundError:
+            if not self.is_windows:
+                return self._try_tracepath_fallback(ip_address, metadata)
+            return {'status': 'error', 'error': 'tracert not found', **metadata}
         except Exception as error:
             return {'status': 'error', 'error': str(error), **metadata}
         finally:
             if process and process.poll() is None:
                 process.kill()
+
+    def _try_tracepath_fallback(self, ip_address: str, metadata: dict) -> Dict[str, Any]:
+        """Try tracepath when traceroute is not installed (common on minimal Linux systems)."""
+        try:
+            cmd = ['tracepath', '-m', str(self.max_traceroute_hops), ip_address]
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, encoding='utf-8', errors='replace'
+            )
+            stdout, _ = process.communicate(timeout=60)
+            hops = self._parse_tracepath_output(stdout)
+            if hops:
+                metadata.update(self._summarize_traceroute_progress(hops))
+                return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
+            return {'status': 'failed', 'error': 'tracepath returned no hops', **metadata}
+        except FileNotFoundError:
+            return {
+                'status': 'error',
+                'error': 'traceroute/tracepath not installed - run: sudo apt install traceroute',
+                **metadata,
+            }
+        except Exception as e:
+            return {'status': 'error', 'error': str(e), **metadata}
+
+    def _parse_tracepath_output(self, output: str) -> List[Dict[str, Any]]:
+        """Parse tracepath output into hop list compatible with traceroute hop format."""
+        hops = []
+        seen = set()
+        for line in output.splitlines():
+            line = line.strip()
+            if not line or line.startswith('Resume:'):
+                continue
+            m = re.match(r'^\s*(\d+):?\s+(.*)', line)
+            if not m:
+                continue
+            hop_num = int(m.group(1))
+            if hop_num in seen:
+                continue
+            seen.add(hop_num)
+            rest = m.group(2).strip()
+            # Skip metadata-only lines from the first-hop LOCALHOST entry
+            if '[LOCALHOST]' in rest or rest.startswith('pmtu'):
+                continue
+            if 'no reply' in rest:
+                hops.append({'hop': hop_num, 'status': 'no_response', 'ip': None, 'rdns': None, 'avg_rtt_ms': None})
+            else:
+                tm = re.match(r'^(\S+)\s+([\d.]+)ms', rest)
+                if tm:
+                    hops.append({
+                        'hop': hop_num, 'status': 'responsive',
+                        'ip': tm.group(1), 'rdns': None,
+                        'avg_rtt_ms': float(tm.group(2)),
+                    })
+        return hops
 
     def _summarize_traceroute_progress(self, hops: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Leitet aus den bereits beobachteten Hops eine kompakte Fortschritts-Summary ab."""
