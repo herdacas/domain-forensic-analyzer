@@ -26,11 +26,25 @@ class DomainValidator:
     # RFC 2606 / RFC 6761 reserved TLDs — guaranteed non-operational in public DNS
     RESERVED_TLDS = {'invalid', 'local', 'test', 'localhost', 'example'}
 
-    # Compound second-level ccTLDs where apex is SLD.2ndLevel.ccTLD (3 labels)
+    # Compound second-level ccTLDs where apex is SLD.2ndLevel.ccTLD (3 labels).
+    # Includes generic commercial namespaces (co.uk, com.au) and government /
+    # institutional registry namespaces (gouv.fr, gob.es, gov.au, ac.jp …).
+    # For namespace TLDs the organization is one label deeper than the namespace,
+    # so ssi.gouv.fr, anssi.gouv.fr etc. must NOT be stripped to gouv.fr.
     COMPOUND_TLDS = {
+        # Generic commercial / organisational
         'co.uk', 'co.jp', 'co.kr', 'co.in', 'co.nz', 'co.za', 'co.id', 'co.il',
         'com.au', 'com.br', 'com.ar', 'com.mx', 'com.sg', 'com.my', 'com.hk',
-        'org.uk', 'net.au', 'gov.uk', 'ac.uk', 'me.uk', 'org.au',
+        'org.uk', 'net.au', 'me.uk', 'org.au',
+        # Government namespaces
+        'gov.uk', 'gouv.fr', 'gob.es', 'gob.mx', 'gob.ar', 'gob.cl', 'gob.pe',
+        'gov.au', 'gov.br', 'gov.in', 'gov.sg', 'gov.nz', 'gov.za', 'gov.il',
+        'gov.it', 'gov.pl', 'gov.pt', 'gov.gr', 'gov.tr', 'gov.ph', 'gov.my',
+        # Academic / education namespaces
+        'ac.uk', 'ac.jp', 'ac.nz', 'ac.za', 'ac.in', 'ac.id', 'ac.il',
+        'edu.au', 'edu.sg', 'edu.br', 'edu.pl',
+        # Other institutional
+        'ne.jp', 'or.jp', 'nhs.uk', 'police.uk',
     }
 
     @staticmethod
