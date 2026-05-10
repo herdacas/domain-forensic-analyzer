@@ -56,6 +56,11 @@ except ImportError as error:
     WHOIS_MODULE_AVAILABLE = False
     print(f"WHOIS module import error: {error}")
 
+# Modules that perform direct active probes against the target host.
+# All others use only passive third-party APIs and are safe to run in --passive-only mode.
+ACTIVE_MODULES = frozenset({'dns', 'network', 'subdomain', 'ssl'})
+
+
 @dataclass
 class ModuleExecutionResult:
     """Stores the result and performance data for each analyzer module"""
@@ -208,23 +213,24 @@ class DomainAnalyzer:
             except Exception as error:
                 self.logger.warning(f"Failed to initialize {module_name}", error=str(error))
     
-    def analyze_domain(self, domain: str) -> UnifiedResult:
+    def analyze_domain(self, domain: str, passive_only: bool = False) -> UnifiedResult:
         """Main function to analyze a domain using all available modules"""
         # Check if domain format is valid
         if not DomainValidator.is_valid_domain(domain):
             raise ValueError(f"Invalid domain format: {domain}")
-        
+
         # Clean the domain input and start timing
         clean_domain = DomainValidator.clean_domain(domain)
         start_time = datetime.now()
-        
+
         self.logger.info("Starting multi-API domain analysis", domain=clean_domain)
-        
+
         # Set up tracking variables for this analysis
         self.current_analysis = {
             'domain': clean_domain,
             'start_time': start_time,
             'modules_to_run': self.module_execution_order,
+            'passive_only': passive_only,
             'results': {},
             'errors': [],
             'warnings': []
@@ -264,21 +270,35 @@ class DomainAnalyzer:
             self.logger.warning("No modules available for execution")
             return
         
+        passive_only = self.current_analysis.get('passive_only', False)
+
         print(f"\nStarting analysis...")
         start_time = time.time()
-        
+
         # Execute each module and track progress
         for i, module_name in enumerate(modules_to_run, 1):
             module_label = module_name.replace('_', ' ').title()
             print(f"   [{i}/{len(modules_to_run)}] {module_label}...", end="", flush=True)
-            
+
+            # Skip active-probe modules in passive-only mode
+            if passive_only and module_name in ACTIVE_MODULES:
+                skipped_result = {'skipped': True, 'reason': 'passive_only', 'analysis_status': 'skipped'}
+                self.execution_metrics[module_name] = ModuleExecutionResult(
+                    success=True,
+                    result=skipped_result,
+                    execution_time=0.0,
+                )
+                self.current_analysis['results'][module_name] = skipped_result
+                print(f" SKIPPED")
+                continue
+
             # Run the module with timeout protection
             execution_result = self._execute_module_with_timeout(module_name)
             self.execution_metrics[module_name] = execution_result
-            
+
             # Store the result for later use
             self.current_analysis['results'][module_name] = execution_result.result
-            
+
             # Show what happened with timing
             if execution_result.success:
                 status_icon = "COMPLETE"
@@ -289,12 +309,14 @@ class DomainAnalyzer:
             else:
                 status_icon = "FAILED"
                 timing = f"({execution_result.execution_time:.1f}s)"
-            
+
             print(f" {status_icon} {timing}")
         
         # Show final statistics
         total_time = time.time() - start_time
-        successful = len([m for m in self.execution_metrics.values() if m.success])
+        skipped = sum(1 for m in modules_to_run
+                      if self.current_analysis['results'].get(m, {}).get('skipped'))
+        successful = len([m for m in self.execution_metrics.values() if m.success]) - skipped
         failed = len([m for m in self.execution_metrics.values() if not m.success and not m.timeout_occurred])
         timeout = len([m for m in self.execution_metrics.values() if m.timeout_occurred])
         
@@ -325,7 +347,8 @@ class DomainAnalyzer:
         _base_api_total = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
         api_total = _base_api_total + (1 if 'ip_history' in modules_to_run else 0)
         
-        print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful | "
+        skipped_part = f" | {skipped} skipped (passive)" if skipped else ""
+        print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful{skipped_part} | "
               f"{failed} failed | {timeout} timeout | APIs: {api_success}/{api_total} | Total: {total_time:.1f}s")
         
         # Log detailed statistics
@@ -697,7 +720,7 @@ def get_system_metadata() -> dict:
             'architecture': 'Unknown'
         }
 
-def assess_opsec_risk(external_ip: str, local_ip: str) -> dict:
+def assess_opsec_risk(external_ip: str, local_ip: str, passive_only: bool = False) -> dict:
     """Assess OPSEC risks for forensic analysis"""
 
     behind_nat = external_ip != local_ip and local_ip.startswith(('192.168.', '10.', '172.'))
@@ -713,9 +736,16 @@ def assess_opsec_risk(external_ip: str, local_ip: str) -> dict:
     except Exception:
         pass
 
+    if passive_only:
+        return {
+            'attribution_risk': 'LOW',
+            'stealth_level': 'HIGH',
+            'analysis_type': 'PASSIVE ONLY - No active probes',
+            'behind_nat': behind_nat,
+            'potential_vpn': potential_vpn
+        }
+
     attribution_risk = "LOW" if behind_nat else "MEDIUM"
-    # MEDIUM is the correct floor: active probes (traceroute, ping, HTTP, zone transfer, DNS) always run.
-    # HIGH would require VPN/proxy; LOW is reserved for future full-passive mode.
     stealth_level = "HIGH" if potential_vpn else "MEDIUM"
 
     return {
@@ -726,16 +756,16 @@ def assess_opsec_risk(external_ip: str, local_ip: str) -> dict:
         'potential_vpn': potential_vpn
     }
 
-def display_forensic_header(domain: str, start_time: datetime) -> dict:
+def display_forensic_header(domain: str, start_time: datetime, passive_only: bool = False) -> dict:
     """Display comprehensive forensic analysis header with metadata"""
-    
+
     # Collect forensic metadata
     print("Collecting forensic metadata...", end="", flush=True)
-    
+
     external_ip = get_external_ip()
     local_ip = get_local_ip()
     system_metadata = get_system_metadata()
-    opsec_assessment = assess_opsec_risk(external_ip, local_ip)
+    opsec_assessment = assess_opsec_risk(external_ip, local_ip, passive_only=passive_only)
     
     # Generate session ID
     session_id = start_time.strftime('%Y%m%d-%H%M%S')
@@ -784,14 +814,17 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     else:
         print(f"├── Proxy/VPN: {Colors.dim('Not Detected')}")
 
-    print(f"├── Active Probes (target sees your IP):")
-    print(f"│   ├── DNS resolution (direct nameserver query)")
-    print(f"│   ├── Traceroute (ICMP packets to target)")
-    print(f"│   ├── Ping (ICMP to target)")
-    print(f"│   ├── HTTP/S connectivity check")
-    print(f"│   ├── Zone transfer attempt (direct to NS)")
-    print(f"│   ├── Subdomain DNS probes")
-    print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
+    if passive_only:
+        print(f"├── Active Probes: {Colors.success('NONE')} (passive-only mode — target cannot see your IP)")
+    else:
+        print(f"├── Active Probes (target sees your IP):")
+        print(f"│   ├── DNS resolution (direct nameserver query)")
+        print(f"│   ├── Traceroute (ICMP packets to target)")
+        print(f"│   ├── Ping (ICMP to target)")
+        print(f"│   ├── HTTP/S connectivity check")
+        print(f"│   ├── Zone transfer attempt (direct to NS)")
+        print(f"│   ├── Subdomain DNS probes")
+        print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
     print(f"└── Passive Sources (target does not see your IP):")
     print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
     print(f"    ├── SecurityTrails, RobTex, HackerTarget")
@@ -818,9 +851,11 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
 
 def get_domain_input() -> str:
     """Get domain name from user input or CLI argument with validation."""
-    # Accept domain from command-line argument if provided
-    if len(sys.argv) > 1:
-        candidate = sys.argv[1].strip()
+    # Accept domain from command-line argument if provided.
+    # Skip flag arguments (starting with --) to support e.g. --passive-only.
+    domain_args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    if domain_args:
+        candidate = domain_args[0].strip()
         domain, msg = DomainValidator.preprocess_domain(candidate)
         if domain is None:
             print(f"Error: {msg}")
@@ -2306,6 +2341,7 @@ def main():
     """Main program entry point with forensic metadata collection"""
     from src.core.report_exporter import ReportExporter, capture_console
 
+    passive_only = '--passive-only' in sys.argv
     analysis_start_time = datetime.now()
     exporter = ReportExporter()
     forensic_metadata: dict = {}
@@ -2317,7 +2353,7 @@ def main():
 
         with capture_console() as _console_buf:
             # Display comprehensive forensic header with metadata
-            forensic_metadata = display_forensic_header(domain, analysis_start_time)
+            forensic_metadata = display_forensic_header(domain, analysis_start_time, passive_only=passive_only)
 
             # Initialize the domain analyzer with all modules
             analyzer = DomainAnalyzer()
@@ -2331,7 +2367,7 @@ def main():
                                    opsec_risk=forensic_metadata['opsec_assessment']['attribution_risk'])
 
             # Execute comprehensive domain analysis
-            result = analyzer.analyze_domain(domain)
+            result = analyzer.analyze_domain(domain, passive_only=passive_only)
 
             # Display clean forensic analysis results
             display_forensic_summary(result)

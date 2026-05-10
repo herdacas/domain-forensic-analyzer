@@ -1,9 +1,11 @@
 """Entry point for Domain Forensic Analyzer.
 
 Usage:
-  python run.py                      # interactive prompt
-  python run.py example.com          # single domain, skip prompt
-  python run.py --list domains.txt   # batch mode from file
+  python run.py                               # interactive prompt
+  python run.py example.com                   # single domain, skip prompt
+  python run.py --list domains.txt            # batch mode from file
+  python run.py --passive-only example.com    # skip all active probes
+  python run.py --passive-only --list domains.txt
 """
 import sys
 import time
@@ -37,7 +39,7 @@ def _parse_domain_list(path_str: str):
     return domains
 
 
-def run_list_mode(file_path: str) -> None:
+def run_list_mode(file_path: str, passive_only: bool = False) -> None:
     from src.core.domain_analyzer import (
         DomainAnalyzer,
         display_forensic_header,
@@ -54,8 +56,9 @@ def run_list_mode(file_path: str) -> None:
     total = len(domains)
     list_start = datetime.now()
 
+    mode_label = "LIST MODE (PASSIVE ONLY)" if passive_only else "LIST MODE"
     print(f"\n{'=' * 80}")
-    print("DOMAIN FORENSIC ANALYZER — LIST MODE")
+    print(f"DOMAIN FORENSIC ANALYZER — {mode_label}")
     print(f"{'=' * 80}")
     print(f"Source : {file_path}  ({total} domains)")
     print(f"Started: {list_start.strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -77,8 +80,8 @@ def run_list_mode(file_path: str) -> None:
 
         try:
             with capture_console() as _console_buf:
-                forensic_metadata = display_forensic_header(domain, domain_start)
-                result = analyzer.analyze_domain(domain)
+                forensic_metadata = display_forensic_header(domain, domain_start, passive_only=passive_only)
+                result = analyzer.analyze_domain(domain, passive_only=passive_only)
                 display_forensic_summary(result)
                 overall_risk, _, _ = _compute_risk_summary(result)
                 elapsed = int(time.monotonic() - t0)
@@ -129,8 +132,15 @@ def run_list_mode(file_path: str) -> None:
 def main():
     from src.core.domain_analyzer import main as single_main
 
-    if len(sys.argv) >= 3 and sys.argv[1] == "--list":
-        run_list_mode(sys.argv[2])
+    args = sys.argv[1:]
+    passive_only = '--passive-only' in args
+
+    if '--list' in args:
+        list_idx = args.index('--list')
+        if list_idx + 1 >= len(args):
+            print("Error: --list requires a file path")
+            sys.exit(1)
+        run_list_mode(args[list_idx + 1], passive_only=passive_only)
     else:
         single_main()
 
