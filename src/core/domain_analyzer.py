@@ -1977,7 +1977,16 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         # Redirect Chain
         chain = http_behavior.get('redirect_chain', [])
         if chain:
-            chain_urls = [e['url'] for e in chain if e.get('url')]
+            def _strip_default_port(url: str) -> str:
+                try:
+                    from urllib.parse import urlparse, urlunparse
+                    p = urlparse(url)
+                    if (p.scheme == 'https' and p.port == 443) or (p.scheme == 'http' and p.port == 80):
+                        return urlunparse(p._replace(netloc=p.hostname))
+                except Exception:
+                    pass
+                return url
+            chain_urls = [_strip_default_port(e['url']) for e in chain if e.get('url')]
             hop_count = len(chain) - 1
             if hop_count < 0:
                 hop_count = 0
