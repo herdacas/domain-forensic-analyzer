@@ -62,7 +62,7 @@ class SecurityTrailsClient:
 
             if quota_exceeded and not any_succeeded:
                 return {
-                    'analysis_status': 'failed',
+                    'analysis_status': 'quota_exceeded',
                     'domain': domain,
                     'api_status': 'quota_exceeded',
                     'error': 'SecurityTrails API quota exceeded',
@@ -96,7 +96,7 @@ class SecurityTrailsClient:
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}"
             response = self.session.get(endpoint, timeout=30)
-            if response.status_code == 429:
+            if response.status_code in (402, 429):
                 return {'status': 'quota_exceeded'}
             response.raise_for_status()
             data = response.json()
@@ -167,7 +167,7 @@ class SecurityTrailsClient:
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}/subdomains"
             response = self.session.get(endpoint, timeout=30)
-            if response.status_code == 429:
+            if response.status_code in (402, 429):
                 return {'status': 'quota_exceeded'}
             response.raise_for_status()
             
