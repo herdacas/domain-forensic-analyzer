@@ -181,8 +181,9 @@ domain-forensic-analyzer/
 │   │   │                           SPF include chain, DMARC sp/rua/ruf, DKIM selectors, CAA, DNSSEC
 │   │   ├── whois.py                WHOIS via WhoisXML API + python-whois fallback;
 │   │   │                           registry policy detection; privacy proxy detection
-│   │   ├── dns_history_analyzer.py Historical DNS timeline — SecurityTrails, VirusTotal, crt.sh;
-│   │   │                           NS/MX change grouping; first-seen dates; CT history
+│   │   ├── dns_history_analyzer.py Historical DNS timeline — SecurityTrails, VirusTotal,
+│   │   │                           crt.sh + CertSpotter CT fallback chain; NS/MX change
+│   │   │                           grouping; first-seen dates; CT history with source label
 │   │   ├── cdn_detector.py         CDN/cloud/hosting/gov-cloud detection (hostname + IP prefix);
 │   │   │                           GEO & ASN via ip-api.com; geographic risk classification
 │   │   ├── ip_history_analyzer.py  Reverse-IP lookup (VirusTotal, RobTex, HackerTarget);
@@ -280,22 +281,22 @@ Data sources:
 
 - SecurityTrails DNS history endpoints
 - VirusTotal domain resolutions
-- Certificate Transparency through `crt.sh` (with retry logic: up to 3 attempts, 1s backoff)
+- Certificate Transparency via a fallback chain: `crt.sh` primary (up to 3 attempts, 1s backoff), then `CertSpotter` if crt.sh returns no data; source label shown dynamically in the report
 - native fallback when no external history is available
 
 The DNS history report includes:
 
-- data source attribution
+- data source attribution with CT source label (crt.sh or CertSpotter)
 - first seen date (earliest across all passive sources and WHOIS creation date)
 - current IP first seen date with age label (relatively recent / established / long-standing)
 - NS record changes grouped by date as real migration events
 - MX record changes grouped by date as real migration events
-- Certificate Transparency history from crt.sh (certificate count and date range)
+- Certificate Transparency history: certificate count, date range, and specific subdomains from SANs when present (wildcard-only certs produce no subdomain entries — this is a CT data limitation, not a tool limitation)
 - timeline span, major change count, and change-frequency assessment
 - infrastructure-stability assessment and suspicious-pattern detection
 - historical risk events
 
-Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, A, and CT events are kept in dedicated buckets so that high-volume CT activity cannot crowd out DNS records.
+Same-day load-balanced VirusTotal resolution sets are grouped so large providers such as Google are not incorrectly flagged as rapid DNS churn. Certificate Transparency events are excluded from change-frequency analysis to prevent CDN domains from being incorrectly flagged as volatile. Historical NS, MX, A, and CT events are kept in dedicated buckets so that high-volume CT activity cannot crowd out DNS records. NS change detection counts distinct migration dates rather than raw record entries, so a domain that moved 4 nameservers in a single day counts as one migration event.
 
 ### SSL/TLS Certificate Inspection
 
@@ -484,18 +485,21 @@ The test suite covers:
 - Certificate Transparency provides certificate issuance history, not authoritative DNS history.
 - Subdomain discovery is DNS-pattern based and becomes candidate-only under wildcard DNS.
 - The risk model is heuristic and should support investigation, not replace analyst judgment.
-- DNS history pattern analysis counts raw NS record entries rather than distinct migration events. Domains with 4+ nameservers that migrated once can incorrectly show "multiple nameserver changes" in the DNS History sub-risk. The top-level overall risk is not affected.
 
 ## Recent Major Updates
 
+- **CT fallback chain** — Certificate Transparency now uses a crt.sh → CertSpotter fallback; if crt.sh returns no data, CertSpotter is queried automatically. The source used is shown dynamically in the DNS HISTORY TIMELINE report block. Specific subdomains from SAN certs are surfaced when present.
+- **NS change detection fix** — NS pattern analysis now counts distinct migration dates rather than raw NS record entries. A domain that moved 4 nameservers in a single event no longer incorrectly triggers "multiple nameserver changes".
+- **CSP / X-Frame-Options** — HTTP/S BEHAVIOR block now shows `Content-Security-Policy` (present / not configured) and `X-Frame-Options` (value or "not set").
+- **COMPOUND_TLDS expanded** — domain input normalization correctly handles ~50 compound/institutional TLDs including `gouv.fr`, `gob.es`, `gov.au`, `ac.jp`, `nhs.uk`, `police.uk`, and related government/education namespaces. Subdomains of these namespaces are preserved rather than stripped.
+- **Wildcard subdomain display fix** — attack surface category breakdown shows "(candidates)" in dim when wildcard DNS is detected, consistent with the "Sensitive Candidates: 0" summary header. Previously showed "(SENSITIVE)" incorrectly.
+- **Redirect chain port normalization** — `:443` stripped from HTTPS URLs and `:80` from HTTP URLs in the redirect chain display line.
 - **Report export** — after each scan, a structured JSON report and a raw console capture (with ANSI codes) are written to `reports/`. Scan IDs are sequential and stable across restarts. Export never interrupts the scan.
-- **HTTP/S Behavior block** — new report block between NETWORK PATH and SSL/TLS; HTTP probe detects redirect to HTTPS; HTTPS probe follows redirect chain (up to 5 hops) and extracts Server header and HSTS policy; assessment: Strong / Moderate / Weak; risk flags for missing redirect and absent HSTS.
-- **OPSEC Assessment corrected** — analysis type changed from "PASSIVE OSINT" to "MIXED - Passive APIs + Active Probes"; stealth level floor raised to MEDIUM unconditionally; Active Probes and Passive Sources listed explicitly in the OPSEC block.
+- **HTTP/S Behavior block** — new report block between NETWORK PATH and SSL/TLS; HTTP probe detects redirect to HTTPS; HTTPS probe follows redirect chain (up to 5 hops) and extracts Server header, HSTS policy, X-Frame-Options, and Content-Security-Policy; assessment: Strong / Moderate / Weak.
 - **SSL/TLS module** — direct TLS handshake to port 443; two-pass connection handles expired and self-signed certificates; extracts issuer, validity window, days to expiry, SANs, cert type, and TLS version; expiry and self-signed risk flags feed into the overall risk model.
 - **Domain age risk flag** — newly registered domains (< 30 days) flagged HIGH; recently registered (30–90 days) flagged MEDIUM in the risk summary.
 - **MX FQDN fix** — MX records now resolved via `dnspython` `dns.resolver.resolve()` giving full FQDNs; nslookup-based parsing removed.
 - **Privacy proxy detection** — 12 known proxy services (WhoisGuard, Domains By Proxy, PrivacyProtect, and others) detected in WHOIS registrant fields.
-- **crt.sh retry logic** — Certificate Transparency collection retries up to 3 times (max_retries=2, 1s backoff) before reporting failure.
 - **CNAME records** — DNS FORENSICS block now includes CNAME when present; omitted for domains where none exists.
 - **Reverse IP global limit** — co-hosted domains from all sources are merged and deduplicated before display; top 20 shown with per-entry source attribution; total count always visible.
 - **GEO & ASN block** — report section after TARGET; shows country (ISO code + name), region, city, ASN number, ASN organisation, ISP, hosting type classification, and geographic risk. Data sourced from ip-api.com (no API key required).
