@@ -2094,7 +2094,10 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             for category, assets in asset_categories.items():
                 if assets and len(assets) > 0:
                     if category.lower() in ['admin', 'api', 'dev']:
-                        print(f"├── {_format_category_name(category)}: {Colors.error(str(len(assets)))} (SENSITIVE)")
+                        if wildcard_detected:
+                            print(f"├── {_format_category_name(category)}: {Colors.dim(str(len(assets)))} (candidates)")
+                        else:
+                            print(f"├── {_format_category_name(category)}: {Colors.error(str(len(assets)))} (SENSITIVE)")
                     else:
                         print(f"├── {_format_category_name(category)}: {Colors.info(str(len(assets)))}")
 
