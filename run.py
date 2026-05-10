@@ -1,11 +1,9 @@
 """Entry point for Domain Forensic Analyzer.
 
 Usage:
-  python run.py                               # interactive prompt
-  python run.py example.com                   # single domain, skip prompt
-  python run.py --list domains.txt            # batch mode from file
-  python run.py --passive-only example.com    # skip all active probes
-  python run.py --passive-only --list domains.txt
+  python run.py                      # interactive prompt
+  python run.py example.com          # single domain, skip prompt
+  python run.py --list domains.txt   # batch mode from file
 """
 import sys
 import time
