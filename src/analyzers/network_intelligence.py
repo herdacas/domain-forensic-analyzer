@@ -437,6 +437,18 @@ class NetworkIntelligence:
                     process.kill()
                     stdout, _ = process.communicate()
                 hops = self._parse_tracepath_output(stdout)
+                # Apply the same early-stopping as the Windows path:
+                # truncate after max_consecutive_no_response_hops consecutive timeouts
+                trimmed, consecutive = [], 0
+                for hop in hops:
+                    trimmed.append(hop)
+                    if hop['status'] != 'responsive':
+                        consecutive += 1
+                        if consecutive >= self.max_consecutive_no_response_hops:
+                            break
+                    else:
+                        consecutive = 0
+                hops = trimmed
                 if hops:
                     metadata.update(self._summarize_traceroute_progress(hops))
                     return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
