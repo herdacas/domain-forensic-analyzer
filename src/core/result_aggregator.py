@@ -169,8 +169,9 @@ class ResultAggregator:
         """
         # Basic tracking
         modules_executed = list(module_results.keys())
-        modules_successful = [name for name, result in module_results.items() 
-                            if result.get('analysis_status') in ['abgeschlossen', 'demo_abgeschlossen']]
+        _ok_statuses = {'abgeschlossen', 'demo_abgeschlossen', 'quota_exceeded', 'skipped'}
+        modules_successful = [name for name, result in module_results.items()
+                              if result.get('analysis_status') in _ok_statuses]
         modules_failed = [name for name in modules_executed if name not in modules_successful]
         
         # Standardize assets from all modules - FIXED WITH ROBUST EXTRACTION
