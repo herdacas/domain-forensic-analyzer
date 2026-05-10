@@ -257,6 +257,8 @@ class NetworkIntelligence:
             'hsts': False,
             'hsts_max_age': None,
             'hsts_include_subdomains': False,
+            'csp': None,
+            'x_frame_options': None,
             'has_redirect': False,
             'redirect_chain': [],
             'assessment': 'unavailable',
@@ -339,6 +341,20 @@ class NetworkIntelligence:
                                 pass
                         if part.lower() == 'includesubdomains':
                             result['hsts_include_subdomains'] = True
+
+                csp_val = (
+                    final_resp.headers.get('Content-Security-Policy')
+                    or final_resp.headers.get('content-security-policy')
+                )
+                if csp_val:
+                    result['csp'] = csp_val.strip()
+
+                xfo_val = (
+                    final_resp.headers.get('X-Frame-Options')
+                    or final_resp.headers.get('x-frame-options')
+                )
+                if xfo_val:
+                    result['x_frame_options'] = xfo_val.strip().upper()
 
         except Exception:
             pass

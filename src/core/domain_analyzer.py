@@ -1945,6 +1945,20 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         if server:
             print(f"├── Server: {Colors.info(server)}")
 
+        # X-Frame-Options
+        xfo = http_behavior.get('x_frame_options')
+        if xfo:
+            print(f"├── X-Frame-Options: {Colors.success(xfo)}")
+        else:
+            print(f"├── X-Frame-Options: {Colors.warning('not set')}")
+
+        # Content-Security-Policy
+        csp = http_behavior.get('csp')
+        if csp:
+            print(f"├── Content-Security-Policy: {Colors.success('present')}")
+        else:
+            print(f"├── Content-Security-Policy: {Colors.warning('not configured')}")
+
         # HSTS
         if http_behavior.get('hsts'):
             max_age = http_behavior.get('hsts_max_age')
