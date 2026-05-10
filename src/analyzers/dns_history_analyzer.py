@@ -491,7 +491,9 @@ class DNSHistoryAnalyzer:
             suspicious.append("rapid DNS change pattern")
         if len(ip_values) >= 12:
             suspicious.append("many historical IP resolutions")
-        if "NS" in record_types and len([event for event in timeline if event.get("record_type") == "NS"]) >= 4:
+        ns_events_in_timeline = [e for e in timeline if e.get("record_type") == "NS"]
+        distinct_ns_dates = {str(e.get("date", ""))[:10] for e in ns_events_in_timeline if e.get("date", "unknown") != "unknown"}
+        if "NS" in record_types and len(distinct_ns_dates) > 2:
             suspicious.append("multiple nameserver changes")
 
         if suspicious:
