@@ -111,6 +111,8 @@ class DNSHistoryAnalyzer:
             events.extend(fallback["events"])
             data_sources.append(fallback["label"])
 
+        ct_metadata = source_results["certificate_transparency"].get("ct_metadata")
+
         all_unique = self._deduplicate_events(events)
         # Span and per-type buckets come from ALL events — not affected by display limit.
         span = self._calculate_timeline_span(all_unique)
@@ -153,6 +155,7 @@ class DNSHistoryAnalyzer:
             "ns_history": ns_events,
             "mx_history": mx_events,
             "ct_history": ct_events,
+            "ct_metadata": ct_metadata,
             "pattern_analysis": pattern_analysis,
             "historical_risk_events": pattern_analysis.get("historical_risk_events", []),
             "source_errors": errors,
@@ -311,12 +314,13 @@ class DNSHistoryAnalyzer:
 
         return {"status": "success" if events else "failed", "label": "VirusTotal", "events": events}
 
-    def _collect_certificate_transparency(self, domain: str) -> Dict[str, Any]:
+    def _collect_crtsh(self, domain: str) -> Dict[str, Any]:
+        """Fetch certificate transparency data from crt.sh (primary source)."""
         endpoint = "https://crt.sh/"
         params = {"q": f"%.{domain}", "output": "json"}
         max_retries = 2
         last_error: Exception = None
-        for attempt in range(1, max_retries + 2):  # attempts: 1, 2, 3
+        for attempt in range(1, max_retries + 2):
             try:
                 response = self.session.get(endpoint, params=params, timeout=25)
                 response.raise_for_status()
@@ -327,7 +331,7 @@ class DNSHistoryAnalyzer:
                 if attempt <= max_retries:
                     time.sleep(1)
         else:
-            return {"status": "failed", "label": "Certificate Transparency", "events": [],
+            return {"status": "failed", "label": "crt.sh", "events": [],
                     "error": str(last_error)}
 
         seen_names: Set[Tuple[str, str]] = set()
@@ -347,7 +351,7 @@ class DNSHistoryAnalyzer:
                 event_date=not_before,
                 change_type="Certificate names observed",
                 record_type="CT",
-                source="Certificate Transparency",
+                source="crt.sh",
                 previous_value=None,
                 new_value=subdomains[:10],
                 classification="Certificate / subdomain expansion",
@@ -356,8 +360,116 @@ class DNSHistoryAnalyzer:
 
         return {
             "status": "success" if events else "failed",
-            "label": "Certificate Transparency",
+            "label": "crt.sh",
             "events": events,
+        }
+
+    def _collect_certspotter(self, domain: str) -> Dict[str, Any]:
+        """Fetch certificate transparency data from CertSpotter (fallback source)."""
+        endpoint = "https://api.certspotter.com/v1/issuances"
+        params = {"domain": domain, "include_subdomains": "true", "expand": "dns_names"}
+        max_retries = 2
+        last_error: Exception = None
+        for attempt in range(1, max_retries + 2):
+            try:
+                response = self.session.get(endpoint, params=params, timeout=25)
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except Exception as error:
+                last_error = error
+                if attempt <= max_retries:
+                    time.sleep(1)
+        else:
+            return {"status": "failed", "label": "CertSpotter", "events": [],
+                    "error": str(last_error)}
+
+        if not isinstance(payload, list):
+            return {"status": "failed", "label": "CertSpotter", "events": [],
+                    "error": "unexpected response format"}
+
+        seen_names: Set[Tuple[str, str]] = set()
+        events = []
+        for issuance in payload[:250]:
+            not_before = self._normalize_timestamp(issuance.get("not_before"))
+            dns_names = issuance.get("dns_names") or []
+            names = sorted({name.strip().lower().lstrip("*.") for name in dns_names if name.strip()})
+            subdomains = [name for name in names if name == domain or name.endswith(f".{domain}")]
+            if not subdomains:
+                continue
+            key = (not_before or "unknown", "|".join(subdomains))
+            if key in seen_names:
+                continue
+            seen_names.add(key)
+            events.append(self._make_event(
+                event_date=not_before,
+                change_type="Certificate names observed",
+                record_type="CT",
+                source="CertSpotter",
+                previous_value=None,
+                new_value=subdomains[:10],
+                classification="Certificate / subdomain expansion",
+                severity="low" if len(subdomains) < 5 else "medium",
+            ))
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "CertSpotter",
+            "events": events,
+        }
+
+    def _collect_certificate_transparency(self, domain: str) -> Dict[str, Any]:
+        """Collect CT data with fallback chain: crt.sh → CertSpotter."""
+        crtsh = self._collect_crtsh(domain)
+        if crtsh["status"] == "success":
+            active = crtsh
+        else:
+            certspotter = self._collect_certspotter(domain)
+            if certspotter["status"] == "success":
+                active = certspotter
+            else:
+                return {
+                    "status": "failed",
+                    "label": "Certificate Transparency",
+                    "events": [],
+                    "ct_metadata": None,
+                    "error": (
+                        f"crt.sh: {crtsh.get('error', 'no data')}; "
+                        f"CertSpotter: {certspotter.get('error', 'no data')}"
+                    ),
+                }
+
+        events = active["events"]
+        source_label = active["label"]
+
+        # Build structured metadata for the report block
+        dates = [e["date"] for e in events if e.get("date") and e["date"] != "unknown"]
+        earliest = min(dates)[:10] if dates else None
+        latest = max(dates)[:10] if dates else None
+
+        all_subdomains: Set[str] = set()
+        for event in events:
+            for name in event.get("new_value", []):
+                if name == domain:
+                    continue
+                if name.endswith(f".{domain}"):
+                    prefix = name[: -(len(domain) + 1)]
+                    if prefix:
+                        all_subdomains.add(prefix)
+
+        ct_metadata = {
+            "count": len(events),
+            "source_label": source_label,
+            "earliest": earliest,
+            "latest": latest,
+            "subdomains": sorted(all_subdomains)[:10],
+        }
+
+        return {
+            "status": "success",
+            "label": source_label,
+            "events": events,
+            "ct_metadata": ct_metadata,
         }
 
     def _build_native_fallback(self, domain: str) -> Dict[str, Any]:

@@ -1846,9 +1846,25 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         else:
             print(f"├── MX Record Changes: {Colors.dim('no MX changes in history')}")
 
-        # --- Certificate History (from dedicated ct_history bucket) ---
+        # --- Certificate History (crt.sh → CertSpotter fallback) ---
+        ct_metadata = dns_history_result.get('ct_metadata')
         ct_history = dns_history_result.get('ct_history') or []
-        if ct_history:
+        if ct_metadata:
+            src_lbl = ct_metadata.get('source_label', 'crt.sh')
+            cert_count = ct_metadata.get('count', len(ct_history))
+            ct_earliest = ct_metadata.get('earliest') or 'unknown'
+            ct_latest = ct_metadata.get('latest') or 'unknown'
+            ct_subs = ct_metadata.get('subdomains', [])
+            print(f"├── Certificate History ({src_lbl}): {Colors.info(str(cert_count))} certificates")
+            if ct_subs:
+                print(f"│   ├── Earliest: {ct_earliest}, Latest: {ct_latest}")
+                sub_str = ', '.join(ct_subs[:8])
+                if len(ct_subs) > 8:
+                    sub_str += f', +{len(ct_subs) - 8} more'
+                print(f"│   └── Subdomains via CT: {Colors.dim(sub_str)}")
+            else:
+                print(f"│   └── Earliest: {ct_earliest}, Latest: {ct_latest}")
+        elif ct_history:
             ct_dates = [
                 e['date'] for e in ct_history
                 if e.get('date') and e['date'] not in ('unknown',)
@@ -1858,7 +1874,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
             print(f"├── Certificate History (crt.sh): {Colors.info(str(len(ct_history)))} certificates")
             print(f"│   └── Earliest: {ct_earliest}, Latest: {ct_latest}")
         else:
-            print(f"├── Certificate History (crt.sh): {Colors.dim('no certificate data')}")
+            print(f"├── Certificate History: {Colors.dim('not available (all sources failed)')}")
 
         print(f"├── Major Changes: {Colors.info(str(dns_history_result.get('major_changes', 0)))} detected")
 
