@@ -439,18 +439,25 @@ class NetworkIntelligence:
                 hops = self._parse_tracepath_output(stdout)
                 # Apply the same early-stopping as the Windows path:
                 # truncate after max_consecutive_no_response_hops consecutive timeouts
-                trimmed, consecutive = [], 0
+                trimmed, consecutive, stopped_early = [], 0, False
                 for hop in hops:
                     trimmed.append(hop)
                     if hop['status'] != 'responsive':
                         consecutive += 1
                         if consecutive >= self.max_consecutive_no_response_hops:
+                            stopped_early = True
                             break
                     else:
                         consecutive = 0
                 hops = trimmed
                 if hops:
                     metadata.update(self._summarize_traceroute_progress(hops))
+                    if stopped_early:
+                        return {
+                            'status': 'partial',
+                            'error': f'Traceroute stopped after {self.max_consecutive_no_response_hops} consecutive no-response hops',
+                            'hops': hops, 'total_hops': len(hops), **metadata,
+                        }
                     return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
                 return {'status': 'failed', 'error': 'No route found', **metadata}
 
