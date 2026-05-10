@@ -472,14 +472,18 @@ class NetworkIntelligence:
             if '[LOCALHOST]' in rest or rest.startswith('pmtu'):
                 continue
             if 'no reply' in rest:
-                hops.append({'hop': hop_num, 'status': 'no_response', 'ip': None, 'rdns': None, 'avg_rtt_ms': None})
+                hops.append({'hop': hop_num, 'status': 'timeout', 'ip': None, 'hostname': None, 'latencies': []})
             else:
                 tm = re.match(r'^(\S+)\s+([\d.]+)ms', rest)
                 if tm:
+                    host = tm.group(1)
+                    # tracepath shows hostname or IP; put in both fields so
+                    # downstream display (requires ip_address) and ISP pattern
+                    # matching (requires hostname) both work correctly
                     hops.append({
                         'hop': hop_num, 'status': 'responsive',
-                        'ip': tm.group(1), 'rdns': None,
-                        'avg_rtt_ms': float(tm.group(2)),
+                        'ip': host, 'hostname': host,
+                        'latencies': [f"{tm.group(2)}ms"],
                     })
         return hops
 
