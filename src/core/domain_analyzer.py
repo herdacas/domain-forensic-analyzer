@@ -1395,10 +1395,11 @@ def _count_execution_outcomes(result: UnifiedResult) -> Tuple[int, int, int]:
     failed = 0
     timeout = 0
 
+    _non_failure = {'abgeschlossen', 'demo_abgeschlossen', 'quota_exceeded', 'skipped'}
     for module_result in result.results.values():
         if not isinstance(module_result, dict):
             continue
-        if module_result.get('analysis_status') in ['abgeschlossen', 'demo_abgeschlossen']:
+        if module_result.get('analysis_status') in _non_failure:
             continue
         if module_result.get('failure_type') == 'timeout':
             timeout += 1
@@ -2293,8 +2294,8 @@ def display_forensic_summary(result: UnifiedResult) -> None:
         # Infrastructure classification
         if is_cdn:
             infra_label, infra_color = "CDN shared infrastructure", Colors.info
-        elif total_co_hosted == 0:
-            infra_label, infra_color = "dedicated / single-tenant", Colors.success
+        elif total_co_hosted <= 2:
+            infra_label, infra_color = "dedicated / private", Colors.success
         elif total_co_hosted > 50:
             infra_label, infra_color = "shared hosting (high density)", Colors.warning
         elif total_co_hosted > 10:
