@@ -82,11 +82,13 @@ class DNSHistoryAnalyzer:
         clean_domain = domain.strip().lower()
 
         # RobTex is the primary free passive DNS source (no API key required).
+        # Mnemonic (Norwegian CERT) is a free passive DNS API with timestamps; no key needed.
         # VirusTotal provides IP resolution history when an API key is present.
         # SecurityTrails adds record-level history when quota is available.
         # crt.sh certificate transparency is kept as opportunistic supplement.
         source_results = {
             "robtex": self._collect_robtex_history(clean_domain),
+            "mnemonic": self._collect_mnemonic_history(clean_domain),
             "virustotal": self._collect_virustotal_history(clean_domain),
             "securitytrails": self._collect_securitytrails_history(clean_domain),
             "certificate_transparency": self._collect_certificate_transparency(clean_domain),
@@ -313,6 +315,60 @@ class DNSHistoryAnalyzer:
             ))
 
         return {"status": "success" if events else "failed", "label": "VirusTotal", "events": events}
+
+    def _collect_mnemonic_history(self, domain: str) -> Dict[str, Any]:
+        """Collect passive DNS history from Mnemonic (Norwegian CERT).
+
+        Free, no API key required. Unauthenticated limit: 1 000 req/day, 10 req/min.
+        Single request fetches all record types; timestamps are milliseconds.
+        """
+        endpoint = f"https://api.mnemonic.no/pdns/v3/{domain}"
+        try:
+            response = self.session.get(
+                endpoint,
+                params={"limit": 1000},
+                headers={"User-Agent": "Domain-Forensic-Analyzer/1.0"},
+                timeout=20,
+            )
+            if response.status_code == 404:
+                return {"status": "failed", "label": "Mnemonic", "events": [], "error": "domain not found"}
+            if response.status_code == 429:
+                return {"status": "quota_exceeded", "label": "Mnemonic", "events": []}
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as error:
+            return {"status": "failed", "label": "Mnemonic", "events": [], "error": str(error)}
+
+        events = []
+        for entry in payload.get("data", []) or []:
+            rrtype = str(entry.get("rrtype", "")).upper()
+            answer = str(entry.get("answer", "")).strip().rstrip(".")
+            if not rrtype or not answer:
+                continue
+
+            ts_first = entry.get("firstSeenTimestamp")
+            ts_last = entry.get("lastSeenTimestamp")
+            first_seen = self._normalize_timestamp(ts_first / 1000) if ts_first else None
+            last_seen = self._normalize_timestamp(ts_last / 1000) if ts_last else None
+
+            events.append(self._make_event(
+                event_date=first_seen,
+                change_type=f"{rrtype} record observed",
+                record_type=rrtype,
+                source="Mnemonic",
+                previous_value=None,
+                new_value=[answer],
+                classification=self._classify_change(rrtype.lower(), [answer]),
+                severity="low",
+                last_seen=last_seen,
+            ))
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "Mnemonic",
+            "events": events,
+            "error": None if events else "no records returned",
+        }
 
     def _collect_crtsh(self, domain: str) -> Dict[str, Any]:
         """Fetch certificate transparency data from crt.sh (primary source)."""

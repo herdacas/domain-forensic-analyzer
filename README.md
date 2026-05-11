@@ -155,6 +155,10 @@ Create the file anywhere you like and pass the path to `--list`. The file is nev
 
 Reports are written automatically to `reports/` after each scan. No additional flags are required.
 
+### Zero-config mode
+
+The tool works without any API keys. Active probes (DNS resolution, SSL/TLS handshake, HTTP/S behavior, traceroute, subdomain scan) and free no-key APIs (ip-api.com, crt.sh, CertSpotter, RobTex, HackerTarget) together produce ~70% of the full report. Modules that require an absent key are skipped and marked accordingly in the execution summary. Add API keys incrementally to deepen reputation and historical coverage.
+
 ## Program Structure
 
 ```text
@@ -279,9 +283,11 @@ Privacy proxy detection identifies 12 known proxy services (WhoisGuard, Domains 
 
 Data sources:
 
-- SecurityTrails DNS history endpoints
-- VirusTotal domain resolutions
+- Mnemonic Passive DNS (Norwegian CERT) — free, no API key, 1 000 req/day; all record types with timestamps
+- SecurityTrails DNS history endpoints — deepest structured history when quota is available
+- VirusTotal domain resolutions — A-record history when API key is present
 - Certificate Transparency via a fallback chain: `crt.sh` primary (up to 3 attempts, 1s backoff), then `CertSpotter` if crt.sh returns no data; source label shown dynamically in the report
+- RobTex passive DNS — free, no key; baseline NS/MX/A coverage
 - native fallback when no external history is available
 
 The DNS history report includes:
@@ -478,6 +484,10 @@ The test suite covers:
 - The SSL/TLS module makes a direct TCP/TLS connection to port 443 on the target host.
 - The HTTP/S behavior module makes real HTTP and HTTPS requests to the target host.
 
+### Reducing your footprint (VPN routing)
+
+If your investigation requires that active probes do not originate from your real IP address, route all traffic through a commercial VPN service before running the tool. There is no built-in passive-only mode — VPN routing at the OS level is the correct approach. Choose a VPN exit node appropriate for your jurisdiction and operational context. The target host will observe connections from the VPN exit IP; external lookup APIs will continue to function normally through the tunnel.
+
 ## Known Limitations
 
 - Some WHOIS registries redact or omit registration fields.
@@ -488,6 +498,8 @@ The test suite covers:
 
 ## Recent Major Updates
 
+- **Mnemonic Passive DNS** — Norwegian CERT passive DNS added as a permanent free source in the DNS history pipeline (no API key required, 1 000 req/day). Covers A, AAAA, MX, CNAME, PTR records with timestamps. Runs alongside RobTex and supplements SecurityTrails when its quota is exhausted.
+- **VPN routing guidance** — new "Reducing your footprint" subsection under Security Notes explains OS-level VPN routing as the correct approach for low-footprint scanning; no built-in passive-only mode is provided.
 - **CT fallback chain** — Certificate Transparency now uses a crt.sh → CertSpotter fallback; if crt.sh returns no data, CertSpotter is queried automatically. The source used is shown dynamically in the DNS HISTORY TIMELINE report block. Specific subdomains from SAN certs are surfaced when present.
 - **NS change detection fix** — NS pattern analysis now counts distinct migration dates rather than raw NS record entries. A domain that moved 4 nameservers in a single event no longer incorrectly triggers "multiple nameserver changes".
 - **CSP / X-Frame-Options** — HTTP/S BEHAVIOR block now shows `Content-Security-Policy` (present / not configured) and `X-Frame-Options` (value or "not set").
