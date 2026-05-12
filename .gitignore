@@ -207,9 +207,11 @@ CLAUDE.md
 .claude/
 audit_modules.py
 audit_results.json
+DATA_SOURCES.md
+INPUT_REQUIREMENTS.md
 
 # Local user files — stay on this machine, never committed
-domains.txt
+domains*.txt
 validate_export.py
 reports/
 

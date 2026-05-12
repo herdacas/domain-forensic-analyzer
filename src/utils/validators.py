@@ -26,6 +26,14 @@ class DomainValidator:
     # RFC 2606 / RFC 6761 reserved TLDs — guaranteed non-operational in public DNS
     RESERVED_TLDS = {'invalid', 'local', 'test', 'localhost', 'example'}
 
+    # Known file extensions that are NOT valid ccTLDs.
+    # .sh (Saint Helena) and .md (Moldova) are omitted — they are real TLDs.
+    _FILE_EXTENSIONS = frozenset({
+        'txt', 'pdf', 'csv', 'json', 'log', 'py',
+        'xlsx', 'docx', 'xml', 'yaml', 'yml',
+        'ini', 'cfg', 'bat', 'exe',
+    })
+
     # Compound second-level ccTLDs where apex is SLD.2ndLevel.ccTLD (3 labels).
     # Includes generic commercial namespaces (co.uk, com.au) and government /
     # institutional registry namespaces (gouv.fr, gob.es, gov.au, ac.jp …).
@@ -48,6 +56,20 @@ class DomainValidator:
     }
 
     @staticmethod
+    def _to_punycode(domain: str) -> Optional[str]:
+        """Convert a Unicode domain name to ASCII-compatible Punycode (IDNA 2003)."""
+        try:
+            return domain.encode('idna').decode('ascii')
+        except (UnicodeError, UnicodeDecodeError):
+            try:
+                return '.'.join(
+                    label.encode('idna').decode('ascii')
+                    for label in domain.split('.')
+                )
+            except Exception:
+                return None
+
+    @staticmethod
     def preprocess_domain(raw: str):
         """
         Normalizes a domain input before scanning.
@@ -57,13 +79,49 @@ class DomainValidator:
           - domain != raw   -> was normalized; message describes the change
           - message is None -> input accepted unchanged
 
-        Rules:
-          1. Reserved TLDs (RFC 2606/6761) -> skip entirely
-          2. Any subdomain -> strip to apex SLD.TLD (subdomain scanning is v2.0)
+        Rules (in order):
+          0a. REQ-001: backslash in input -> reject (file path)
+          0b. REQ-001: no dot after cleaning -> reject (no TLD possible)
+          0c. REQ-001: known file extension as last label -> reject
+          1.  REQ-002: non-ASCII labels -> convert to Punycode silently
+          2.  Reserved TLDs (RFC 2606/6761) -> skip entirely
+          3.  Any subdomain -> strip to apex SLD.TLD (subdomain scanning is v2.0)
         """
         cleaned = DomainValidator.clean_domain(raw)
         if not cleaned:
             return None, f"Skipping '{raw}': invalid format"
+
+        raw_display = raw.strip()
+
+        # REQ-001a: backslash -> file path (clean_domain does not strip backslashes)
+        if '\\' in cleaned:
+            return None, f"Error: '{raw_display}' does not look like a domain name."
+
+        # REQ-001b: no dot -> cannot have a TLD label
+        if '.' not in cleaned:
+            return None, f"Error: '{raw_display}' does not look like a domain name."
+
+        # REQ-001c: known file extension as rightmost label
+        ext = cleaned.rsplit('.', 1)[-1]
+        if ext in DomainValidator._FILE_EXTENSIONS:
+            hint = (
+                f"\n  Did you mean: python run.py --list {raw_display}"
+                if ext == 'txt' else ""
+            )
+            return None, f"Error: '{raw_display}' does not look like a domain name.{hint}"
+
+        # REQ-005: IP address — all-numeric labels indicate IPv4, not a domain name
+        if all(label.isdigit() for label in cleaned.split('.')):
+            return None, f"Error: '{raw_display}' is an IP address, not a domain name."
+
+        # REQ-002: IDN/Punycode — convert non-ASCII labels to ACE form silently
+        try:
+            cleaned.encode('ascii')
+        except UnicodeEncodeError:
+            converted = DomainValidator._to_punycode(cleaned)
+            if converted is None:
+                return None, f"Skipping '{raw_display}': invalid internationalized domain name"
+            cleaned = converted
 
         parts = cleaned.split('.')
         tld = parts[-1].lower() if parts else ''

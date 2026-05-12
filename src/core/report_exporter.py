@@ -1,9 +1,10 @@
-"""Export forensic scan results to JSON and raw console TXT.
+"""Export forensic scan results to JSON.
 
 Scan IDs auto-increment (0001, 0002, …) based on existing files in reports/.
-The capture_console() context manager tees stdout into a buffer without
-changing what reaches the terminal. It cooperates with ThreadAwareStdoutRouter
-so worker-thread muting still functions correctly.
+JSON is the sole production output format.
+
+capture_console() and the debug=True path on ReportExporter are available
+for local debugging only and must not be enabled in normal execution.
 """
 import io
 import json
@@ -59,6 +60,24 @@ def _next_scan_id(reports_dir: Path) -> str:
     except OSError:
         pass
     return f"{max_id + 1:04d}"
+
+
+def _next_batch_id(batch_dir: Path) -> str:
+    """Return the next zero-padded 4-digit batch ID (BATCH_NNNN).
+
+    Reads existing file names in *batch_dir* that start with BATCH_NNNN_
+    and returns the next value.
+    """
+    pattern = re.compile(r'^BATCH_(\d{4})_')
+    max_id = 0
+    try:
+        for entry in batch_dir.iterdir():
+            m = pattern.match(entry.name)
+            if m:
+                max_id = max(max_id, int(m.group(1)))
+    except OSError:
+        pass
+    return f"BATCH_{max_id + 1:04d}"
 
 
 # ---------------------------------------------------------------------------
@@ -124,9 +143,19 @@ def capture_console() -> Generator[io.StringIO, None, None]:
 # ---------------------------------------------------------------------------
 
 class ReportExporter:
-    """Write per-scan JSON and raw TXT reports under reports/.
+    """Write per-scan JSON reports under reports/.
 
-    Directory layout::
+    JSON is the single production output format. Raw console capture is
+    available only when debug=True and must not be used in normal execution.
+
+    Directory layout (production)::
+
+        reports/
+            0001_example.com.json       <- single-domain scan
+            batch/
+                BATCH_0001_domains.json <- one file per --list run
+
+    Directory layout (debug only)::
 
         reports/
             0001_example.com.json
@@ -134,25 +163,32 @@ class ReportExporter:
                 0001_example.com.txt
     """
 
-    def __init__(self, project_root: Optional[Path] = None) -> None:
+    def __init__(self, project_root: Optional[Path] = None, debug: bool = False) -> None:
         if project_root is None:
             project_root = Path(__file__).parent.parent.parent
         self.reports_dir = project_root / "reports"
+        self.batch_dir = self.reports_dir / "batch"
         self.raw_dir = self.reports_dir / "raw"
+        self.debug = debug
 
     def _ensure_dirs(self) -> None:
         self.reports_dir.mkdir(exist_ok=True)
-        self.raw_dir.mkdir(exist_ok=True)
+        if self.debug:
+            self.raw_dir.mkdir(exist_ok=True)
+
+    def _ensure_batch_dir(self) -> None:
+        self.reports_dir.mkdir(exist_ok=True)
+        self.batch_dir.mkdir(exist_ok=True)
 
     def export(
         self,
         domain: str,
         result: Any,
         forensic_metadata: Dict[str, Any],
-        raw_console_output: str,
         scan_duration: float,
+        raw_console_output: Optional[str] = None,
     ) -> None:
-        """Persist JSON and raw TXT for one scan.
+        """Persist JSON for one scan. Raw TXT is written only when debug=True.
 
         Never raises — any serialisation or I/O failure is silently discarded
         so the export can never interrupt or affect the scan.
@@ -163,12 +199,13 @@ class ReportExporter:
             safe_domain = _sanitize_filename(domain)
             base = f"{scan_id}_{safe_domain}"
 
-            # Raw console output (exact bytes as written to the terminal)
-            (self.raw_dir / f"{base}.txt").write_text(
-                raw_console_output, encoding="utf-8", errors="replace"
-            )
+            # Raw console capture — debug only, never written in production
+            if self.debug and raw_console_output:
+                (self.raw_dir / f"{base}.txt").write_text(
+                    raw_console_output, encoding="utf-8", errors="replace"
+                )
 
-            # Structured JSON report
+            # Structured JSON report (always written)
             meta = forensic_metadata or {}
             ts = meta.get('timestamp')
             result_dict = result.to_dict() if hasattr(result, 'to_dict') else {}
@@ -194,5 +231,94 @@ class ReportExporter:
             )
 
         except Exception:
-            # Silently suppress — export failure must never reach the caller.
+            pass
+
+    def export_batch(
+        self,
+        source_file: str,
+        scan_records: list,
+        list_start: datetime,
+        total_duration_seconds: float,
+    ) -> None:
+        """Persist a single JSON file for a complete --list batch run.
+
+        *scan_records* is a list of dicts, each produced by run_list_mode for
+        one domain:
+            {
+                "domain": str,
+                "status": "COMPLETE" | "FAILED",
+                "duration_s": float,
+                "risk": str,
+                "forensic_metadata": dict,
+                "result": UnifiedResult | None,
+            }
+
+        Never raises — any I/O or serialisation failure is silently discarded.
+        """
+        try:
+            self._ensure_batch_dir()
+            batch_id = _next_batch_id(self.batch_dir)
+            list_name = re.sub(r'[<>:"/\\|?*\s]', '_', Path(source_file).stem)
+            filename = f"{batch_id}_{list_name}.json"
+
+            total = len(scan_records)
+            completed = sum(1 for r in scan_records if r["status"] == "COMPLETE")
+            failed = total - completed
+
+            risk_dist: Dict[str, int] = {}
+            summary_domains = []
+            scans = []
+
+            for rec in scan_records:
+                risk = rec.get("risk", "ERROR")
+                risk_dist[risk] = risk_dist.get(risk, 0) + 1
+
+                summary_domains.append({
+                    "domain": rec["domain"],
+                    "status": rec["status"],
+                    "risk": risk,
+                    "duration_s": round(rec.get("duration_s", 0), 1),
+                })
+
+                result = rec.get("result")
+                result_dict = result.to_dict() if hasattr(result, "to_dict") else {}
+                meta = rec.get("forensic_metadata") or {}
+                ts = meta.get("timestamp")
+
+                scans.append({
+                    "domain": rec["domain"],
+                    "status": rec["status"],
+                    "session_id": meta.get("session_id"),
+                    "scan_duration_seconds": round(rec.get("duration_s", 0), 2),
+                    "analyst": {
+                        "external_ip": meta.get("external_ip"),
+                        "local_ip": meta.get("local_ip"),
+                        "system": meta.get("system_metadata", {}),
+                        "opsec": meta.get("opsec_assessment", {}),
+                    },
+                    "timestamp": ts.isoformat() if isinstance(ts, datetime) else str(ts) if ts else None,
+                    "result": result_dict,
+                })
+
+            payload: Dict[str, Any] = {
+                "batch_id": batch_id,
+                "timestamp": list_start.isoformat(),
+                "source_file": source_file,
+                "total_domains": total,
+                "completed": completed,
+                "failed": failed,
+                "duration_seconds": round(total_duration_seconds, 1),
+                "summary": {
+                    "risk_distribution": risk_dist,
+                    "domains": summary_domains,
+                },
+                "scans": scans,
+            }
+
+            (self.batch_dir / filename).write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False, cls=_SafeEncoder),
+                encoding="utf-8",
+            )
+
+        except Exception:
             pass

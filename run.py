@@ -5,12 +5,18 @@ Usage:
   python run.py example.com          # single domain, skip prompt
   python run.py --list domains.txt   # batch mode from file
 """
+import io
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+
+if isinstance(sys.stdout, io.TextIOWrapper):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if isinstance(sys.stderr, io.TextIOWrapper):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 
 def _parse_domain_list(path_str: str):
@@ -37,14 +43,14 @@ def _parse_domain_list(path_str: str):
     return domains
 
 
-def run_list_mode(file_path: str, passive_only: bool = False) -> None:
+def run_list_mode(file_path: str) -> None:
     from src.core.domain_analyzer import (
         DomainAnalyzer,
         display_forensic_header,
         display_forensic_summary,
         _compute_risk_summary,
     )
-    from src.core.report_exporter import ReportExporter, capture_console
+    from src.core.report_exporter import ReportExporter
 
     domains = _parse_domain_list(file_path)
     if not domains:
@@ -54,9 +60,8 @@ def run_list_mode(file_path: str, passive_only: bool = False) -> None:
     total = len(domains)
     list_start = datetime.now()
 
-    mode_label = "LIST MODE (PASSIVE ONLY)" if passive_only else "LIST MODE"
     print(f"\n{'=' * 80}")
-    print(f"DOMAIN FORENSIC ANALYZER — {mode_label}")
+    print(f"DOMAIN FORENSIC ANALYZER — LIST MODE")
     print(f"{'=' * 80}")
     print(f"Source : {file_path}  ({total} domains)")
     print(f"Started: {list_start.strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -65,6 +70,7 @@ def run_list_mode(file_path: str, passive_only: bool = False) -> None:
     analyzer = DomainAnalyzer()
     exporter = ReportExporter()
     summary_rows = []
+    batch_records = []
 
     for idx, domain in enumerate(domains, 1):
         t0 = time.monotonic()
@@ -77,32 +83,40 @@ def run_list_mode(file_path: str, passive_only: bool = False) -> None:
         result = None
 
         try:
-            with capture_console() as _console_buf:
-                forensic_metadata = display_forensic_header(domain, domain_start, passive_only=passive_only)
-                result = analyzer.analyze_domain(domain, passive_only=passive_only)
-                display_forensic_summary(result)
-                overall_risk, _, _ = _compute_risk_summary(result)
-                elapsed = int(time.monotonic() - t0)
-                print(f"\nForensic session {forensic_metadata['session_id']} complete.")
-                summary_rows.append((domain, "COMPLETE", elapsed, overall_risk))
-
-            exporter.export(
-                domain=domain,
-                result=result,
-                forensic_metadata=forensic_metadata,
-                raw_console_output=_console_buf.getvalue(),
-                scan_duration=(datetime.now() - domain_start).total_seconds(),
-            )
+            forensic_metadata = display_forensic_header(domain, domain_start)
+            result = analyzer.analyze_domain(domain)
+            display_forensic_summary(result)
+            overall_risk, _, _ = _compute_risk_summary(result)
+            elapsed = time.monotonic() - t0
+            print(f"\nForensic session {forensic_metadata['session_id']} complete.")
+            summary_rows.append((domain, "COMPLETE", int(elapsed), overall_risk))
+            batch_records.append({
+                "domain": domain,
+                "status": "COMPLETE",
+                "duration_s": elapsed,
+                "risk": overall_risk,
+                "forensic_metadata": forensic_metadata,
+                "result": result,
+            })
         except Exception as exc:
-            elapsed = int(time.monotonic() - t0)
+            elapsed = time.monotonic() - t0
             print(f"\n[!] {domain}: analysis failed — {exc}")
-            summary_rows.append((domain, "FAILED", elapsed, "ERROR"))
+            summary_rows.append((domain, "FAILED", int(elapsed), "ERROR"))
+            batch_records.append({
+                "domain": domain,
+                "status": "FAILED",
+                "duration_s": elapsed,
+                "risk": "ERROR",
+                "forensic_metadata": forensic_metadata,
+                "result": None,
+            })
 
         _, status, elapsed, risk = summary_rows[-1]
         print(f"\n  [{idx}/{total}] {domain:<40} → {status:<9} ({elapsed}s)  Risk: {risk}")
 
     # --- Overall summary ---
-    total_s = int((datetime.now() - list_start).total_seconds())
+    total_duration = (datetime.now() - list_start).total_seconds()
+    total_s = int(total_duration)
     mins, secs = divmod(total_s, 60)
     completed = sum(1 for _, s, _, _ in summary_rows if s == "COMPLETE")
 
@@ -126,19 +140,25 @@ def run_list_mode(file_path: str, passive_only: bool = False) -> None:
 
     print(f"{'=' * 80}\n")
 
+    exporter.export_batch(
+        source_file=file_path,
+        scan_records=batch_records,
+        list_start=list_start,
+        total_duration_seconds=total_duration,
+    )
+
 
 def main():
     from src.core.domain_analyzer import main as single_main
 
     args = sys.argv[1:]
-    passive_only = '--passive-only' in args
 
     if '--list' in args:
         list_idx = args.index('--list')
         if list_idx + 1 >= len(args):
             print("Error: --list requires a file path")
             sys.exit(1)
-        run_list_mode(args[list_idx + 1], passive_only=passive_only)
+        run_list_mode(args[list_idx + 1])
     else:
         single_main()
 
