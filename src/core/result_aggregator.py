@@ -375,7 +375,7 @@ class ResultAggregator:
         
         return StandardizedInfrastructure(
             provider_name=cdn_result.get('provider_name', 'Unknown'),
-            provider_type=cdn_result.get('provider_type', 'Unknown'),
+            provider_type=cdn_result.get('infrastructure_type', 'Unknown'),
             protection_level=cdn_result.get('protection_level', 'Unknown'),
             location=location,
             asn_info={

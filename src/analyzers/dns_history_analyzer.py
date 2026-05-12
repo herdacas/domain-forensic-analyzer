@@ -607,10 +607,6 @@ class DNSHistoryAnalyzer:
             unique_events.append(event)
         return unique_events
 
-    def _deduplicate_and_sort_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        unique_events = self._deduplicate_events(events)
-        return sorted(unique_events, key=lambda item: self._sort_key(item.get("date")), reverse=True)[:60]
-
     def _calculate_timeline_span(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
         dates = [self._parse_datetime(event.get("date")) for event in timeline]
         dates = [date for date in dates if date]

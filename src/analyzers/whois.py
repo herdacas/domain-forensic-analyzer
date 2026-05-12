@@ -22,9 +22,6 @@ logger.propagate = False
 # --------------------------------------------------------------------------- #
 load_dotenv()
 
-SECURITYTRAILS_API_KEY = os.getenv("SECURITYTRAILS_API_KEY")  # falls später genutzt
-VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
-
 
 def _is_configured_api_key(api_key: Optional[str]) -> bool:
     """Return True when the configured value looks like a real API key."""
@@ -184,7 +181,7 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
             "registrar": w.registrar,
             "creation_date": _normalize_date(w.creation_date),
             "expiration_date": _normalize_date(w.expiration_date),
-            "updated_date": _normalize_date(w.last_updated),
+            "updated_date": _normalize_date(w.updated_date),
             "name_servers": w.name_servers,
             "status": w.status,
             "registrant_name": w.get("name"),

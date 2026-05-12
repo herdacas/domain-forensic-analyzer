@@ -796,15 +796,15 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
     print(f"└── Passive Sources (target does not see your IP):")
     print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
-    print(f"    ├── SecurityTrails, RobTex, HackerTarget")
-    print(f"    └── crt.sh, ip-api.com")
+    print(f"    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS")
+    print(f"    └── crt.sh, CertSpotter, ip-api.com")
     
     print(f"\n{Colors.investigation_separator(80)}")
     print("OSINT Tool | Network Intelligence | Asset Discovery")
     print("Multi-API Threat Intelligence | Security Analysis")
     print(f"{Colors.investigation_separator(80)}")
     print(f"Platform: {Colors.info(platform.system())} | "
-          f"Modules: {Colors.success('9 Core Analyzers')} | "
+          f"Modules: {Colors.success('11 Core Analyzers')} | "
           f"APIs: {Colors.success('5 Intelligence Sources')} | "
           f"Status: {Colors.success('Ready')}")
     
@@ -1919,7 +1919,7 @@ def display_forensic_summary(result: UnifiedResult) -> None:
 
         # CNAME (only shown when present — root apex rarely has one)
         if cname_target:
-            print(f"├── CNAME: {Colors.info(domain)} → {Colors.info(cname_target)}")
+            print(f"├── CNAME: {Colors.info(result.domain)} → {Colors.info(cname_target)}")
 
         print(f"├── TXT Records: {Colors.info(str(len(txt_records)))} observed")
 
@@ -2509,9 +2509,8 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     if current_ip:
         print(f"├── Current IP: {Colors.format_ip(current_ip)}")
 
-    # --- Domain IP History (extracted from dns_history timeline) ---
-    timeline = dns_history_result.get('timeline', []) or []
-    a_events = [e for e in timeline if e.get('record_type') == 'A']
+    # --- Domain IP History (from dedicated a_history bucket, all A events) ---
+    a_events = dns_history_result.get('a_history', []) or []
     ip_dates: Dict[str, str] = {}
     for event in a_events:
         date_val = event.get('date') or 'unknown'

@@ -290,46 +290,6 @@ class DomainValidator:
         return result
     
     @staticmethod
-    def extract_domains_from_text(text: str) -> List[str]:
-        """
-        Extrahiert alle Domains aus einem Text
-        
-        Args:
-            text (str): Text zur Domain-Extraktion
-            
-        Returns:
-            list: Liste gefundener Domains
-        """
-        if not text or not isinstance(text, str):
-            return []
-        
-        # Erweiterte Domain-Regex fuer Text-Extraktion
-        domain_pattern = r'\b[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+\b'
-        
-        # Domains finden
-        potential_domains = re.findall(domain_pattern, text)
-        
-        # Validierte Domains filtern
-        valid_domains = []
-        for match in potential_domains:
-            if isinstance(match, tuple):
-                # Regex gibt Tupel zurueck, vollstaendige Match nehmen
-                domain = match[0] if match[0] else text[text.find(match[1]):text.find(match[1])+len(match[1])+len(match[2])+2]
-            else:
-                domain = match
-            
-            # Nochmals durch einfache Regex
-            full_match = re.search(domain_pattern, domain)
-            if full_match:
-                domain = full_match.group(0)
-            
-            if DomainValidator.is_valid_domain(domain):
-                if domain not in valid_domains:  # Duplikate vermeiden
-                    valid_domains.append(domain)
-        
-        return valid_domains
-    
-    @staticmethod
     def is_suspicious_domain(domain: str) -> Dict[str, any]:
         """
         Analysiert Domain auf verdaechtige Eigenschaften

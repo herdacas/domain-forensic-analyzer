@@ -286,62 +286,6 @@ class CDNDetector:
         """
         return self.results
     
-    def classify_infrastructure_type(self, results: Dict[str, Any]) -> str:
-        """
-        Klassifiziert Infrastructure-Typ basierend auf Analyse
-        
-        Args:
-            results (dict): Analyseergebnisse
-            
-        Returns:
-            str: Infrastructure-Klassifikation
-        """
-        infra_type = results.get('infrastructure_type', 'unknown')
-        
-        if infra_type == 'cdn':
-            return 'Content Delivery Network'
-        elif infra_type == 'cloud':
-            return 'Cloud Hosting Service'
-        elif infra_type == 'platform':
-            return 'Platform Service'
-        elif infra_type == 'direct':
-            return 'Direct/Traditional Hosting'
-        else:
-            return 'Unknown Infrastructure'
-    
-    def get_security_assessment(self, results: Dict[str, Any]) -> Dict[str, str]:
-        """
-        Erstellt Security-Assessment basierend auf Infrastructure
-        
-        Args:
-            results (dict): Analyseergebnisse
-            
-        Returns:
-            dict: Security-Assessment
-        """
-        protection_level = results.get('protection_level', 'minimal')
-        infra_type = results.get('infrastructure_type', 'direct')
-        
-        assessment = {
-            'ddos_protection': 'unknown',
-            'waf_protection': 'unknown',
-            'origin_exposure': 'unknown'
-        }
-        
-        if protection_level == 'high':
-            assessment['ddos_protection'] = 'strong'
-            assessment['waf_protection'] = 'available'
-            assessment['origin_exposure'] = 'protected'
-        elif protection_level == 'medium':
-            assessment['ddos_protection'] = 'basic'
-            assessment['waf_protection'] = 'limited'
-            assessment['origin_exposure'] = 'partially_protected'
-        else:
-            assessment['ddos_protection'] = 'minimal'
-            assessment['waf_protection'] = 'none'
-            assessment['origin_exposure'] = 'direct'
-        
-        return assessment
 
 # Test-Funktion fuer CDN-Detector
 def main():
