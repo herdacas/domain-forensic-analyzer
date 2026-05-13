@@ -8,6 +8,20 @@ import os
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
+MODULE_TIMEOUTS: Dict[str, int] = {
+    'dns':            30,
+    'whois':          30,
+    'dns_history':    90,
+    'cdn':            45,
+    'network':        90,
+    'subdomain':     180,
+    'ssl':            25,
+    'securitytrails': 30,
+    'abuseipdb':      30,
+    'virustotal':     30,
+    'ip_history':     45,
+}
+
 @dataclass
 class ScanSettings:
     """
