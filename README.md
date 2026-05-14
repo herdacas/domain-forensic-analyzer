@@ -63,12 +63,14 @@ export SECURITYTRAILS_API_KEY="your_key"
 
 ```json
 {
-  "virustotal":   { "api_key": "YOUR_KEY" },
-  "abuseipdb":    { "api_key": "YOUR_KEY" },
-  "whoisxml":     { "api_key": "YOUR_KEY" },
+  "virustotal":     { "api_key": "YOUR_KEY" },
+  "abuseipdb":      { "api_key": "YOUR_KEY" },
+  "whoisxml":       { "api_key": "YOUR_KEY" },
   "securitytrails": { "api_key": "YOUR_KEY" }
 }
 ```
+
+`base_url` und `rate_limit` sind optional — werden automatisch auf Standardwerte gesetzt wenn nicht angegeben. Das Format ist identisch auf Linux und Windows.
 
 | Module           | Key                    | Free tier         |
 |------------------|------------------------|-------------------|

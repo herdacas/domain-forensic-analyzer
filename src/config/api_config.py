@@ -39,11 +39,18 @@ class SecureAPIManager:
             with open(self.config_file, 'r') as f:
                 config_data = json.load(f)
             
+            _defaults = {
+                'securitytrails': ('https://api.securitytrails.com/v1', 50),
+                'abuseipdb':      ('https://api.abuseipdb.com/api/v2', 1000),
+                'virustotal':     ('https://www.virustotal.com/api/v3', 1000),
+                'whoisxml':       ('https://whoisxmlapi.com/whoisserver/WhoisService', 500),
+            }
             for service_name, config in config_data.items():
+                default_url, default_rate = _defaults.get(service_name, ('', 100))
                 self.api_configs[service_name] = APIConfig(
                     api_key=config['api_key'],
-                    base_url=config['base_url'], 
-                    rate_limit=config['rate_limit']
+                    base_url=config.get('base_url', default_url),
+                    rate_limit=config.get('rate_limit', default_rate),
                 )
         
         except Exception as error:
