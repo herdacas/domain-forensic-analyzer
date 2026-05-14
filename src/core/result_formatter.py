@@ -1,7 +1,7 @@
 """Terminal result formatting for Domain Forensic Analyzer."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.result_aggregator import UnifiedResult
 from src.utils.colors import Colors
@@ -881,7 +881,11 @@ def _render_dns_history_block(
         print(f"└── DNS History: {Colors.error('NOT RUN')}")
 
 
-def _render_virustotal_status(vt_result: dict, unavailable_color=Colors.error) -> None:
+def _render_virustotal_status(
+    vt_result: dict,
+    unavailable_color=Colors.error,
+    unavailable_text: str = "ANALYSIS FAILED",
+) -> None:
     """Render VirusTotal domain reputation status."""
     if vt_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
         api_status = vt_result.get("api_status", "unknown")
@@ -916,7 +920,7 @@ def _render_virustotal_status(vt_result: dict, unavailable_color=Colors.error) -
                 f"├── VT Category Signals: {Colors.info(', '.join(category_signals[:5]))}"
             )
     else:
-        print(f"├── Domain Reputation: {unavailable_color('ANALYSIS FAILED')}")
+        print(f"├── Domain Reputation: {unavailable_color(unavailable_text)}")
 
 
 def _render_securitytrails_status(st_result: dict, unavailable_branch: str) -> None:
@@ -1106,106 +1110,39 @@ def _display_historical_blocks(
 
     # --- THREAT INTELLIGENCE (VT domain reputation only) ---
     print(f"\n{Colors.section_header('THREAT INTELLIGENCE', 50)}")
-    if vt_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-        api_status = vt_result.get("api_status", "unknown")
-        threat_analysis = vt_result.get("threat_analysis", {})
-        threat_intel = vt_result.get("threat_intelligence", {})
-        malicious = threat_analysis.get("malicious_detections", 0)
-        suspicious = threat_analysis.get("suspicious_detections", 0)
-        total_vendors = threat_analysis.get("total_security_vendors", 0)
-        reputation_score = threat_intel.get(
-            "reputation_score", vt_result.get("reputation", 0)
-        )
-        category_signals = _extract_vt_category_signals(vt_result)
-        status_text = "Demo Mode" if api_status == "demo_mode" else "Live Data"
-        if malicious >= 3:
-            threat_color = Colors.error
-            threat_text = f"MALICIOUS ({malicious}/{total_vendors} vendors)"
-        elif malicious > 0:
-            threat_color = Colors.warning
-            threat_text = f"REVIEW ({malicious}/{total_vendors} malicious vendors)"
-        elif suspicious >= 3:
-            threat_color = Colors.warning
-            threat_text = f"SUSPICIOUS ({suspicious}/{total_vendors} vendors)"
-        else:
-            threat_color = Colors.success
-            threat_text = f"CLEAN ({malicious + suspicious}/{total_vendors} vendors)"
-        print(f"├── Domain Reputation: {threat_color(threat_text)} [{status_text}]")
-        print(f"├── VT Reputation Score: {Colors.info(str(reputation_score))}")
-        if category_signals:
-            print(
-                f"├── VT Category Signals: {Colors.info(', '.join(category_signals[:5]))}"
-            )
-    else:
-        print(f"├── Domain Reputation: {Colors.dim('not available')}")
-
-    st_api_status = st_result.get("api_status", "")
-    if st_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-        domain_details = st_result.get("domain_details", {})
-        subdomain_count = (
-            domain_details.get("subdomain_count", 0)
-            if isinstance(domain_details, dict)
-            else 0
-        )
-        status_text = "Demo Mode" if st_api_status == "demo_mode" else "Live Data"
-        if subdomain_count > 0:
-            print(
-                f"├── SecurityTrails History: {Colors.info(f'{subdomain_count} subdomains in historical dataset')} [{status_text}]"
-            )
-        else:
-            print(
-                f"├── SecurityTrails History: {Colors.dim('No historical data')} [{status_text}]"
-            )
-    elif st_api_status in ("quota_exceeded", "demo_mode"):
-        print(
-            f"├── SecurityTrails: {Colors.dim('not available - quota exceeded or no API key')}"
-        )
-    else:
-        print(f"├── SecurityTrails: {Colors.dim('not available')}")
+    _render_virustotal_status(
+        vt_result, unavailable_color=Colors.dim, unavailable_text="not available"
+    )
+    _render_securitytrails_status(st_result, unavailable_branch="├──")
     print(
         f"└── IP Reputation: {Colors.dim('not available (domain inactive — no current IP)')}"
     )
 
     # --- RISK ASSESSMENT ---
     print(f"\n{Colors.section_header('RISK ASSESSMENT', 50)}")
-    print(f"├── Overall Risk: {risk_color(overall_risk)}")
-    if risk_factors:
-        print(f"├── Risk Factors:")
-        for factor in risk_factors:
-            print(f"│   ├── {factor}")
-    print(f"└── Recommendation: {risk_color(recommendation)}")
+    _render_risk_assessment_values(
+        overall_risk, risk_factors, recommendation, risk_color
+    )
 
     # --- EXECUTION ---
     print(f"\n{Colors.section_header('EXECUTION', 50)}")
-    print(
-        f"├── Execution Time: {Colors.info(f'{result.total_execution_time:.1f} seconds')}"
+    api_statuses = _collect_live_api_statuses(
+        vt_result, whois_result, dns_history_result
     )
-    print(
-        f"├── Modules Executed: {Colors.success(str(successful_modules))} successful, {Colors.error(str(failed_modules))} failed, {Colors.warning(str(timeout_modules))} timeout"
+    mode_line = (
+        f"├── Mode: {Colors.warning('HISTORICAL ANALYSIS')} "
+        f"{Colors.dim('(domain inactive — current DNS resolution failed)')}"
     )
-    print(
-        f"├── Mode: {Colors.warning('HISTORICAL ANALYSIS')} {Colors.dim('(domain inactive — current DNS resolution failed)')}"
+    _render_execution_values(
+        result,
+        successful_modules,
+        failed_modules,
+        timeout_modules,
+        api_statuses,
+        mode_line=mode_line,
     )
 
-    api_statuses = []
-    if vt_result.get("api_status") == "live_data":
-        api_statuses.append("VirusTotal")
-    if whois_result.get("source") == "WhoisXML API":
-        api_statuses.append("WhoisXML")
-    dns_history_sources = [
-        s for s in dns_history_result.get("data_sources", []) if s != "Native Fallback"
-    ]
-    if dns_history_sources:
-        api_statuses.append(f"DNS History ({', '.join(dns_history_sources[:3])})")
-    if api_statuses:
-        print(f"├── Live APIs Used: {Colors.success(', '.join(api_statuses))}")
-    else:
-        print(f"├── Live APIs Used: {Colors.warning('Demo Mode - Configure API keys')}")
-    print(f"└── Detailed Logs: {Colors.dim('logs/domain_analyzer_*.log')}")
-
-    print(f"\n{Colors.investigation_separator(80)}")
-    print(f"FORENSIC ANALYSIS COMPLETE")
-    print(Colors.investigation_separator(80))
+    _render_report_footer()
 
 def _build_summary_context(result: UnifiedResult) -> Dict[str, Any]:
     """Collect shared values used by the terminal summary renderers."""
@@ -2071,89 +2008,9 @@ def _render_threat_intelligence_section(ctx: Dict[str, Any]) -> None:
     st_result = ctx["st_result"]
 
     print(f"\n{Colors.section_header('THREAT INTELLIGENCE', 50)}")
-    if vt_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-        api_status = vt_result.get("api_status", "unknown")
-        threat_analysis = vt_result.get("threat_analysis", {})
-        threat_intel = vt_result.get("threat_intelligence", {})
-        malicious = threat_analysis.get("malicious_detections", 0)
-        suspicious = threat_analysis.get("suspicious_detections", 0)
-        total_vendors = threat_analysis.get("total_security_vendors", 0)
-        reputation_score = threat_intel.get(
-            "reputation_score", vt_result.get("reputation", 0)
-        )
-        category_signals = _extract_vt_category_signals(vt_result)
-        status_text = "Demo Mode" if api_status == "demo_mode" else "Live Data"
-
-        if malicious >= 3:
-            threat_color = Colors.error
-            threat_text = f"MALICIOUS ({malicious}/{total_vendors} vendors)"
-        elif malicious > 0:
-            threat_color = Colors.warning
-            threat_text = f"REVIEW ({malicious}/{total_vendors} malicious vendors)"
-        elif suspicious >= 3:
-            threat_color = Colors.warning
-            threat_text = f"SUSPICIOUS ({suspicious}/{total_vendors} vendors)"
-        else:
-            threat_color = Colors.success
-            threat_text = f"CLEAN ({malicious + suspicious}/{total_vendors} vendors)"
-
-        print(f"├── Domain Reputation: {threat_color(threat_text)} [{status_text}]")
-        print(f"├── VT Reputation Score: {Colors.info(str(reputation_score))}")
-        if category_signals:
-            print(
-                f"├── VT Category Signals: {Colors.info(', '.join(category_signals[:5]))}"
-            )
-    else:
-        print(f"├── Domain Reputation: {Colors.error('ANALYSIS FAILED')}")
-
-    if abuse_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-        api_status = abuse_result.get("api_status", "unknown")
-        abuse_confidence = abuse_result.get("abuse_confidence", 0)
-        country_code = abuse_result.get("country_code", "Unknown")
-        status_text = "Demo Mode" if api_status == "demo_mode" else "Live Data"
-
-        if abuse_confidence > 50:
-            abuse_color = Colors.error
-            abuse_text = f"HIGH ABUSE ({abuse_confidence}%)"
-        elif abuse_confidence > 25:
-            abuse_color = Colors.warning
-            abuse_text = f"MODERATE ABUSE ({abuse_confidence}%)"
-        else:
-            abuse_color = Colors.success
-            abuse_text = f"CLEAN ({abuse_confidence}%)"
-
-        print(f"├── IP Reputation: {abuse_color(abuse_text)} [{status_text}]")
-        if country_code != "Unknown":
-            print(f"├── Geographic Risk: {Colors.info(country_code)}")
-    else:
-        print(f"├── IP Reputation: {Colors.error('ANALYSIS FAILED')}")
-
-    if st_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-        api_status = st_result.get("api_status", "unknown")
-        domain_details = st_result.get("domain_details", {})
-        subdomain_count = (
-            domain_details.get("subdomain_count", 0)
-            if isinstance(domain_details, dict)
-            else 0
-        )
-        status_text = "Demo Mode" if api_status == "demo_mode" else "Live Data"
-
-        if subdomain_count > 0:
-            print(
-                f"├── SecurityTrails History: {Colors.info(f'{subdomain_count} subdomains in historical dataset')} [{status_text}]"
-            )
-        else:
-            print(
-                f"├── SecurityTrails History: {Colors.dim('No historical data')} [{status_text}]"
-            )
-    else:
-        st_api_status = st_result.get("api_status", "")
-        if st_api_status in ("quota_exceeded", "demo_mode"):
-            print(
-                f"└── SecurityTrails: {Colors.dim('not available - quota exceeded or no API key')}"
-            )
-        else:
-            print(f"└── SecurityTrails: {Colors.dim('not available')}")
+    _render_virustotal_status(vt_result)
+    _render_abuseipdb_status(abuse_result)
+    _render_securitytrails_status(st_result, unavailable_branch="└──")
 
 
 def _render_ip_domain_history_section(ctx: Dict[str, Any]) -> None:
@@ -2262,12 +2119,9 @@ def _render_risk_assessment_section(ctx: Dict[str, Any]) -> None:
     risk_color = ctx["risk_color"]
 
     print(f"\n{Colors.section_header('RISK ASSESSMENT', 50)}")
-    print(f"├── Overall Risk: {risk_color(overall_risk)}")
-    if risk_factors:
-        print(f"├── Risk Factors:")
-        for factor in risk_factors:
-            print(f"│   ├── {factor}")
-    print(f"└── Recommendation: {risk_color(recommendation)}")
+    _render_risk_assessment_values(
+        overall_risk, risk_factors, recommendation, risk_color
+    )
 
 
 def _render_execution_section(ctx: Dict[str, Any]) -> None:
@@ -2284,43 +2138,21 @@ def _render_execution_section(ctx: Dict[str, Any]) -> None:
     timeout_modules = ctx["timeout_modules"]
 
     print(f"\n{Colors.section_header('EXECUTION', 50)}")
-    print(
-        f"├── Execution Time: {Colors.info(f'{result.total_execution_time:.1f} seconds')}"
+    api_statuses = _collect_live_api_statuses(
+        vt_result,
+        whois_result,
+        dns_history_result,
+        st_result=st_result,
+        abuse_result=abuse_result,
+        ip_history_result=ip_history_result,
     )
-    print(
-        f"├── Modules Executed: {Colors.success(str(successful_modules))} successful, {Colors.error(str(failed_modules))} failed, {Colors.warning(str(timeout_modules))} timeout"
+    _render_execution_values(
+        result,
+        successful_modules,
+        failed_modules,
+        timeout_modules,
+        api_statuses,
     )
-
-    api_statuses = []
-    if st_result.get("api_status") == "live_data":
-        api_statuses.append("SecurityTrails")
-    if abuse_result.get("api_status") == "live_data":
-        api_statuses.append("AbuseIPDB")
-    if vt_result.get("api_status") == "live_data":
-        api_statuses.append("VirusTotal")
-    if whois_result.get("source") == "WhoisXML API":
-        api_statuses.append("WhoisXML")
-    dns_history_sources = [
-        source
-        for source in dns_history_result.get("data_sources", [])
-        if source != "Native Fallback"
-    ]
-    if dns_history_sources:
-        api_statuses.append(f"DNS History ({', '.join(dns_history_sources[:3])})")
-    ip_history_sources = [
-        k
-        for k, v in (ip_history_result.get("sources") or {}).items()
-        if v.get("status") == "success"
-    ]
-    if ip_history_sources:
-        api_statuses.append(f"Reverse IP ({', '.join(ip_history_sources)})")
-
-    if api_statuses:
-        print(f"├── Live APIs Used: {Colors.success(', '.join(api_statuses))}")
-    else:
-        print(f"├── Live APIs Used: {Colors.warning('Demo Mode - Configure API keys')}")
-
-    print(f"└── Detailed Logs: {Colors.dim(f'logs/domain_analyzer_*.log')}")
 
 
 def _render_historical_report(ctx: Dict[str, Any]) -> None:
