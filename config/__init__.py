@@ -1,10 +1,3 @@
-"""
-Configuration Management
-Konfigurationsverwaltung fuer API-Keys und Einstellungen
-"""
+"""Configuration management."""
 
-# Verfuegbare Konfigurations-Klassen
-__all__ = [
-    'Settings',
-    'APIConfig'
-]
+__all__ = ['Settings']

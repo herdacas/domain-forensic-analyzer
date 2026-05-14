@@ -1,5 +1,4 @@
-# whois.py
-# Vollständige, produktionsreife WHOIS-Integration für den Domain Forensic Analyzer
+# whois.py — WHOIS integration for Domain Forensic Analyzer
 # MIT License – Copyright (c) 2025 herdacas
 
 import logging
@@ -16,32 +15,26 @@ logger = logging.getLogger("whois_module")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False
 
-# --------------------------------------------------------------------------- #
-# Laden der Umgebungsvariablen (.env)
-# --------------------------------------------------------------------------- #
 load_dotenv()
-
 
 WHOISXML_API_KEY = APIKeyReader("WHOISXML_API_KEY", "whoisxml").get()
 
-# --------------------------------------------------------------------------- #
 # Registries known to redact WHOIS fields by policy
-# --------------------------------------------------------------------------- #
 REDACTING_REGISTRIES: Dict[str, str] = {
-    '.de': 'DENIC',
-    '.at': 'nic.at',
-    '.ch': 'SWITCH',
-    '.nl': 'SIDN',
-    '.fi': 'Traficom',
-    '.no': 'Norid',
-    '.se': 'IIS',
-    '.dk': 'DK Hostmaster',
+    ".de": "DENIC",
+    ".at": "nic.at",
+    ".ch": "SWITCH",
+    ".nl": "SIDN",
+    ".fi": "Traficom",
+    ".no": "Norid",
+    ".se": "IIS",
+    ".dk": "DK Hostmaster",
 }
 
 
 def _detect_registry_policy(domain: str) -> Optional[str]:
     """Return registry name if TLD is known to redact WHOIS data by policy."""
-    tld = '.' + domain.strip().lower().rsplit('.', 1)[-1]
+    tld = "." + domain.strip().lower().rsplit(".", 1)[-1]
     return REDACTING_REGISTRIES.get(tld)
 
 
@@ -49,38 +42,43 @@ def _detect_registry_policy(domain: str) -> Optional[str]:
 # Privacy proxy / WHOIS shield detection
 # --------------------------------------------------------------------------- #
 _PRIVACY_PROXY_SIGNALS: list = [
-    ('WhoisGuard',                  ['whoisguard']),
-    ('Domains By Proxy',            ['domainsbyproxy']),
-    ('PrivacyProtect',              ['privacyprotect']),
-    ('Withheld for Privacy',        ['withheld for privacy', 'withheldforprivacy']),
-    ('Perfect Privacy',             ['perfect privacy', 'perfectprivacy']),
-    ('Identity Protection Service', ['identity protect']),
-    ('Contact Privacy',             ['contact privacy']),
-    ('Data Protected',              ['data protected']),
-    ('Redacted for Privacy',        ['redacted for privacy']),
-    ('Privacy Guardian',            ['privacyguardian']),
-    ('Anonymize.com',               ['anonymize.com']),
-    ('Whois Privacy Protection',    ['whois privacy protection', 'whois privacy']),
+    ("WhoisGuard", ["whoisguard"]),
+    ("Domains By Proxy", ["domainsbyproxy"]),
+    ("PrivacyProtect", ["privacyprotect"]),
+    ("Withheld for Privacy", ["withheld for privacy", "withheldforprivacy"]),
+    ("Perfect Privacy", ["perfect privacy", "perfectprivacy"]),
+    ("Identity Protection Service", ["identity protect"]),
+    ("Contact Privacy", ["contact privacy"]),
+    ("Data Protected", ["data protected"]),
+    ("Redacted for Privacy", ["redacted for privacy"]),
+    ("Privacy Guardian", ["privacyguardian"]),
+    ("Anonymize.com", ["anonymize.com"]),
+    ("Whois Privacy Protection", ["whois privacy protection", "whois privacy"]),
 ]
 
 
-def _detect_privacy_proxy(registrar: Optional[str], registrant_email: Optional[str],
-                           registrant_name: Optional[str] = None) -> Optional[str]:
+def _detect_privacy_proxy(
+    registrar: Optional[str],
+    registrant_email: Optional[str],
+    registrant_name: Optional[str] = None,
+) -> Optional[str]:
     """Return proxy service name if a known privacy proxy / WHOIS shield is detected."""
-    haystack = ' '.join(filter(None, [
-        str(registrar or '').lower(),
-        str(registrant_email or '').lower(),
-        str(registrant_name or '').lower(),
-    ]))
+    haystack = " ".join(
+        filter(
+            None,
+            [
+                str(registrar or "").lower(),
+                str(registrant_email or "").lower(),
+                str(registrant_name or "").lower(),
+            ],
+        )
+    )
     for proxy_name, keywords in _PRIVACY_PROXY_SIGNALS:
         if any(kw in haystack for kw in keywords):
             return proxy_name
     return None
 
 
-# --------------------------------------------------------------------------- #
-# Hilfsfunktion: Datums-Normalisierung (python-whois liefert unterschiedliche Typen)
-# --------------------------------------------------------------------------- #
 def _normalize_date(date_obj: Any) -> Optional[str]:
     if not date_obj:
         return None
@@ -93,7 +91,9 @@ def _normalize_date(date_obj: Any) -> Optional[str]:
     return str(date_obj)
 
 
-def _extract_whoisxml_nameservers(record: Dict[str, Any], registry_data: Dict[str, Any]) -> list:
+def _extract_whoisxml_nameservers(
+    record: Dict[str, Any], registry_data: Dict[str, Any]
+) -> list:
     """Extract nameservers from all WhoisXML locations seen in API responses."""
     nameservers = []
 
@@ -101,7 +101,11 @@ def _extract_whoisxml_nameservers(record: Dict[str, Any], registry_data: Dict[st
         if not source:
             continue
         if isinstance(source, dict):
-            candidates = source.get("hostNames") or source.get("hostnames") or source.get("hosts")
+            candidates = (
+                source.get("hostNames")
+                or source.get("hostnames")
+                or source.get("hosts")
+            )
         else:
             candidates = source
 
@@ -117,14 +121,9 @@ def _extract_whoisxml_nameservers(record: Dict[str, Any], registry_data: Dict[st
 
     return nameservers
 
-# --------------------------------------------------------------------------- #
-# 1. Kostenlose lokale WHOIS-Abfrage (Fallback)
-# --------------------------------------------------------------------------- #
+
 def get_whois_local(domain: str) -> Dict[str, Any]:
-    """
-    WHOIS-Abfrage mit python-whois (keine API-Key nötig).
-    Sehr zuverlässig für gängige TLDs.
-    """
+    """Query WHOIS via python-whois (no API key required). Used as fallback."""
     logger.info(f"WHOIS (lokal) – Abfrage für {domain}")
     try:
         w = whois.whois(domain)
@@ -143,8 +142,10 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
             "registrant_country": w.get("country"),
             "registrant_email": w.get("email"),
             "registry_policy": _detect_registry_policy(domain),
-            "privacy_proxy": _detect_privacy_proxy(w.registrar, w.get("email"), w.get("name")),
-            "raw_text": str(w)
+            "privacy_proxy": _detect_privacy_proxy(
+                w.registrar, w.get("email"), w.get("name")
+            ),
+            "raw_text": str(w),
         }
         logger.debug(f"WHOIS lokal erfolgreich für {domain}")
         return result
@@ -154,18 +155,17 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
         return {
             "source": "python-whois (lokal)",
             "domain": domain.lower(),
-            "error": str(e)
+            "error": str(e),
         }
 
-# --------------------------------------------------------------------------- #
-# 2. Professionelle API-Abfrage via WhoisXML API (empfohlen)
-# --------------------------------------------------------------------------- #
+
 def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
-    """
-    Hochwertige WHOIS-Abfrage inkl. historischer Daten über WhoisXML API.
-    Kostenloser Plan: 500 Abfragen/Monat.
-    """
-    if not WHOISXML_API_KEY or WHOISXML_API_KEY.strip() == "" or "your_key" in WHOISXML_API_KEY:
+    """Query WHOIS via WhoisXML API (500 req/month free). Preferred over local fallback."""
+    if (
+        not WHOISXML_API_KEY
+        or WHOISXML_API_KEY.strip() == ""
+        or "your_key" in WHOISXML_API_KEY
+    ):
         logger.warning("WHOISXML_API_KEY fehlt oder ungültig → wird übersprungen")
         return {"error": "WHOISXML_API_KEY nicht konfiguriert"}
 
@@ -174,7 +174,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
         "apiKey": WHOISXML_API_KEY,
         "domainName": domain,
         "outputFormat": "JSON",
-        "da": "1"  # inkl. Registrant-Daten, wo verfügbar
+        "da": "1",  # include registrant data where available
     }
 
     logger.info(f"WHOIS (WhoisXML API) – Abfrage für {domain}")
@@ -197,9 +197,12 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
             "source": "WhoisXML API",
             "domain": domain.lower(),
             "registrar": record.get("registrarName"),
-            "creation_date": record.get("createdDate") or registry_data.get("createdDate"),
-            "expiration_date": record.get("expiresDate") or registry_data.get("expiresDate"),
-            "updated_date": record.get("updatedDate") or registry_data.get("updatedDate"),
+            "creation_date": record.get("createdDate")
+            or registry_data.get("createdDate"),
+            "expiration_date": record.get("expiresDate")
+            or registry_data.get("expiresDate"),
+            "updated_date": record.get("updatedDate")
+            or registry_data.get("updatedDate"),
             "name_servers": _extract_whoisxml_nameservers(record, registry_data),
             "status": record.get("status") or registry_data.get("status"),
             "registrant_name": registrant.get("name"),
@@ -217,7 +220,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
                 registrant.get("email") or record.get("contactEmail"),
                 registrant.get("name"),
             ),
-            "raw_json": data
+            "raw_json": data,
         }
         logger.debug(f"WHOIS WhoisXML API erfolgreich für {domain}")
         return result
@@ -229,26 +232,16 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
         logger.error(f"Unerwarteter Fehler bei WhoisXML API für {domain}: {str(e)}")
         return {"source": "WhoisXML API", "error": str(e)}
 
-# --------------------------------------------------------------------------- #
-# 3. Kombinierte Hauptfunktion mit intelligentem Fallback
-# --------------------------------------------------------------------------- #
+
 def get_whois(domain: str) -> Dict[str, Any]:
-    """
-    Öffentliche Hauptfunktion – liefert immer das beste verfügbare Ergebnis.
-    Reihenfolge:
-      1. WhoisXML API (wenn Key vorhanden)
-      2. python-whois als Fallback
-    """
+    """Public entry point — returns best available WHOIS result (API first, local fallback)."""
     domain = domain.strip().lower()
 
-    # 1. Versuch: WhoisXML API (besser, aktueller, mehr Details)
     if WHOISXML_API_KEY and WHOISXML_API_KEY.strip():
         result = get_whois_xmlapi(domain)
         if "error" not in result or "rate limit" in str(result.get("error", "")).lower():
-            logger.info(f"WHOIS erfolgreich via WhoisXML API für {domain}")
+            logger.info(f"WHOIS via WhoisXML API for {domain}")
             return result
 
-    # 2. Fallback: Lokale python-whois-Abfrage
-    logger.info(f"WHOIS Fallback auf python-whois für {domain}")
-    fallback = get_whois_local(domain)
-    return fallback
+    logger.info(f"WHOIS fallback to python-whois for {domain}")
+    return get_whois_local(domain)

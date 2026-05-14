@@ -1,7 +1,5 @@
-          
 """
-Configuration Management for Domain Forensic Analyzer
-Zentrale Konfigurationsverwaltung fuer API-Keys und Einstellungen
+Configuration Management for Domain Forensic Analyzer.
 """
 
 import os
@@ -24,32 +22,23 @@ MODULE_TIMEOUTS: Dict[str, int] = {
 
 @dataclass
 class ScanSettings:
-    """
-    Konfiguration fuer Scan-Parameter
-    """
-    # Timeout-Einstellungen
+    """Timeout and threading parameters for scan modules."""
+
     dns_timeout: int = 10
     traceroute_timeout_regional: int = 50
     traceroute_timeout_international: int = 75
     api_timeout: int = 15
-    
-    # Subdomain-Scanning
     max_subdomain_threads: int = 12
     subdomain_timeout: int = 5
-    
-    # Netzwerk-Analyse
     max_traceroute_hops: int = 15
-    traceroute_encoding: str = 'cp850'  # Windows-Standard
-    
-    # Rate-Limiting
+    traceroute_encoding: str = 'cp850'  # Windows default console encoding
     api_rate_limit_delay: float = 0.5
     request_delay: float = 0.1
 
 @dataclass
 class APIConfig:
-    """
-    Konfiguration fuer externe APIs
-    """
+    """External API keys and base URLs."""
+
     securitytrails_api_key: Optional[str] = None
     virustotal_api_key: Optional[str] = None
     shodan_api_key: Optional[str] = None
@@ -61,91 +50,63 @@ class APIConfig:
 
 @dataclass
 class OutputSettings:
-    """
-    Konfiguration fuer Output und Reporting
-    """
-    # Terminal-Output
+    """Terminal output and report generation settings."""
+
     use_colors: bool = True
     verbose_mode: bool = False
     show_progress: bool = True
-    
-    # Report-Generation
     generate_json: bool = True
     generate_pdf: bool = False
     output_directory: str = "reports"
-    
-    # Investigation-Tracking
     include_timestamps: bool = True
     include_investigation_id: bool = True
 
 class Settings:
-    """
-    Hauptkonfigurationsklasse fuer Domain Forensic Analyzer
-    
-    Verwaltet alle Konfigurationsaspekte und laedt Einstellungen
-    aus Umgebungsvariablen und Konfigurationsdateien.
-    """
-    
+    """Central configuration for Domain Forensic Analyzer."""
+
     def __init__(self):
-        """Initialisiert Settings und laedt Konfiguration"""
         self.scan_settings = ScanSettings()
         self.api_config = APIConfig()
         self.output_settings = OutputSettings()
-        
-        # Konfiguration aus Umgebungsvariablen laden
         self._load_from_environment()
-        
-        # Konfiguration validieren
         self._validate_configuration()
     
     def _load_from_environment(self) -> None:
-        """
-        Laedt Konfiguration aus Umgebungsvariablen (.env Datei)
-        """
-        # API-Keys aus Umgebungsvariablen
+        """Load configuration overrides from environment variables."""
         self.api_config.securitytrails_api_key = os.getenv('SECURITYTRAILS_API_KEY')
         self.api_config.virustotal_api_key = os.getenv('VIRUSTOTAL_API_KEY')
         self.api_config.shodan_api_key = os.getenv('SHODAN_API_KEY')
-        
-        # Timeout-Einstellungen (mit Fallback-Werten)
+
         try:
             self.scan_settings.dns_timeout = int(os.getenv('DNS_TIMEOUT', '10'))
             self.scan_settings.api_timeout = int(os.getenv('API_TIMEOUT', '15'))
             self.scan_settings.traceroute_timeout_regional = int(os.getenv('TRACEROUTE_TIMEOUT_REGIONAL', '50'))
             self.scan_settings.traceroute_timeout_international = int(os.getenv('TRACEROUTE_TIMEOUT_INTERNATIONAL', '75'))
         except ValueError:
-            # Bei ungültigen Werten Standardwerte verwenden
             pass
-        
-        # Threading-Einstellungen
+
         try:
             self.scan_settings.max_subdomain_threads = int(os.getenv('MAX_SUBDOMAIN_THREADS', '12'))
         except ValueError:
             pass
-        
-        # Output-Einstellungen
+
         self.output_settings.use_colors = os.getenv('USE_COLORS', 'true').lower() == 'true'
         self.output_settings.verbose_mode = os.getenv('VERBOSE_MODE', 'false').lower() == 'true'
         self.output_settings.output_directory = os.getenv('OUTPUT_DIRECTORY', 'reports')
     
     def _validate_configuration(self) -> None:
-        """
-        Validiert die geladene Konfiguration
-        """
-        # Timeout-Werte validieren
+        """Clamp timeouts and thread counts to sane bounds; ensure output dir exists."""
         if self.scan_settings.dns_timeout <= 0:
             self.scan_settings.dns_timeout = 10
-        
+
         if self.scan_settings.api_timeout <= 0:
             self.scan_settings.api_timeout = 15
-        
-        # Thread-Anzahl validieren
+
         if self.scan_settings.max_subdomain_threads <= 0:
             self.scan_settings.max_subdomain_threads = 8
         elif self.scan_settings.max_subdomain_threads > 50:
             self.scan_settings.max_subdomain_threads = 50
-        
-        # Output-Verzeichnis erstellen falls nicht vorhanden
+
         if not os.path.exists(self.output_settings.output_directory):
             try:
                 os.makedirs(self.output_settings.output_directory)
@@ -153,44 +114,24 @@ class Settings:
                 self.output_settings.output_directory = "."
     
     def has_securitytrails_api(self) -> bool:
-        """
-        Prueft ob SecurityTrails API-Key verfuegbar ist
-        
-        Returns:
-            bool: True wenn API-Key konfiguriert ist
-        """
+        """Return True if SecurityTrails API key is configured."""
         return bool(self.api_config.securitytrails_api_key)
-    
+
     def has_virustotal_api(self) -> bool:
-        """
-        Prueft ob VirusTotal API-Key verfuegbar ist
-        
-        Returns:
-            bool: True wenn API-Key konfiguriert ist
-        """
+        """Return True if VirusTotal API key is configured."""
         return bool(self.api_config.virustotal_api_key)
-    
+
     def get_api_status(self) -> Dict[str, bool]:
-        """
-        Gibt Status aller konfigurierten APIs zurueck
-        
-        Returns:
-            dict: API-Status als Boolean-Dictionary
-        """
+        """Return availability status for each configured API."""
         return {
             'securitytrails': self.has_securitytrails_api(),
             'virustotal': self.has_virustotal_api(),
             'shodan': bool(self.api_config.shodan_api_key),
-            'ip_geolocation': True  # Kostenloser Service
+            'ip_geolocation': True,  # free, no key required
         }
-    
+
     def get_active_features(self) -> list:
-        """
-        Gibt Liste der aktiven Features basierend auf Konfiguration zurueck
-        
-        Returns:
-            list: Liste aktiver Features
-        """
+        """Return list of active feature names based on which API keys are present."""
         features = ['DNS Analysis', 'Network Intelligence', 'Asset Discovery']
         
         if self.has_securitytrails_api():
@@ -205,17 +146,7 @@ class Settings:
         return features
     
     def update_setting(self, category: str, setting: str, value: Any) -> bool:
-        """
-        Aktualisiert eine spezifische Einstellung
-        
-        Args:
-            category (str): Kategorie (scan, api, output)
-            setting (str): Einstellungsname
-            value (Any): Neuer Wert
-            
-        Returns:
-            bool: True wenn erfolgreich aktualisiert
-        """
+        """Update a single setting by category name ('scan', 'api', 'output')."""
         try:
             if category == 'scan':
                 if hasattr(self.scan_settings, setting):
@@ -235,12 +166,7 @@ class Settings:
             return False
     
     def get_configuration_summary(self) -> Dict[str, Any]:
-        """
-        Gibt vollstaendige Konfigurationsuebersicht zurueck
-        
-        Returns:
-            dict: Konfigurationsuebersicht (ohne sensible API-Keys)
-        """
+        """Return full configuration overview (no API key values)."""
         return {
             'scan_settings': {
                 'dns_timeout': self.scan_settings.dns_timeout,
@@ -259,30 +185,19 @@ class Settings:
             }
         }
 
-# Globale Settings-Instanz
 _settings_instance = None
 
+
 def get_settings() -> Settings:
-    """
-    Singleton-Pattern fuer Settings
-    
-    Returns:
-        Settings: Globale Settings-Instanz
-    """
+    """Return the singleton Settings instance, creating it on first call."""
     global _settings_instance
     if _settings_instance is None:
         _settings_instance = Settings()
     return _settings_instance
 
+
 def reload_settings() -> Settings:
-    """
-    Laedt Settings neu (z.B. nach Aenderung der .env Datei)
-    
-    Returns:
-        Settings: Neu geladene Settings-Instanz
-    """
+    """Force-reload settings (e.g. after editing the .env file)."""
     global _settings_instance
     _settings_instance = Settings()
     return _settings_instance
-
-# Test-Funktion fuer Settings
