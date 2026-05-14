@@ -224,139 +224,84 @@ class ResultAggregator:
             results=module_results  # Fallback compatibility
         )
     
+    @staticmethod
+    def _build_risk_lookup(sensitive_assets: list) -> Dict[str, str]:
+        """Map subdomain name → risk level from the scanner's sensitive_assets list."""
+        lookup: Dict[str, str] = {}
+        if not isinstance(sensitive_assets, list):
+            return lookup
+        for entry in sensitive_assets:
+            if not isinstance(entry, dict):
+                continue
+            asset_data = entry.get('asset', {})
+            if not isinstance(asset_data, dict):
+                continue
+            name = asset_data.get('subdomain') or asset_data.get('domain')
+            risk = entry.get('risk_level')
+            if name and risk:
+                lookup[str(name).lower().strip()] = str(risk).lower().strip()
+        return lookup
+
+    @staticmethod
+    def _infer_risk_level(subdomain_name: str) -> str:
+        """Heuristic risk level from subdomain name when no explicit level is available."""
+        name = subdomain_name.lower()
+        if any(t in name for t in ('admin', 'administrator', 'manage', 'control', 'panel')):
+            return 'critical'
+        if any(t in name for t in ('api', 'rest', 'graphql', 'webhook')):
+            return 'high'
+        if any(t in name for t in ('dev', 'test', 'staging')):
+            return 'high'
+        return 'informational'
+
     def _extract_and_standardize_assets_fixed(self, module_results: Dict[str, Any]) -> List[StandardizedAsset]:
-        """
-        FIXED: Robuste Asset-Extraktion basierend auf bewährter Logik
-        Übernimmt die comprehensive search logic aus dem ursprünglichen Code
-        """
         assets = []
-        
-        # Subdomain assets - FIXED mit comprehensive key search
         subdomain_result = module_results.get('subdomain', {})
-        if subdomain_result.get('analysis_status') == 'abgeschlossen':
-            wildcard_detected = bool(
-                subdomain_result.get('wildcard_detected')
-                or subdomain_result.get('dns_configuration', {}).get('wildcard_detected', False)
-            )
-            sensitive_assets = subdomain_result.get('sensitive_assets', [])
-            risk_by_subdomain = {}
+        if subdomain_result.get('analysis_status') != 'abgeschlossen':
+            return assets
 
-            if isinstance(sensitive_assets, list):
-                for sensitive_entry in sensitive_assets:
-                    if not isinstance(sensitive_entry, dict):
-                        continue
+        wildcard_detected = bool(
+            subdomain_result.get('wildcard_detected')
+            or subdomain_result.get('dns_configuration', {}).get('wildcard_detected', False)
+        )
+        risk_by_subdomain = self._build_risk_lookup(subdomain_result.get('sensitive_assets', []))
+        discovered_assets = subdomain_result.get('discovered_assets') or []
 
-                    asset_data = sensitive_entry.get('asset', {})
-                    if not isinstance(asset_data, dict):
-                        continue
+        for asset in discovered_assets:
+            if not isinstance(asset, dict):
+                continue
+            subdomain_name = asset.get('subdomain', asset.get('domain', ''))
+            if not subdomain_name:
+                continue
 
-                    subdomain_value = asset_data.get('subdomain') or asset_data.get('domain')
-                    risk_value = sensitive_entry.get('risk_level')
-
-                    if subdomain_value and risk_value:
-                        risk_by_subdomain[str(subdomain_value).lower().strip()] = str(risk_value).lower().strip()
-            
-            # COMPREHENSIVE KEY SEARCH - genau wie im original code
-            discovered_assets = None
-            possible_asset_keys = [
-                'discovered_assets', 'assets', 'found_assets', 'enumerated_assets', 
-                'subdomains', 'subdomain_list', 'asset_list', 'results', 'data',
-                'categorized_assets', 'all_assets', 'subdomain_assets'
-            ]
-            
-            # Try list-based keys first
-            for key in possible_asset_keys:
-                assets_data = subdomain_result.get(key, [])
-                if assets_data and isinstance(assets_data, list) and len(assets_data) > 0:
-                    discovered_assets = assets_data
+            risk_level = None
+            for risk_key in ('risk_level', 'risk', 'level', 'priority', 'sensitivity'):
+                risk_value = asset.get(risk_key)
+                if risk_value:
+                    risk_level = str(risk_value).lower().strip()
                     break
-            
-            # If list-based keys don't work, try dict-based structure
-            if not discovered_assets:
-                for key in subdomain_result.keys():
-                    value = subdomain_result[key]
-                    if isinstance(value, dict):
-                        # Look for asset lists within this dict
-                        for subkey, subvalue in value.items():
-                            if isinstance(subvalue, list) and len(subvalue) > 0:
-                                # Check if this looks like an asset list
-                                if len(subvalue) > 0 and isinstance(subvalue[0], dict):
-                                    first_item = subvalue[0]
-                                    if 'subdomain' in first_item or 'domain' in first_item or 'risk_level' in first_item:
-                                        discovered_assets = subvalue
-                                        break
-                        if discovered_assets:
-                            break
-            
-            # If still no assets found, extract from subdomain_result directly
-            if not discovered_assets:
-                # Sometimes the entire result IS the asset list
-                if isinstance(subdomain_result, list):
-                    discovered_assets = subdomain_result
-                else:
-                    # Build asset list from any dict that contains subdomain info
-                    temp_assets = []
-                    for key, value in subdomain_result.items():
-                        if isinstance(value, dict) and ('subdomain' in value or 'domain' in value):
-                            temp_assets.append(value)
-                        elif isinstance(value, list):
-                            for item in value:
-                                if isinstance(item, dict) and ('subdomain' in item or 'domain' in item):
-                                    temp_assets.append(item)
-                    if temp_assets:
-                        discovered_assets = temp_assets
-            
-            # Process discovered assets with risk level detection
-            if discovered_assets and isinstance(discovered_assets, list):
-                for asset in discovered_assets:
-                    if isinstance(asset, dict):
-                        # Get subdomain name
-                        subdomain_name = asset.get('subdomain', asset.get('domain', ''))
-                        if not subdomain_name:
-                            continue
-                        
-                        # Try multiple risk level key variations
-                        risk_level = None
-                        for risk_key in ['risk_level', 'risk', 'level', 'priority', 'sensitivity']:
-                            risk_value = asset.get(risk_key)
-                            if risk_value:
-                                risk_level = str(risk_value).lower().strip()
-                                break
 
-                        # Prefer explicit risk from subdomain scanner sensitive_assets
-                        subdomain_key = subdomain_name.lower().strip()
-                        if subdomain_key in risk_by_subdomain:
-                            risk_level = risk_by_subdomain[subdomain_key]
-                        
-                        # If no risk_level found, infer from subdomain name
-                        if not risk_level:
-                            subdomain_lower = subdomain_name.lower()
-                            if any(admin_term in subdomain_lower for admin_term in ['admin', 'administrator', 'manage', 'control', 'panel']):
-                                risk_level = 'critical'
-                            elif any(api_term in subdomain_lower for api_term in ['api', 'rest', 'graphql', 'webhook']):
-                                risk_level = 'high'
-                            elif any(dev_term in subdomain_lower for dev_term in ['dev', 'test', 'staging']):
-                                risk_level = 'high'
-                            else:
-                                risk_level = 'informational'
-                        
-                        # Wildcard domains: candidates only, never critical/high
-                        if wildcard_detected:
-                            risk_level = 'informational'
+            explicit = risk_by_subdomain.get(subdomain_name.lower().strip())
+            if explicit:
+                risk_level = explicit
 
-                        # Create standardized asset
-                        standardized = StandardizedAsset(
-                            asset_id=f"subdomain_{subdomain_name}",
-                            asset_type="subdomain",
-                            value=subdomain_name,
-                            risk_level=risk_level,
-                            confidence=ConfidenceLevel.HIGH,
-                            source=DataSource.SUBDOMAIN_SCAN,
-                            metadata=asset,
-                            discovered_at=datetime.now().isoformat()
-                        )
-                        assets.append(standardized)
-        
+            if not risk_level:
+                risk_level = self._infer_risk_level(subdomain_name)
+
+            if wildcard_detected:
+                risk_level = 'informational'
+
+            assets.append(StandardizedAsset(
+                asset_id=f"subdomain_{subdomain_name}",
+                asset_type="subdomain",
+                value=subdomain_name,
+                risk_level=risk_level,
+                confidence=ConfidenceLevel.HIGH,
+                source=DataSource.SUBDOMAIN_SCAN,
+                metadata=asset,
+                discovered_at=datetime.now().isoformat()
+            ))
+
         return assets
     
     def _aggregate_infrastructure(self, module_results: Dict[str, Any]) -> Optional[StandardizedInfrastructure]:

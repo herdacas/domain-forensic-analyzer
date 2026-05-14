@@ -283,44 +283,13 @@ class DomainAnalyzer:
         
         # Show final statistics
         total_time = time.time() - start_time
-        skipped = sum(1 for m in modules_to_run
-                      if self.current_analysis['results'].get(m, {}).get('skipped'))
-        successful = len([m for m in self.execution_metrics.values() if m.success]) - skipped
-        failed = len([m for m in self.execution_metrics.values() if not m.success and not m.timeout_occurred])
-        timeout = len([m for m in self.execution_metrics.values() if m.timeout_occurred])
-        
-        # Count how many live API-backed modules succeeded
-        api_modules = ['securitytrails', 'abuseipdb', 'virustotal']
-        api_success = len([m for m in api_modules if m in self.execution_metrics and self.execution_metrics[m].success])
-        whois_result = self.current_analysis['results'].get('whois', {})
-        whois_used_api = (
-            self.execution_metrics.get('whois') is not None
-            and self.execution_metrics['whois'].success
-            and whois_result.get('source') == 'WhoisXML API'
-        )
-        if whois_used_api:
-            api_success += 1
-        dns_history_result = self.current_analysis['results'].get('dns_history', {})
-        dns_history_used_external = bool([
-            source for source in dns_history_result.get('data_sources', [])
-            if source != 'Native Fallback'
-        ])
-        if dns_history_used_external:
-            api_success += 1
-        ip_history_succeeded = (
-            self.execution_metrics.get('ip_history') is not None
-            and self.execution_metrics['ip_history'].success
-        )
-        if ip_history_succeeded:
-            api_success += 1
-        _base_api_total = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
-        api_total = _base_api_total + (1 if 'ip_history' in modules_to_run else 0)
-        
+        successful, failed, timeout, skipped, api_success, api_total = \
+            self._compute_execution_statistics(modules_to_run)
+
         skipped_part = f" | {skipped} skipped (passive)" if skipped else ""
         print(f"   [done] Analysis complete: {successful}/{len(modules_to_run)} successful{skipped_part} | "
               f"{failed} failed | {timeout} timeout | APIs: {api_success}/{api_total} | Total: {total_time:.1f}s")
-        
-        # Log detailed statistics
+
         self.logger.info("Workflow completed",
                         total_modules=len(modules_to_run),
                         successful=successful,
@@ -330,6 +299,35 @@ class DomainAnalyzer:
                         api_total=api_total,
                         total_time=f"{total_time:.2f}s")
     
+    def _compute_execution_statistics(self, modules_to_run: List[str]) -> Tuple[int, int, int, int, int, int]:
+        """Return (successful, failed, timeout, skipped, api_success, api_total)."""
+        results = self.current_analysis['results']
+        skipped = sum(1 for m in modules_to_run if results.get(m, {}).get('skipped'))
+        successful = len([m for m in self.execution_metrics.values() if m.success]) - skipped
+        failed = len([m for m in self.execution_metrics.values() if not m.success and not m.timeout_occurred])
+        timeout = len([m for m in self.execution_metrics.values() if m.timeout_occurred])
+
+        api_modules = ['securitytrails', 'abuseipdb', 'virustotal']
+        api_success = len([m for m in api_modules if m in self.execution_metrics and self.execution_metrics[m].success])
+
+        whois_result = results.get('whois', {})
+        if (self.execution_metrics.get('whois') is not None
+                and self.execution_metrics['whois'].success
+                and whois_result.get('source') == 'WhoisXML API'):
+            api_success += 1
+
+        dns_history_result = results.get('dns_history', {})
+        if any(s != 'Native Fallback' for s in dns_history_result.get('data_sources', [])):
+            api_success += 1
+
+        if self.execution_metrics.get('ip_history') is not None and self.execution_metrics['ip_history'].success:
+            api_success += 1
+
+        base = 5 if 'dns_history' in modules_to_run else (4 if 'whois' in modules_to_run else 3)
+        api_total = base + (1 if 'ip_history' in modules_to_run else 0)
+
+        return successful, failed, timeout, skipped, api_success, api_total
+
     def _execute_module_with_timeout(self, module_name: str) -> ModuleExecutionResult:
         """Run a single module with timeout protection and performance monitoring"""
         module = self.modules.get(module_name)
@@ -448,9 +446,7 @@ class DomainAnalyzer:
             if not isinstance(result, dict):
                 raise Exception("Invalid WHOIS result")
             if result.get('error'):
-                result.setdefault('analysis_status', 'failed')
-                result.setdefault('failure_type', 'error')
-                return result
+                raise Exception(str(result['error']))
             result.setdefault('analysis_status', 'abgeschlossen')
             return result
 
