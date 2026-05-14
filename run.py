@@ -5,6 +5,7 @@ Usage:
   python run.py example.com          # single domain, skip prompt
   python run.py --list domains.txt   # batch mode from file
 """
+
 import io
 import sys
 import time
@@ -14,9 +15,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 if isinstance(sys.stdout, io.TextIOWrapper):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if isinstance(sys.stderr, io.TextIOWrapper):
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 
 def _parse_domain_list(path_str: str):
@@ -44,12 +45,10 @@ def _parse_domain_list(path_str: str):
 
 
 def run_list_mode(file_path: str) -> None:
-    from src.core.domain_analyzer import (
-        DomainAnalyzer,
-        display_forensic_header,
-        display_forensic_summary,
-        _compute_risk_summary,
-    )
+    from src.core.domain_analyzer import (DomainAnalyzer,
+                                          _compute_risk_summary,
+                                          display_forensic_header,
+                                          display_forensic_summary)
     from src.core.report_exporter import ReportExporter
 
     domains = _parse_domain_list(file_path)
@@ -90,29 +89,35 @@ def run_list_mode(file_path: str) -> None:
             elapsed = time.monotonic() - t0
             print(f"\nForensic session {forensic_metadata['session_id']} complete.")
             summary_rows.append((domain, "COMPLETE", int(elapsed), overall_risk))
-            batch_records.append({
-                "domain": domain,
-                "status": "COMPLETE",
-                "duration_s": elapsed,
-                "risk": overall_risk,
-                "forensic_metadata": forensic_metadata,
-                "result": result,
-            })
+            batch_records.append(
+                {
+                    "domain": domain,
+                    "status": "COMPLETE",
+                    "duration_s": elapsed,
+                    "risk": overall_risk,
+                    "forensic_metadata": forensic_metadata,
+                    "result": result,
+                }
+            )
         except Exception as exc:
             elapsed = time.monotonic() - t0
             print(f"\n[!] {domain}: analysis failed — {exc}")
             summary_rows.append((domain, "FAILED", int(elapsed), "ERROR"))
-            batch_records.append({
-                "domain": domain,
-                "status": "FAILED",
-                "duration_s": elapsed,
-                "risk": "ERROR",
-                "forensic_metadata": forensic_metadata,
-                "result": None,
-            })
+            batch_records.append(
+                {
+                    "domain": domain,
+                    "status": "FAILED",
+                    "duration_s": elapsed,
+                    "risk": "ERROR",
+                    "forensic_metadata": forensic_metadata,
+                    "result": None,
+                }
+            )
 
         _, status, elapsed, risk = summary_rows[-1]
-        print(f"\n  [{idx}/{total}] {domain:<40} → {status:<9} ({elapsed}s)  Risk: {risk}")
+        print(
+            f"\n  [{idx}/{total}] {domain:<40} → {status:<9} ({elapsed}s)  Risk: {risk}"
+        )
 
     # --- Overall summary ---
     total_duration = (datetime.now() - list_start).total_seconds()
@@ -124,19 +129,21 @@ def run_list_mode(file_path: str) -> None:
     for _, _, _, risk in summary_rows:
         risk_counts[risk] = risk_counts.get(risk, 0) + 1
 
-    risk_parts = " | ".join(
-        f"Risk {k}: {v}" for k, v in sorted(risk_counts.items())
-    )
+    risk_parts = " | ".join(f"Risk {k}: {v}" for k, v in sorted(risk_counts.items()))
 
     print(f"\n{'=' * 80}")
     print("LIST MODE COMPLETE")
     print(f"{'=' * 80}")
-    print(f"Completed: {completed}/{total} | Total time: {mins}m{secs:02d}s | {risk_parts}")
+    print(
+        f"Completed: {completed}/{total} | Total time: {mins}m{secs:02d}s | {risk_parts}"
+    )
 
     if summary_rows:
         print()
         for idx, (domain, status, elapsed, risk) in enumerate(summary_rows, 1):
-            print(f"  [{idx:>2}/{total}] {domain:<40} {status:<9} {elapsed:>4}s  Risk: {risk}")
+            print(
+                f"  [{idx:>2}/{total}] {domain:<40} {status:<9} {elapsed:>4}s  Risk: {risk}"
+            )
 
     print(f"{'=' * 80}\n")
 
@@ -153,8 +160,8 @@ def main():
 
     args = sys.argv[1:]
 
-    if '--list' in args:
-        list_idx = args.index('--list')
+    if "--list" in args:
+        list_idx = args.index("--list")
         if list_idx + 1 >= len(args):
             print("Error: --list requires a file path")
             sys.exit(1)

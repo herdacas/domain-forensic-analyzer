@@ -4,6 +4,7 @@ HTTP sessions (dns_history, ip_history, whois).
 
 Priority: environment variable > config/api_keys.json > None
 """
+
 import json
 import os
 from pathlib import Path

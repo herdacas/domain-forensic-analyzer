@@ -65,7 +65,9 @@ class IPHistoryAnalyzer:
                     continue
                 if name not in seen:
                     seen.add(name)
-                    merged.append({**entry, "source": source_labels.get(source_key, source_key)})
+                    merged.append(
+                        {**entry, "source": source_labels.get(source_key, source_key)}
+                    )
 
         total_found = len(seen)
         merged.sort(
@@ -111,7 +113,9 @@ class IPHistoryAnalyzer:
                 name = name.lower().strip().rstrip(".")
                 date_val = attrs.get("date") or attrs.get("last_resolved")
                 if name:
-                    domains.append({"domain": name, "last_seen": self._fmt_date(date_val)})
+                    domains.append(
+                        {"domain": name, "last_seen": self._fmt_date(date_val)}
+                    )
 
             return {"status": "success", "domains": domains, "count": len(domains)}
 
@@ -202,7 +206,9 @@ class IPHistoryAnalyzer:
             return None
         if isinstance(value, (int, float)):
             try:
-                return datetime.fromtimestamp(value, tz=timezone.utc).strftime("%Y-%m-%d")
+                return datetime.fromtimestamp(value, tz=timezone.utc).strftime(
+                    "%Y-%m-%d"
+                )
             except Exception:
                 return None
         text = str(value).strip()
@@ -213,6 +219,8 @@ class IPHistoryAnalyzer:
         if value is None:
             return None
         try:
-            return datetime.fromtimestamp(int(value), tz=timezone.utc).strftime("%Y-%m-%d")
+            return datetime.fromtimestamp(int(value), tz=timezone.utc).strftime(
+                "%Y-%m-%d"
+            )
         except Exception:
             return None

@@ -6,6 +6,7 @@ JSON is the sole production output format.
 capture_console() and the debug=True path on ReportExporter are available
 for local debugging only and must not be enabled in normal execution.
 """
+
 import io
 import json
 import re
@@ -19,6 +20,7 @@ from typing import Any, Dict, Generator, Optional
 # ---------------------------------------------------------------------------
 # JSON serialisation
 # ---------------------------------------------------------------------------
+
 
 class _SafeEncoder(json.JSONEncoder):
     """Handle datetime, date, Enum, and arbitrary objects gracefully."""
@@ -38,9 +40,10 @@ class _SafeEncoder(json.JSONEncoder):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _sanitize_filename(domain: str) -> str:
     """Replace characters that are unsafe in filesystem names."""
-    return re.sub(r'[<>:"/\\|?*\s]', '_', domain)
+    return re.sub(r'[<>:"/\\|?*\s]', "_", domain)
 
 
 def _next_scan_id(reports_dir: Path) -> str:
@@ -49,7 +52,7 @@ def _next_scan_id(reports_dir: Path) -> str:
     Reads existing file names in *reports_dir* that start with four digits
     and returns the next value (e.g. '0003' if '0002_…' is the highest).
     """
-    pattern = re.compile(r'^(\d{4})_')
+    pattern = re.compile(r"^(\d{4})_")
     max_id = 0
     try:
         for entry in reports_dir.iterdir():
@@ -67,7 +70,7 @@ def _next_batch_id(batch_dir: Path) -> str:
     Reads existing file names in *batch_dir* that start with BATCH_NNNN_
     and returns the next value.
     """
-    pattern = re.compile(r'^BATCH_(\d{4})_')
+    pattern = re.compile(r"^BATCH_(\d{4})_")
     max_id = 0
     try:
         for entry in batch_dir.iterdir():
@@ -83,6 +86,7 @@ def _next_batch_id(batch_dir: Path) -> str:
 # Stdout capture
 # ---------------------------------------------------------------------------
 
+
 @contextmanager
 def capture_console() -> Generator[io.StringIO, None, None]:
     """Tee stdout into a StringIO buffer while keeping terminal output intact.
@@ -96,7 +100,7 @@ def capture_console() -> Generator[io.StringIO, None, None]:
     buf = io.StringIO()
     router = sys.stdout
 
-    if hasattr(router, '_target'):
+    if hasattr(router, "_target"):
         original_target = router._target
 
         class _Tee:
@@ -141,6 +145,7 @@ def capture_console() -> Generator[io.StringIO, None, None]:
 # Exporter
 # ---------------------------------------------------------------------------
 
+
 class ReportExporter:
     """Write per-scan JSON reports under reports/.
 
@@ -162,7 +167,9 @@ class ReportExporter:
                 0001_example.com.txt
     """
 
-    def __init__(self, project_root: Optional[Path] = None, debug: bool = False) -> None:
+    def __init__(
+        self, project_root: Optional[Path] = None, debug: bool = False
+    ) -> None:
         if project_root is None:
             project_root = Path(__file__).parent.parent.parent
         self.reports_dir = project_root / "reports"
@@ -206,20 +213,20 @@ class ReportExporter:
 
             # Structured JSON report (always written)
             meta = forensic_metadata or {}
-            ts = meta.get('timestamp')
-            result_dict = result.to_dict() if hasattr(result, 'to_dict') else {}
+            ts = meta.get("timestamp")
+            result_dict = result.to_dict() if hasattr(result, "to_dict") else {}
 
             payload: Dict[str, Any] = {
                 "scan_id": scan_id,
                 "timestamp": ts.isoformat() if isinstance(ts, datetime) else str(ts),
                 "domain": domain,
-                "session_id": meta.get('session_id'),
+                "session_id": meta.get("session_id"),
                 "scan_duration_seconds": round(scan_duration, 2),
                 "analyst": {
-                    "external_ip": meta.get('external_ip'),
-                    "local_ip": meta.get('local_ip'),
-                    "system": meta.get('system_metadata', {}),
-                    "opsec": meta.get('opsec_assessment', {}),
+                    "external_ip": meta.get("external_ip"),
+                    "local_ip": meta.get("local_ip"),
+                    "system": meta.get("system_metadata", {}),
+                    "opsec": meta.get("opsec_assessment", {}),
                 },
                 "result": result_dict,
             }
@@ -257,7 +264,7 @@ class ReportExporter:
         try:
             self._ensure_batch_dir()
             batch_id = _next_batch_id(self.batch_dir)
-            list_name = re.sub(r'[<>:"/\\|?*\s]', '_', Path(source_file).stem)
+            list_name = re.sub(r'[<>:"/\\|?*\s]', "_", Path(source_file).stem)
             filename = f"{batch_id}_{list_name}.json"
 
             total = len(scan_records)
@@ -272,32 +279,40 @@ class ReportExporter:
                 risk = rec.get("risk", "ERROR")
                 risk_dist[risk] = risk_dist.get(risk, 0) + 1
 
-                summary_domains.append({
-                    "domain": rec["domain"],
-                    "status": rec["status"],
-                    "risk": risk,
-                    "duration_s": round(rec.get("duration_s", 0), 1),
-                })
+                summary_domains.append(
+                    {
+                        "domain": rec["domain"],
+                        "status": rec["status"],
+                        "risk": risk,
+                        "duration_s": round(rec.get("duration_s", 0), 1),
+                    }
+                )
 
                 result = rec.get("result")
                 result_dict = result.to_dict() if hasattr(result, "to_dict") else {}
                 meta = rec.get("forensic_metadata") or {}
                 ts = meta.get("timestamp")
 
-                scans.append({
-                    "domain": rec["domain"],
-                    "status": rec["status"],
-                    "session_id": meta.get("session_id"),
-                    "scan_duration_seconds": round(rec.get("duration_s", 0), 2),
-                    "analyst": {
-                        "external_ip": meta.get("external_ip"),
-                        "local_ip": meta.get("local_ip"),
-                        "system": meta.get("system_metadata", {}),
-                        "opsec": meta.get("opsec_assessment", {}),
-                    },
-                    "timestamp": ts.isoformat() if isinstance(ts, datetime) else str(ts) if ts else None,
-                    "result": result_dict,
-                })
+                scans.append(
+                    {
+                        "domain": rec["domain"],
+                        "status": rec["status"],
+                        "session_id": meta.get("session_id"),
+                        "scan_duration_seconds": round(rec.get("duration_s", 0), 2),
+                        "analyst": {
+                            "external_ip": meta.get("external_ip"),
+                            "local_ip": meta.get("local_ip"),
+                            "system": meta.get("system_metadata", {}),
+                            "opsec": meta.get("opsec_assessment", {}),
+                        },
+                        "timestamp": (
+                            ts.isoformat()
+                            if isinstance(ts, datetime)
+                            else str(ts) if ts else None
+                        ),
+                        "result": result_dict,
+                    }
+                )
 
             payload: Dict[str, Any] = {
                 "batch_id": batch_id,

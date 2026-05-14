@@ -21,6 +21,7 @@ logger.propagate = False
 
 try:
     from cryptography import x509 as cx509
+
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:
     CRYPTOGRAPHY_AVAILABLE = False
@@ -42,20 +43,20 @@ class SSLAnalyzer:
         """
         if not CRYPTOGRAPHY_AVAILABLE:
             return {
-                'analysis_status': 'failed',
-                'error': 'cryptography library not installed',
-                'domain': domain,
-                'available': False,
+                "analysis_status": "failed",
+                "error": "cryptography library not installed",
+                "domain": domain,
+                "available": False,
             }
 
         cert_der, tls_version, verified = self._connect(domain)
 
         if cert_der is None:
             return {
-                'analysis_status': 'abgeschlossen',
-                'domain': domain,
-                'available': False,
-                'error': tls_version,
+                "analysis_status": "abgeschlossen",
+                "domain": domain,
+                "available": False,
+                "error": tls_version,
             }
 
         return self._parse_certificate(cert_der, tls_version, verified, domain)
@@ -70,7 +71,7 @@ class SSLAnalyzer:
         Returns (cert_der_bytes, tls_version_str, verified_bool)
         or (None, error_str, False) on complete failure.
         """
-        last_error = 'connection failed'
+        last_error = "connection failed"
 
         for verify in (True, False):
             ctx = ssl.create_default_context()
@@ -79,19 +80,21 @@ class SSLAnalyzer:
                 ctx.verify_mode = ssl.CERT_NONE
 
             try:
-                with socket.create_connection((domain, 443), timeout=self.TIMEOUT) as sock:
+                with socket.create_connection(
+                    (domain, 443), timeout=self.TIMEOUT
+                ) as sock:
                     with ctx.wrap_socket(sock, server_hostname=domain) as conn:
                         cert_der = conn.getpeercert(binary_form=True)
-                        tls_version = conn.version() or 'Unknown'
+                        tls_version = conn.version() or "Unknown"
                         return cert_der, tls_version, verify
             except ssl.SSLError as exc:
                 last_error = str(exc)[:120]
                 if verify:
                     continue
             except (socket.timeout, TimeoutError):
-                return None, 'connection timeout', False
+                return None, "connection timeout", False
             except ConnectionRefusedError:
-                return None, 'port 443 unreachable', False
+                return None, "port 443 unreachable", False
             except OSError as exc:
                 return None, str(exc)[:120], False
             except Exception as exc:
@@ -116,12 +119,12 @@ class SSLAnalyzer:
             x509 = cx509.load_der_x509_certificate(cert_der)
         except Exception as exc:
             return {
-                'analysis_status': 'abgeschlossen',
-                'domain': domain,
-                'available': True,
-                'parse_error': str(exc)[:120],
-                'tls_version': tls_version,
-                'verified': verified,
+                "analysis_status": "abgeschlossen",
+                "domain": domain,
+                "available": True,
+                "parse_error": str(exc)[:120],
+                "tls_version": tls_version,
+                "verified": verified,
             }
 
         now = datetime.now(timezone.utc)
@@ -134,34 +137,34 @@ class SSLAnalyzer:
         issuer_cn = self._name_attr(x509.issuer, cx509.NameOID.COMMON_NAME)
 
         sans: List[str] = self._extract_sans(x509)
-        has_wildcard = any(s.startswith('*.') for s in sans)
+        has_wildcard = any(s.startswith("*.") for s in sans)
 
         if has_wildcard:
-            cert_type = 'Wildcard'
+            cert_type = "Wildcard"
         elif len(sans) > 1:
-            cert_type = 'Multi-SAN'
+            cert_type = "Multi-SAN"
         else:
-            cert_type = 'Single'
+            cert_type = "Single"
 
-        self_signed = (x509.issuer == x509.subject)
+        self_signed = x509.issuer == x509.subject
         assessment = self._assess(days_to_expiry, self_signed, tls_version, verified)
 
         return {
-            'analysis_status': 'abgeschlossen',
-            'domain': domain,
-            'available': True,
-            'verified': verified,
-            'self_signed': self_signed,
-            'issuer_org': issuer_org,
-            'issuer_cn': issuer_cn,
-            'valid_from': valid_from.strftime('%Y-%m-%d'),
-            'valid_until': valid_until.strftime('%Y-%m-%d'),
-            'days_to_expiry': days_to_expiry,
-            'sans': sans,
-            'has_wildcard': has_wildcard,
-            'cert_type': cert_type,
-            'tls_version': tls_version,
-            'assessment': assessment,
+            "analysis_status": "abgeschlossen",
+            "domain": domain,
+            "available": True,
+            "verified": verified,
+            "self_signed": self_signed,
+            "issuer_org": issuer_org,
+            "issuer_cn": issuer_cn,
+            "valid_from": valid_from.strftime("%Y-%m-%d"),
+            "valid_until": valid_until.strftime("%Y-%m-%d"),
+            "days_to_expiry": days_to_expiry,
+            "sans": sans,
+            "has_wildcard": has_wildcard,
+            "cert_type": cert_type,
+            "tls_version": tls_version,
+            "assessment": assessment,
         }
 
     # ------------------------------------------------------------------
@@ -186,7 +189,9 @@ class SSLAnalyzer:
             return None
 
     @staticmethod
-    def _assess(days_to_expiry: int, self_signed: bool, tls_version: str, verified: bool) -> str:
+    def _assess(
+        days_to_expiry: int, self_signed: bool, tls_version: str, verified: bool
+    ) -> str:
         if days_to_expiry < 0:
             return f"INVALID - certificate expired {abs(days_to_expiry)} days ago"
         if self_signed:
@@ -195,6 +200,6 @@ class SSLAnalyzer:
             return "INVALID - certificate verification failed"
         if days_to_expiry < 14:
             return f"WARNING - expires in {days_to_expiry} days"
-        if tls_version in ('TLSv1', 'TLSv1.1', 'SSLv3', 'SSLv2'):
+        if tls_version in ("TLSv1", "TLSv1.1", "SSLv3", "SSLv2"):
             return f"Weak protocol - {tls_version} is deprecated"
         return "Valid - modern TLS"
