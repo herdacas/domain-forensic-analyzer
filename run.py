@@ -46,9 +46,9 @@ def _parse_domain_list(path_str: str):
 
 def run_list_mode(file_path: str) -> None:
     from src.core.domain_analyzer import (DomainAnalyzer,
-                                          _compute_risk_summary,
-                                          display_forensic_header,
-                                          display_forensic_summary)
+                                          display_forensic_header)
+    from src.core.result_formatter import (_compute_risk_summary,
+                                           display_forensic_summary)
     from src.core.report_exporter import ReportExporter
 
     domains = _parse_domain_list(file_path)
