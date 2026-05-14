@@ -1,6 +1,7 @@
 """
 Secure API Configuration Loader
 """
+
 import json
 import os
 from dataclasses import dataclass
@@ -8,22 +9,24 @@ from pathlib import Path
 from typing import Dict, Optional
 
 _ENV_VAR_MAP = {
-    'securitytrails': 'SECURITYTRAILS_API_KEY',
-    'abuseipdb':      'ABUSEIPDB_API_KEY',
-    'virustotal':     'VIRUSTOTAL_API_KEY',
-    'whoisxml':       'WHOISXML_API_KEY',
+    "securitytrails": "SECURITYTRAILS_API_KEY",
+    "abuseipdb": "ABUSEIPDB_API_KEY",
+    "virustotal": "VIRUSTOTAL_API_KEY",
+    "whoisxml": "WHOISXML_API_KEY",
 }
 
 _DEFAULTS = {
-    'securitytrails': ('https://api.securitytrails.com/v1', 50),
-    'abuseipdb':      ('https://api.abuseipdb.com/api/v2', 1000),
-    'virustotal':     ('https://www.virustotal.com/api/v3', 1000),
-    'whoisxml':       ('https://whoisxmlapi.com/whoisserver/WhoisService', 500),
+    "securitytrails": ("https://api.securitytrails.com/v1", 50),
+    "abuseipdb": ("https://api.abuseipdb.com/api/v2", 1000),
+    "virustotal": ("https://www.virustotal.com/api/v3", 1000),
+    "whoisxml": ("https://whoisxmlapi.com/whoisserver/WhoisService", 500),
 }
+
 
 @dataclass
 class APIConfig:
     """API Configuration Container"""
+
     api_key: str
     base_url: str
     rate_limit: int
@@ -32,8 +35,9 @@ class APIConfig:
         return bool(
             self.api_key
             and len(self.api_key) > 10
-            and not self.api_key.upper().startswith('YOUR_')
+            and not self.api_key.upper().startswith("YOUR_")
         )
+
 
 class SecureAPIManager:
     """
@@ -53,7 +57,7 @@ class SecureAPIManager:
         file_keys: Dict[str, Dict] = {}
         try:
             if self.config_file.exists():
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file, "r") as f:
                     file_keys = json.load(f)
             else:
                 self._create_config_template()
@@ -62,12 +66,18 @@ class SecureAPIManager:
 
         # 2. Build configs, env vars override file
         for service, env_var in _ENV_VAR_MAP.items():
-            default_url, default_rate = _DEFAULTS.get(service, ('', 100))
+            default_url, default_rate = _DEFAULTS.get(service, ("", 100))
             file_entry = file_keys.get(service, {})
 
-            api_key = os.getenv(env_var) or file_entry.get('api_key', '')
-            base_url = file_entry.get('base_url', default_url)
-            rate_limit = file_entry.get('rate_limit', default_rate)
+            # Support both flat format {"service": "key"} and nested {"service": {"api_key": "key"}}
+            if isinstance(file_entry, str):
+                file_key, base_url, rate_limit = file_entry, default_url, default_rate
+            else:
+                file_key = file_entry.get("api_key", "")
+                base_url = file_entry.get("base_url", default_url)
+                rate_limit = file_entry.get("rate_limit", default_rate)
+
+            api_key = os.getenv(env_var) or file_key
 
             if api_key:
                 self.api_configs[service] = APIConfig(
@@ -87,7 +97,7 @@ class SecureAPIManager:
                 "base_url": base_url,
                 "rate_limit": rate_limit,
             }
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, "w") as f:
             json.dump(template, f, indent=2)
 
     def get_api_config(self, service: str) -> Optional[APIConfig]:

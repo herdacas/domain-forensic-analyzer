@@ -13,6 +13,7 @@ reports rather than DNS record timeline data, so it is not used as a DNS history
 source here.
 """
 
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -33,7 +34,9 @@ class DNSHistoryAnalyzer:
     RECORD_TYPES = ("a", "aaaa", "mx", "ns", "txt", "cname")
 
     def __init__(self):
-        self.securitytrails_api_key = APIKeyReader("SECURITYTRAILS_API_KEY", "securitytrails").get()
+        self.securitytrails_api_key = APIKeyReader(
+            "SECURITYTRAILS_API_KEY", "securitytrails"
+        ).get()
         self.virustotal_api_key = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal").get()
         self.securitytrails_base_url = "https://api.securitytrails.com/v1"
         self.virustotal_base_url = "https://www.virustotal.com/api/v3"
@@ -53,7 +56,9 @@ class DNSHistoryAnalyzer:
             "mnemonic": self._collect_mnemonic_history(clean_domain),
             "virustotal": self._collect_virustotal_history(clean_domain),
             "securitytrails": self._collect_securitytrails_history(clean_domain),
-            "certificate_transparency": self._collect_certificate_transparency(clean_domain),
+            "certificate_transparency": self._collect_certificate_transparency(
+                clean_domain
+            ),
         }
 
         events = []
@@ -113,7 +118,13 @@ class DNSHistoryAnalyzer:
             "api_status": "live_data" if data_sources else "fallback",
             "data_sources": data_sources,
             "timeline_span": span,
-            "major_changes": len([event for event in timeline if event.get("severity") in ["medium", "high"]]),
+            "major_changes": len(
+                [
+                    event
+                    for event in timeline
+                    if event.get("severity") in ["medium", "high"]
+                ]
+            ),
             "timeline": timeline,
             "a_history": a_events,
             "ns_history": ns_events,
@@ -121,7 +132,9 @@ class DNSHistoryAnalyzer:
             "ct_history": ct_events,
             "ct_metadata": ct_metadata,
             "pattern_analysis": pattern_analysis,
-            "historical_risk_events": pattern_analysis.get("historical_risk_events", []),
+            "historical_risk_events": pattern_analysis.get(
+                "historical_risk_events", []
+            ),
             "source_errors": errors,
         }
 
@@ -135,10 +148,20 @@ class DNSHistoryAnalyzer:
         try:
             response = self.session.get(endpoint, timeout=20)
             if response.status_code == 404:
-                return {"status": "failed", "label": "RobTex", "events": [], "error": "domain not found"}
+                return {
+                    "status": "failed",
+                    "label": "RobTex",
+                    "events": [],
+                    "error": "domain not found",
+                }
             response.raise_for_status()
         except Exception as error:
-            return {"status": "failed", "label": "RobTex", "events": [], "error": str(error)}
+            return {
+                "status": "failed",
+                "label": "RobTex",
+                "events": [],
+                "error": str(error),
+            }
 
         events = []
         for raw_line in response.text.strip().splitlines():
@@ -163,17 +186,19 @@ class DNSHistoryAnalyzer:
             first_seen = self._normalize_timestamp(time_first)
             last_seen = self._normalize_timestamp(time_last)
 
-            events.append(self._make_event(
-                event_date=first_seen,
-                change_type=f"{rrtype} record observed",
-                record_type=rrtype,
-                source="RobTex",
-                previous_value=None,
-                new_value=[rrdata],
-                classification=self._classify_change(rrtype.lower(), [rrdata]),
-                severity="low",
-                last_seen=last_seen,
-            ))
+            events.append(
+                self._make_event(
+                    event_date=first_seen,
+                    change_type=f"{rrtype} record observed",
+                    record_type=rrtype,
+                    source="RobTex",
+                    previous_value=None,
+                    new_value=[rrdata],
+                    classification=self._classify_change(rrtype.lower(), [rrdata]),
+                    severity="low",
+                    last_seen=last_seen,
+                )
+            )
 
         return {
             "status": "success" if events else "failed",
@@ -184,20 +209,30 @@ class DNSHistoryAnalyzer:
 
     def _collect_securitytrails_history(self, domain: str) -> Dict[str, Any]:
         if not self.securitytrails_api_key:
-            return {"status": "skipped", "error": "SecurityTrails API key not configured", "events": []}
+            return {
+                "status": "skipped",
+                "error": "SecurityTrails API key not configured",
+                "events": [],
+            }
 
         headers = {"APIKEY": self.securitytrails_api_key, "Accept": "application/json"}
         events = []
         errors = []
 
         for record_type in self.RECORD_TYPES:
-            endpoint = f"{self.securitytrails_base_url}/history/{domain}/dns/{record_type}"
+            endpoint = (
+                f"{self.securitytrails_base_url}/history/{domain}/dns/{record_type}"
+            )
             try:
                 response = self.session.get(endpoint, headers=headers, timeout=25)
                 if response.status_code == 404:
                     continue
                 if response.status_code == 429:
-                    return {"status": "quota_exceeded", "label": "SecurityTrails", "events": []}
+                    return {
+                        "status": "quota_exceeded",
+                        "label": "SecurityTrails",
+                        "events": [],
+                    }
                 response.raise_for_status()
                 payload = response.json()
                 events.extend(self._parse_securitytrails_records(record_type, payload))
@@ -212,29 +247,41 @@ class DNSHistoryAnalyzer:
             "error": "; ".join(errors[:3]) if errors and not events else None,
         }
 
-    def _parse_securitytrails_records(self, record_type: str, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _parse_securitytrails_records(
+        self, record_type: str, payload: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         events = []
         for record in payload.get("records", []) or []:
             values = self._extract_record_values(record_type, record.get("values", []))
             if not values:
                 continue
-            first_seen = self._normalize_timestamp(record.get("first_seen") or record.get("firstSeen"))
-            last_seen = self._normalize_timestamp(record.get("last_seen") or record.get("lastSeen"))
-            events.append(self._make_event(
-                event_date=first_seen or last_seen,
-                change_type=f"{record_type.upper()} record observed",
-                record_type=record_type.upper(),
-                source="SecurityTrails",
-                previous_value=None,
-                new_value=values,
-                classification=self._classify_change(record_type, values),
-                last_seen=last_seen,
-            ))
+            first_seen = self._normalize_timestamp(
+                record.get("first_seen") or record.get("firstSeen")
+            )
+            last_seen = self._normalize_timestamp(
+                record.get("last_seen") or record.get("lastSeen")
+            )
+            events.append(
+                self._make_event(
+                    event_date=first_seen or last_seen,
+                    change_type=f"{record_type.upper()} record observed",
+                    record_type=record_type.upper(),
+                    source="SecurityTrails",
+                    previous_value=None,
+                    new_value=values,
+                    classification=self._classify_change(record_type, values),
+                    last_seen=last_seen,
+                )
+            )
         return events
 
     def _collect_virustotal_history(self, domain: str) -> Dict[str, Any]:
         if not self.virustotal_api_key:
-            return {"status": "skipped", "error": "VirusTotal API key not configured", "events": []}
+            return {
+                "status": "skipped",
+                "error": "VirusTotal API key not configured",
+                "events": [],
+            }
 
         headers = {"x-apikey": self.virustotal_api_key}
         endpoint = f"{self.virustotal_base_url}/domains/{domain}/resolutions"
@@ -244,7 +291,12 @@ class DNSHistoryAnalyzer:
             response.raise_for_status()
             payload = response.json()
         except Exception as error:
-            return {"status": "failed", "label": "VirusTotal", "events": [], "error": str(error)}
+            return {
+                "status": "failed",
+                "label": "VirusTotal",
+                "events": [],
+                "error": str(error),
+            }
 
         grouped_by_date: Dict[str, Set[str]] = {}
         for item in payload.get("data", []) or []:
@@ -254,29 +306,37 @@ class DNSHistoryAnalyzer:
             if not ip_address:
                 continue
             normalized_date = self._normalize_timestamp(date_value) or "unknown"
-            date_key = normalized_date[:10] if normalized_date != "unknown" else "unknown"
+            date_key = (
+                normalized_date[:10] if normalized_date != "unknown" else "unknown"
+            )
             grouped_by_date.setdefault(date_key, set()).add(str(ip_address).strip())
 
         events = []
         for date_key, ip_addresses in grouped_by_date.items():
             sorted_ips = sorted(ip_addresses)
             severity = "low" if len(sorted_ips) > 3 else "medium"
-            events.append(self._make_event(
-                event_date=date_key,
-                change_type="Historical IP resolution",
-                record_type="A",
-                source="VirusTotal",
-                previous_value=None,
-                new_value=sorted_ips,
-                classification=(
-                    "Load-balanced resolution set"
-                    if len(sorted_ips) > 3
-                    else self._classify_change("a", sorted_ips)
-                ),
-                severity=severity,
-            ))
+            events.append(
+                self._make_event(
+                    event_date=date_key,
+                    change_type="Historical IP resolution",
+                    record_type="A",
+                    source="VirusTotal",
+                    previous_value=None,
+                    new_value=sorted_ips,
+                    classification=(
+                        "Load-balanced resolution set"
+                        if len(sorted_ips) > 3
+                        else self._classify_change("a", sorted_ips)
+                    ),
+                    severity=severity,
+                )
+            )
 
-        return {"status": "success" if events else "failed", "label": "VirusTotal", "events": events}
+        return {
+            "status": "success" if events else "failed",
+            "label": "VirusTotal",
+            "events": events,
+        }
 
     def _collect_mnemonic_history(self, domain: str) -> Dict[str, Any]:
         """Collect passive DNS history from Mnemonic (Norwegian CERT).
@@ -293,13 +353,23 @@ class DNSHistoryAnalyzer:
                 timeout=20,
             )
             if response.status_code == 404:
-                return {"status": "failed", "label": "Mnemonic", "events": [], "error": "domain not found"}
+                return {
+                    "status": "failed",
+                    "label": "Mnemonic",
+                    "events": [],
+                    "error": "domain not found",
+                }
             if response.status_code == 429:
                 return {"status": "quota_exceeded", "label": "Mnemonic", "events": []}
             response.raise_for_status()
             payload = response.json()
         except Exception as error:
-            return {"status": "failed", "label": "Mnemonic", "events": [], "error": str(error)}
+            return {
+                "status": "failed",
+                "label": "Mnemonic",
+                "events": [],
+                "error": str(error),
+            }
 
         events = []
         for entry in payload.get("data", []) or []:
@@ -310,20 +380,24 @@ class DNSHistoryAnalyzer:
 
             ts_first = entry.get("firstSeenTimestamp")
             ts_last = entry.get("lastSeenTimestamp")
-            first_seen = self._normalize_timestamp(ts_first / 1000) if ts_first else None
+            first_seen = (
+                self._normalize_timestamp(ts_first / 1000) if ts_first else None
+            )
             last_seen = self._normalize_timestamp(ts_last / 1000) if ts_last else None
 
-            events.append(self._make_event(
-                event_date=first_seen,
-                change_type=f"{rrtype} record observed",
-                record_type=rrtype,
-                source="Mnemonic",
-                previous_value=None,
-                new_value=[answer],
-                classification=self._classify_change(rrtype.lower(), [answer]),
-                severity="low",
-                last_seen=last_seen,
-            ))
+            events.append(
+                self._make_event(
+                    event_date=first_seen,
+                    change_type=f"{rrtype} record observed",
+                    record_type=rrtype,
+                    source="Mnemonic",
+                    previous_value=None,
+                    new_value=[answer],
+                    classification=self._classify_change(rrtype.lower(), [answer]),
+                    severity="low",
+                    last_seen=last_seen,
+                )
+            )
 
         return {
             "status": "success" if events else "failed",
@@ -349,32 +423,46 @@ class DNSHistoryAnalyzer:
                 if attempt <= max_retries:
                     time.sleep(1)
         else:
-            return {"status": "failed", "label": "crt.sh", "events": [],
-                    "error": str(last_error)}
+            return {
+                "status": "failed",
+                "label": "crt.sh",
+                "events": [],
+                "error": str(last_error),
+            }
 
         seen_names: Set[Tuple[str, str]] = set()
         events = []
         for certificate in payload[:250]:
             not_before = self._normalize_timestamp(certificate.get("not_before"))
             raw_names = str(certificate.get("name_value") or "")
-            names = sorted({name.strip().lower().lstrip("*.") for name in raw_names.splitlines() if name.strip()})
-            subdomains = [name for name in names if name == domain or name.endswith(f".{domain}")]
+            names = sorted(
+                {
+                    name.strip().lower().lstrip("*.")
+                    for name in raw_names.splitlines()
+                    if name.strip()
+                }
+            )
+            subdomains = [
+                name for name in names if name == domain or name.endswith(f".{domain}")
+            ]
             if not subdomains:
                 continue
             key = (not_before or "unknown", "|".join(subdomains))
             if key in seen_names:
                 continue
             seen_names.add(key)
-            events.append(self._make_event(
-                event_date=not_before,
-                change_type="Certificate names observed",
-                record_type="CT",
-                source="crt.sh",
-                previous_value=None,
-                new_value=subdomains[:10],
-                classification="Certificate / subdomain expansion",
-                severity="low" if len(subdomains) < 5 else "medium",
-            ))
+            events.append(
+                self._make_event(
+                    event_date=not_before,
+                    change_type="Certificate names observed",
+                    record_type="CT",
+                    source="crt.sh",
+                    previous_value=None,
+                    new_value=subdomains[:10],
+                    classification="Certificate / subdomain expansion",
+                    severity="low" if len(subdomains) < 5 else "medium",
+                )
+            )
 
         return {
             "status": "success" if events else "failed",
@@ -399,36 +487,54 @@ class DNSHistoryAnalyzer:
                 if attempt <= max_retries:
                     time.sleep(1)
         else:
-            return {"status": "failed", "label": "CertSpotter", "events": [],
-                    "error": str(last_error)}
+            return {
+                "status": "failed",
+                "label": "CertSpotter",
+                "events": [],
+                "error": str(last_error),
+            }
 
         if not isinstance(payload, list):
-            return {"status": "failed", "label": "CertSpotter", "events": [],
-                    "error": "unexpected response format"}
+            return {
+                "status": "failed",
+                "label": "CertSpotter",
+                "events": [],
+                "error": "unexpected response format",
+            }
 
         seen_names: Set[Tuple[str, str]] = set()
         events = []
         for issuance in payload[:250]:
             not_before = self._normalize_timestamp(issuance.get("not_before"))
             dns_names = issuance.get("dns_names") or []
-            names = sorted({name.strip().lower().lstrip("*.") for name in dns_names if name.strip()})
-            subdomains = [name for name in names if name == domain or name.endswith(f".{domain}")]
+            names = sorted(
+                {
+                    name.strip().lower().lstrip("*.")
+                    for name in dns_names
+                    if name.strip()
+                }
+            )
+            subdomains = [
+                name for name in names if name == domain or name.endswith(f".{domain}")
+            ]
             if not subdomains:
                 continue
             key = (not_before or "unknown", "|".join(subdomains))
             if key in seen_names:
                 continue
             seen_names.add(key)
-            events.append(self._make_event(
-                event_date=not_before,
-                change_type="Certificate names observed",
-                record_type="CT",
-                source="CertSpotter",
-                previous_value=None,
-                new_value=subdomains[:10],
-                classification="Certificate / subdomain expansion",
-                severity="low" if len(subdomains) < 5 else "medium",
-            ))
+            events.append(
+                self._make_event(
+                    event_date=not_before,
+                    change_type="Certificate names observed",
+                    record_type="CT",
+                    source="CertSpotter",
+                    previous_value=None,
+                    new_value=subdomains[:10],
+                    classification="Certificate / subdomain expansion",
+                    severity="low" if len(subdomains) < 5 else "medium",
+                )
+            )
 
         return {
             "status": "success" if events else "failed",
@@ -493,19 +599,23 @@ class DNSHistoryAnalyzer:
     def _build_native_fallback(self, domain: str) -> Dict[str, Any]:
         return {
             "label": "Native Fallback",
-            "events": [self._make_event(
-                event_date=datetime.now(timezone.utc).isoformat(),
-                change_type="Current DNS baseline",
-                record_type="BASELINE",
-                source="Native Fallback",
-                previous_value=None,
-                new_value=[domain],
-                classification="No historical data available",
-                severity="low",
-            )],
+            "events": [
+                self._make_event(
+                    event_date=datetime.now(timezone.utc).isoformat(),
+                    change_type="Current DNS baseline",
+                    record_type="BASELINE",
+                    source="Native Fallback",
+                    previous_value=None,
+                    new_value=[domain],
+                    classification="No historical data available",
+                    severity="low",
+                )
+            ],
         }
 
-    def _extract_record_values(self, record_type: str, values: List[Dict[str, Any]]) -> List[str]:
+    def _extract_record_values(
+        self, record_type: str, values: List[Dict[str, Any]]
+    ) -> List[str]:
         extracted = []
         keys_by_type = {
             "a": ("ip", "ipv4", "value"),
@@ -569,7 +679,9 @@ class DNSHistoryAnalyzer:
             unique_events.append(event)
         return unique_events
 
-    def _calculate_timeline_span(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _calculate_timeline_span(
+        self, timeline: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         dates = [self._parse_datetime(event.get("date")) for event in timeline]
         dates = [date for date in dates if date]
         if not dates:
@@ -584,7 +696,8 @@ class DNSHistoryAnalyzer:
 
     def _analyze_patterns(self, timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
         change_events = [
-            event for event in timeline
+            event
+            for event in timeline
             if event.get("classification") != "Load-balanced resolution set"
             and event.get("record_type") != "CT"
         ]
@@ -608,7 +721,8 @@ class DNSHistoryAnalyzer:
             for value in event.get("new", [])
         }
         load_balanced_sets = [
-            event for event in timeline
+            event
+            for event in timeline
             if event.get("classification") == "Load-balanced resolution set"
         ]
 
@@ -618,7 +732,11 @@ class DNSHistoryAnalyzer:
         if len(ip_values) >= 12:
             suspicious.append("many historical IP resolutions")
         ns_events_in_timeline = [e for e in timeline if e.get("record_type") == "NS"]
-        distinct_ns_dates = {str(e.get("date", ""))[:10] for e in ns_events_in_timeline if e.get("date", "unknown") != "unknown"}
+        distinct_ns_dates = {
+            str(e.get("date", ""))[:10]
+            for e in ns_events_in_timeline
+            if e.get("date", "unknown") != "unknown"
+        }
         if "NS" in record_types and len(distinct_ns_dates) > 2:
             suspicious.append("multiple nameserver changes")
 
