@@ -983,36 +983,3 @@ class NetworkIntelligence:
         return self.results.get('opsec_assessment', {})
 
 # Test-Funktion
-def main():
-    """Test-Funktion fuer Enhanced Network Intelligence"""
-    print(Colors.header("ENHANCED NETWORK INTELLIGENCE TEST - STEP 2.4"))
-    print(Colors.investigation_separator(60))
-    
-    test_ip = "140.82.121.4"
-    test_domain = "github.com"
-    
-    analyzer = NetworkIntelligence()
-    
-    print(f"\n{Colors.section_header(f'TEST: {test_domain.upper()}', 60)}")
-    
-    results = analyzer.analyze_network(test_ip, test_domain)
-    
-    if results.get('error'):
-        print(Colors.error(f"Test fehlgeschlagen: {results['error']}"))
-    else:
-        traceroute_status = results.get('traceroute_data', {}).get('status', 'unknown')
-        opsec_risk = results.get('opsec_assessment', {}).get('risk_level', 'unknown')
-        critical_hops = len([h for h in results.get('enhanced_network_path', []) if h.get('is_critical_hop')])
-        
-        print(f"\n{Colors.success('ENHANCED TEST ERFOLGREICH:')}")
-        print(f"  Traceroute Status: {traceroute_status}")
-        print(f"  OPSEC Risk Level: {opsec_risk}")
-        print(f"  Critical Hops Found: {critical_hops}")
-        print(f"  Enhanced Features: Aktiviert")
-    
-    print(f"\n{Colors.investigation_separator(60)}")
-    print(Colors.success("ENHANCED NETWORK INTELLIGENCE STEP 2.4 - TESTING COMPLETE"))
-    print(Colors.investigation_separator(60))
-
-if __name__ == "__main__":
-    main()

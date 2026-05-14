@@ -535,37 +535,3 @@ class SubdomainScanner:
         return self.results.get('sensitive_assets', [])
 
 # Test-Funktion fuer Subdomain-Scanner
-def main():
-    """
-    Test-Funktion fuer Subdomain-Scanner Modul
-    Testet mit einer Benchmark-Domain
-    """
-    print(Colors.header("SUBDOMAIN SCANNER MODULE TEST - STEP 2.3"))
-    print(Colors.investigation_separator(60))
-    
-    # Test-Domain (eine Domain fuer schnellen Test)
-    test_domain = "stackoverflow.com"
-    
-    scanner = SubdomainScanner()
-    
-    print(f"\n{Colors.section_header(f'TEST: {test_domain.upper()}', 60)}")
-    
-    results = scanner.scan_subdomains(test_domain)
-    
-    if results.get('error'):
-        print(Colors.error(f"Test fehlgeschlagen: {results['error']}"))
-    else:
-        asset_count = len(results['discovered_assets'])
-        sensitive_count = len(results['sensitive_assets'])
-        
-        print(f"\n{Colors.success('TEST ERFOLGREICH:')}")
-        print(f"  Gefundene Assets: {asset_count}")
-        print(f"  Sensitive Assets: {sensitive_count}")
-        print(f"  Wildcard Detection: {'Ja' if results['wildcard_detected'] else 'Nein'}")
-    
-    print(f"\n{Colors.investigation_separator(60)}")
-    print(Colors.success("SUBDOMAIN SCANNER STEP 2.3 - TESTING COMPLETE"))
-    print(Colors.investigation_separator(60))
-
-if __name__ == "__main__":
-    main()

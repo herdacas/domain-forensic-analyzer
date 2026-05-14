@@ -260,38 +260,3 @@ class Colors:
         return hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 
 # Test-Funktion fuer Farb-Ausgabe und Formatierung
-def main():
-    """
-    Test-Funktion fuer die Colors-Utility
-    Demonstriert alle verfuegbaren Formatierungen und Farben
-    """
-    print(Colors.header("COLORS UTILITY TEST"))
-    print(Colors.investigation_separator(50))
-    
-    # Basis-Farben testen
-    print("Basis-Farben:")
-    print(f"  {Colors.success('Erfolg: Gruene Meldung')}")
-    print(f"  {Colors.error('Fehler: Rote Meldung')}")
-    print(f"  {Colors.warning('Warnung: Gelbe Meldung')}")
-    print(f"  {Colors.info('Information: Blaue Meldung')}")
-    print(f"  {Colors.critical('Kritisch: Fett-Rote Meldung')}")
-    print(f"  {Colors.highlight('Hervorgehoben: Fett-Weiss')}")
-    print(f"  {Colors.dim('Gedimmt: Graue Meldung')}")
-    
-    print("\nSpezial-Formatierungen:")
-    print(f"  IP-Adresse: {Colors.format_ip('192.168.1.1')}")
-    print(f"  Domain: {Colors.format_domain('example.com')}")
-    
-    print("\nRisk-Level Formatierung:")
-    for level in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
-        print(f"  Risk Level {level}: {Colors.risk_level(level)}")
-    
-    print("\nSektion-Header:")
-    print(Colors.section_header("DNS ANALYSIS", 40))
-    print(Colors.section_header("INFRASTRUCTURE", 40))
-    
-    print(f"\nFarbunterstuetzung: {Colors.is_color_supported()}")
-    print(Colors.investigation_separator(50))
-
-if __name__ == "__main__":
-    main()
