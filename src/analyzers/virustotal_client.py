@@ -7,6 +7,7 @@ from typing import Any, Dict
 import requests
 
 from ..config.api_config import SecureAPIManager
+from ..utils.api_helpers import api_error_response
 
 
 class VirusTotalClient:
@@ -61,12 +62,7 @@ class VirusTotalClient:
             }
             
         except Exception as error:
-            return {
-                'analysis_status': 'failed',
-                'error': str(error),
-                'domain': domain,
-                'api_status': 'error'
-            }
+            return api_error_response(error, {'domain': domain})
     
     def _analyze_threat_statistics(self, attributes: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze threat detection statistics"""

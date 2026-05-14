@@ -14,6 +14,7 @@ import requests
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.config.api_config import SecureAPIManager
+from src.utils.api_helpers import api_error_response
 
 
 class SecurityTrailsClient:
@@ -84,13 +85,8 @@ class SecurityTrailsClient:
             }
 
         except Exception as error:
-            return {
-                'analysis_status': 'failed',
-                'error': str(error),
-                'domain': domain,
-                'api_status': 'error'
-            }
-    
+            return api_error_response(error, {'domain': domain})
+
     def _get_domain_info(self, domain: str) -> Dict[str, Any]:
         """Get basic domain information"""
         try:
