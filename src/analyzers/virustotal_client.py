@@ -2,11 +2,12 @@
 """
 VirusTotal Client für Domain/URL Reputation Analysis
 """
+from typing import Any, Dict
+
 import requests
-import time
-import base64
-from typing import Dict, Any, Optional
+
 from ..config.api_config import SecureAPIManager
+
 
 class VirusTotalClient:
     """

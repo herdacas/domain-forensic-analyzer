@@ -6,25 +6,27 @@ Advanced Network-Analyse und OPSEC-Assessment - LOGICALLY CORRECTED
 Step 2.4 Implementation - Option A Quick Enhancement - COMPLETE
 """
 
-import subprocess
-import platform
-import sys
 import os
-import time
-import urllib.request
-import urllib.error
-import socket
+import platform
 import re
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
 import requests as _requests
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-from typing import Dict, List, Optional, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # Foundation-Module importieren
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from src.utils.colors import Colors
 from config.settings import get_settings
+from src.utils.colors import Colors
+
 
 class NetworkIntelligence:
     """

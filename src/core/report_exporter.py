@@ -11,11 +11,10 @@ import json
 import re
 import sys
 from contextlib import contextmanager
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional
-
 
 # ---------------------------------------------------------------------------
 # JSON serialisation

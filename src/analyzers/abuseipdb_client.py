@@ -2,10 +2,12 @@
 """
 AbuseIPDB Client für IP Reputation Analysis
 """
+from typing import Any, Dict
+
 import requests
-import time
-from typing import Dict, Any, Optional
+
 from ..config.api_config import SecureAPIManager
+
 
 class AbuseIPDBClient:
     """

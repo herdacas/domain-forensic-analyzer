@@ -4,17 +4,17 @@ SecurityTrails Client für Domain Forensic Analyzer
 Clean & Modern Implementation mit Secure API Management
 """
 
-import requests
-import time
-from typing import Dict, Any, Optional
-from datetime import datetime
-from pathlib import Path
 import sys
-import os
+import time
+from pathlib import Path
+from typing import Any, Dict
+
+import requests
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.config.api_config import SecureAPIManager
+
 
 class SecurityTrailsClient:
     """

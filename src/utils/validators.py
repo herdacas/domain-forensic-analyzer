@@ -4,7 +4,8 @@ Eingabe-Validierung und Domain-Parsing fuer forensische Domain-Analyse
 """
 
 import re
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 
 class DomainValidator:
     """
@@ -417,8 +418,8 @@ def main():
     Demonstriert alle Funktionen mit verschiedenen Test-Cases
     """
     # Import fuer Test-Ausgabe
-    import sys
     import os
+    import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     from src.utils.colors import Colors
     

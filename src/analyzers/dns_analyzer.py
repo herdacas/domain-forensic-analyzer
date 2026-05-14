@@ -24,9 +24,10 @@ import dns.zone
 
 # Foundation-Module importieren
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from config.settings import get_settings
 from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
-from config.settings import get_settings
+
 
 class DNSAnalyzer:
     """

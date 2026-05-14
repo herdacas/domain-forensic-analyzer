@@ -2,12 +2,12 @@
 # Vollständige, produktionsreife WHOIS-Integration für den Domain Forensic Analyzer
 # MIT License – Copyright (c) 2025 herdacas
 
+import json
 import logging
 import os
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import requests
 import whois  # python-whois

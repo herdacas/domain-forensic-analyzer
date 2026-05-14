@@ -245,7 +245,7 @@ class Colors:
         """
         import os
         import sys
-        
+
         # Windows-spezifische Pruefung
         if os.name == 'nt':
             try:

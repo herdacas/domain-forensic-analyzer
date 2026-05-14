@@ -6,17 +6,18 @@ Infrastructure-Klassifikation und Provider-Erkennung
 Step 2.2 Implementation - Mit Syntax-Fix
 """
 
-import urllib.request
 import json
-import sys
 import os
-from typing import Dict, List, Optional, Any
+import sys
+import urllib.request
 from datetime import datetime
+from typing import Any, Dict
 
 # Foundation-Module importieren
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from src.utils.colors import Colors
 from config.settings import get_settings
+from src.utils.colors import Colors
+
 
 class CDNDetector:
     """

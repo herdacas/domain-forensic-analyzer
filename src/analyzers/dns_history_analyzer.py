@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 
-
 logger = logging.getLogger("dns_history_analyzer")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False

@@ -5,8 +5,8 @@ Zentrale Konfigurationsverwaltung fuer API-Keys und Einstellungen
 """
 
 import os
-from typing import Dict, Optional, Any
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 MODULE_TIMEOUTS: Dict[str, int] = {
     'dns':            30,
@@ -292,9 +292,9 @@ def main():
     Zeigt aktuelle Konfiguration und API-Status
     """
     # Korrigierter Import-Pfad
-    import sys
     import os
-    
+    import sys
+
     # Pfad zum Hauptverzeichnis hinzufuegen
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     

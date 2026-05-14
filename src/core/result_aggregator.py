@@ -6,10 +6,11 @@ ASSET EXTRACTION BUG FIXED - Übernimmt bewährte Logik aus original Code
 """
 
 import json
-from typing import Dict, Any, List, Optional, Union
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
 
 class ConfidenceLevel(Enum):
     """Confidence-Level für Datenqualität"""

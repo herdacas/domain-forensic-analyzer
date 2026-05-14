@@ -3,9 +3,9 @@ Secure API Configuration Loader
 """
 import json
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Optional
 
 _ENV_VAR_MAP = {
     'securitytrails': 'SECURITYTRAILS_API_KEY',

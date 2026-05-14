@@ -4,18 +4,18 @@ Domain Forensic Analyzer - Multi-API Domain Analysis Tool
 OSINT Tool for domain intelligence gathering and threat assessment
 """
 
-import sys
-import os
-import platform
-import time
-import threading
-import socket
-import requests
 import getpass
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime, timezone
+import platform
+import socket
+import sys
+import threading
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
 
 # Try to import advanced logging library, fallback to basic logging if not available
 try:
@@ -26,23 +26,23 @@ except ImportError:
 
 # Import utility modules for colors and domain validation
 sys.path.append(str(Path(__file__).parent.parent.parent))
+from config.settings import MODULE_TIMEOUTS
+from src.core.result_aggregator import UnifiedResult, create_result_aggregator
 from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
-from src.core.result_aggregator import create_result_aggregator, UnifiedResult
-from config.settings import MODULE_TIMEOUTS
 
 # Import all analyzer modules and check if they load successfully
 try:
-    from src.analyzers.dns_analyzer import DNSAnalyzer
+    from src.analyzers.abuseipdb_client import AbuseIPDBClient
     from src.analyzers.cdn_detector import CDNDetector
+    from src.analyzers.dns_analyzer import DNSAnalyzer
     from src.analyzers.dns_history_analyzer import DNSHistoryAnalyzer
-    from src.analyzers.subdomain_scanner import SubdomainScanner
+    from src.analyzers.ip_history_analyzer import IPHistoryAnalyzer
     from src.analyzers.network_intelligence import NetworkIntelligence
     from src.analyzers.securitytrails_client import SecurityTrailsClient
-    from src.analyzers.abuseipdb_client import AbuseIPDBClient
-    from src.analyzers.virustotal_client import VirusTotalClient
-    from src.analyzers.ip_history_analyzer import IPHistoryAnalyzer
     from src.analyzers.ssl_analyzer import SSLAnalyzer
+    from src.analyzers.subdomain_scanner import SubdomainScanner
+    from src.analyzers.virustotal_client import VirusTotalClient
     CORE_MODULES_AVAILABLE = True
 except ImportError as error:
     CORE_MODULES_AVAILABLE = False
