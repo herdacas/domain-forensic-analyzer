@@ -11,14 +11,13 @@ Reverse-IP sources:
   - HackerTarget /reverseiplookup/?q={ip}      (free, rate-limited)
 """
 
-import json
 import logging
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
+
+from ..utils.api_key_reader import APIKeyReader
 
 logger = logging.getLogger("ip_history_analyzer")
 logger.addHandler(logging.NullHandler())
@@ -29,8 +28,7 @@ class IPHistoryAnalyzer:
     """Collect co-hosted domain intelligence via reverse-IP lookup from multiple sources."""
 
     def __init__(self):
-        self.project_root = Path(__file__).resolve().parents[2]
-        self.virustotal_api_key = self._get_api_key("VIRUSTOTAL_API_KEY", "virustotal")
+        self.virustotal_api_key = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal").get()
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "Domain-Forensic-Analyzer/1.0"})
 
@@ -190,37 +188,6 @@ class IPHistoryAnalyzer:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _get_api_key(self, env_name: str, service_name: str) -> Optional[str]:
-        env_value = os.getenv(env_name)
-        if self._is_real_key(env_value):
-            return env_value.strip()  # type: ignore[union-attr]
-
-        config_path = self.project_root / "config" / "api_keys.json"
-        if not config_path.exists():
-            return None
-        try:
-            with open(config_path, "r", encoding="utf-8") as fh:
-                config_data = json.load(fh)
-        except Exception:
-            return None
-
-        service_config = config_data.get(service_name)
-        config_value = (
-            service_config.get("api_key")
-            if isinstance(service_config, dict)
-            else service_config
-        )
-        return config_value.strip() if self._is_real_key(config_value) else None
-
-    @staticmethod
-    def _is_real_key(value: Optional[str]) -> bool:
-        if not value:
-            return False
-        text = value.strip()
-        if len(text) < 10:
-            return False
-        return not any(m in text.lower() for m in ("your_", "_here", "placeholder", "demo", "test"))
 
     @staticmethod
     def _looks_like_ip(value: str) -> bool:

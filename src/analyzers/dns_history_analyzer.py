@@ -13,15 +13,14 @@ reports rather than DNS record timeline data, so it is not used as a DNS history
 source here.
 """
 
-import json
 import logging
-import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
+
+from ..utils.api_key_reader import APIKeyReader
 
 logger = logging.getLogger("dns_history_analyzer")
 logger.addHandler(logging.NullHandler())
@@ -34,47 +33,11 @@ class DNSHistoryAnalyzer:
     RECORD_TYPES = ("a", "aaaa", "mx", "ns", "txt", "cname")
 
     def __init__(self):
-        self.project_root = Path(__file__).resolve().parents[2]
-        self.securitytrails_api_key = self._get_api_key("SECURITYTRAILS_API_KEY", "securitytrails")
-        self.virustotal_api_key = self._get_api_key("VIRUSTOTAL_API_KEY", "virustotal")
+        self.securitytrails_api_key = APIKeyReader("SECURITYTRAILS_API_KEY", "securitytrails").get()
+        self.virustotal_api_key = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal").get()
         self.securitytrails_base_url = "https://api.securitytrails.com/v1"
         self.virustotal_base_url = "https://www.virustotal.com/api/v3"
         self.session = requests.Session()
-
-    def _get_api_key(self, env_name: str, service_name: str) -> Optional[str]:
-        """Prefer environment variables, then config/api_keys.json."""
-        env_value = os.getenv(env_name)
-        if self._is_real_key(env_value):
-            return env_value.strip()
-
-        config_path = self.project_root / "config" / "api_keys.json"
-        if not config_path.exists():
-            return None
-
-        try:
-            with open(config_path, "r", encoding="utf-8") as config_file:
-                config_data = json.load(config_file)
-        except Exception as error:
-            logger.warning("Could not read API key config: %s", error)
-            return None
-
-        service_config = config_data.get(service_name)
-        if isinstance(service_config, dict):
-            config_value = service_config.get("api_key")
-        else:
-            config_value = service_config
-
-        return config_value.strip() if self._is_real_key(config_value) else None
-
-    @staticmethod
-    def _is_real_key(value: Optional[str]) -> bool:
-        if not value:
-            return False
-        text = value.strip()
-        if len(text) < 10:
-            return False
-        placeholders = ("your_", "_here", "placeholder", "demo", "test")
-        return not any(marker in text.lower() for marker in placeholders)
 
     def analyze_dns_history(self, domain: str) -> Dict[str, Any]:
         """Build a unified historical DNS timeline for a domain."""

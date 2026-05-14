@@ -2,16 +2,15 @@
 # Vollständige, produktionsreife WHOIS-Integration für den Domain Forensic Analyzer
 # MIT License – Copyright (c) 2025 herdacas
 
-import json
 import logging
-import os
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
 import whois  # python-whois
 from dotenv import load_dotenv
+
+from ..utils.api_key_reader import APIKeyReader
 
 logger = logging.getLogger("whois_module")
 logger.addHandler(logging.NullHandler())
@@ -23,52 +22,7 @@ logger.propagate = False
 load_dotenv()
 
 
-def _is_configured_api_key(api_key: Optional[str]) -> bool:
-    """Return True when the configured value looks like a real API key."""
-    if not api_key:
-        return False
-    normalized = api_key.strip()
-    if not normalized:
-        return False
-    placeholder_markers = ("your_key", "your_", "_here", "placeholder")
-    return not any(marker in normalized.lower() for marker in placeholder_markers)
-
-
-def _load_whoisxml_api_key_from_config() -> Optional[str]:
-    """Load WhoisXML API key from config/api_keys.json if no environment key exists."""
-    config_path = Path(__file__).resolve().parents[2] / "config" / "api_keys.json"
-    if not config_path.exists():
-        return None
-
-    try:
-        with open(config_path, "r", encoding="utf-8") as config_file:
-            config_data = json.load(config_file)
-    except Exception as error:
-        logger.warning(f"WHOIS config konnte nicht geladen werden: {error}")
-        return None
-
-    service_config = config_data.get("whoisxml") or config_data.get("whoisxmlapi")
-    if isinstance(service_config, dict):
-        return service_config.get("api_key")
-    if isinstance(service_config, str):
-        return service_config
-    return None
-
-
-def _load_whoisxml_api_key() -> Optional[str]:
-    """Prefer WHOISXML_API_KEY from environment, then config/api_keys.json."""
-    environment_key = os.getenv("WHOISXML_API_KEY")
-    if _is_configured_api_key(environment_key):
-        return environment_key.strip()
-
-    config_key = _load_whoisxml_api_key_from_config()
-    if _is_configured_api_key(config_key):
-        return config_key.strip()
-
-    return None
-
-
-WHOISXML_API_KEY = _load_whoisxml_api_key()
+WHOISXML_API_KEY = APIKeyReader("WHOISXML_API_KEY", "whoisxml").get()
 
 # --------------------------------------------------------------------------- #
 # Registries known to redact WHOIS fields by policy
