@@ -1,8 +1,10 @@
 """Terminal result formatting for Domain Forensic Analyzer."""
 
+import platform
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.metadata import assess_opsec_risk, get_external_ip, get_local_ip, get_system_metadata
 from src.core.result_aggregator import UnifiedResult
 from src.utils.colors import Colors
 
@@ -2211,3 +2213,103 @@ def display_forensic_summary(result: UnifiedResult) -> None:
     _render_risk_assessment_section(ctx)
     _render_execution_section(ctx)
     _render_report_footer()
+
+
+def display_forensic_header(domain: str, start_time: datetime) -> dict:
+    """Display comprehensive forensic analysis header with metadata"""
+    print("Collecting forensic metadata...", end="", flush=True)
+
+    external_ip = get_external_ip()
+    local_ip = get_local_ip()
+    system_metadata = get_system_metadata()
+    opsec_assessment = assess_opsec_risk(external_ip, local_ip)
+    session_id = start_time.strftime("%Y%m%d-%H%M%S")
+
+    print(" COMPLETE")
+
+    print(f"\n{Colors.investigation_separator(80)}")
+    print(Colors.header(f"DOMAIN FORENSIC ANALYZER - SESSION: {session_id}"))
+    print(f"{Colors.investigation_separator(80)}")
+
+    print(
+        f"Analysis Timestamp: {Colors.highlight(start_time.strftime('%Y-%m-%d %H:%M:%S UTC'))}"
+    )
+    print(f"Target Domain: {Colors.warning(domain.upper())}")
+    print(f"Session ID: {Colors.info(session_id)}")
+
+    print(f"\nAnalyst Metadata:")
+    print(f"├── External IP: {Colors.format_ip(external_ip)}")
+    print(f"├── Local IP: {Colors.dim(local_ip)}")
+    print(f"├── Hostname: {Colors.info(system_metadata['hostname'])}")
+    print(f"├── Username: {Colors.dim(system_metadata['username'])}")
+    system_info_text = (
+        f"{system_metadata['platform']} {platform.release()} ({system_metadata['architecture']})"
+    )
+    print(f"└── System: {Colors.info(system_info_text)}")
+
+    risk_color = (
+        Colors.success
+        if opsec_assessment["attribution_risk"] == "LOW"
+        else (
+            Colors.warning
+            if opsec_assessment["attribution_risk"] == "MEDIUM"
+            else Colors.error
+        )
+    )
+    stealth_color = (
+        Colors.success
+        if opsec_assessment["stealth_level"] == "HIGH"
+        else (
+            Colors.warning
+            if opsec_assessment["stealth_level"] == "MEDIUM"
+            else Colors.error
+        )
+    )
+
+    print(f"\nOPSEC Assessment:")
+    print(f"├── Analysis Type: {Colors.info(opsec_assessment['analysis_type'])}")
+    print(f"├── Attribution Risk: {risk_color(opsec_assessment['attribution_risk'])}")
+    print(f"├── Stealth Level: {stealth_color(opsec_assessment['stealth_level'])}")
+
+    if opsec_assessment["behind_nat"]:
+        print(f"├── Network Topology: {Colors.success('NAT Protected')}")
+    else:
+        print(f"├── Network Topology: {Colors.warning('Direct Connection')}")
+
+    if opsec_assessment["potential_vpn"]:
+        print(f"├── Proxy/VPN: {Colors.success('Detected')}")
+    else:
+        print(f"├── Proxy/VPN: {Colors.dim('Not Detected')}")
+
+    print(f"├── Active Probes (target sees your IP):")
+    print(f"│   ├── DNS resolution (direct nameserver query)")
+    print(f"│   ├── Traceroute (ICMP packets to target)")
+    print(f"│   ├── Ping (ICMP to target)")
+    print(f"│   ├── HTTP/S connectivity check")
+    print(f"│   ├── Zone transfer attempt (direct to NS)")
+    print(f"│   ├── Subdomain DNS probes")
+    print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
+    print(f"└── Passive Sources (target does not see your IP):")
+    print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
+    print(f"    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS")
+    print(f"    └── crt.sh, CertSpotter, ip-api.com")
+
+    print(f"\n{Colors.investigation_separator(80)}")
+    print("OSINT Tool | Network Intelligence | Asset Discovery")
+    print("Multi-API Threat Intelligence | Security Analysis")
+    print(f"{Colors.investigation_separator(80)}")
+    print(
+        f"Platform: {Colors.info(platform.system())} | "
+        f"Modules: {Colors.success('11 Core Analyzers')} | "
+        f"APIs: {Colors.success('5 Intelligence Sources')} | "
+        f"Status: {Colors.success('Ready')}"
+    )
+
+    return {
+        "session_id": session_id,
+        "timestamp": start_time,
+        "external_ip": external_ip,
+        "local_ip": local_ip,
+        "system_metadata": system_metadata,
+        "opsec_assessment": opsec_assessment,
+    }
