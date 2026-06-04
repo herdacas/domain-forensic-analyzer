@@ -1,7 +1,4 @@
-"""
-Domain Forensic Analyzer - Multi-API Domain Analysis Tool
-OSINT Tool for domain intelligence gathering and threat assessment
-"""
+"""Domain Forensic Analyzer — orchestrator and module runner."""
 
 import platform
 import sys
@@ -11,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Try to import advanced logging library, fallback to basic logging if not available
 try:
     from loguru import logger
 
@@ -19,7 +15,6 @@ try:
 except ImportError:
     LOGURU_AVAILABLE = False
 
-# Import utility modules for colors and domain validation
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from config.settings import MODULE_TIMEOUTS
 from src.core.result_aggregator import UnifiedResult, create_result_aggregator
@@ -27,7 +22,6 @@ from src.core.result_formatter import display_forensic_summary
 from src.core.stdout_router import ModuleExecutionResult, ThreadAwareStdoutRouter
 from src.utils.validators import DomainValidator
 
-# Import all analyzer modules and check if they load successfully
 try:
     from src.analyzers.abuseipdb_client import AbuseIPDBClient
     from src.analyzers.cdn_detector import CDNDetector
@@ -56,30 +50,15 @@ except ImportError as error:
 
 
 class DomainAnalyzer:
-    """
-    Main class that coordinates all domain analysis modules
-    Handles module execution, timeouts, error recovery, and result aggregation
-    """
+    """Coordinates 11 analyzer modules: execution order, timeouts, and result aggregation."""
 
     def __init__(self):
-        """Set up the analyzer with all modules and configuration"""
-        # Detect operating system for cross-platform compatibility
         self.platform = platform.system().lower()
-
-        # Set up file paths for logs and data
         self.project_root = Path(__file__).parent.parent.parent
         self.logs_dir = self.project_root / "logs"
-
-        # Create logs directory if it doesn't exist
         self.logs_dir.mkdir(exist_ok=True)
-
-        # Set up logging system
         self._setup_logging()
-
-        # Dictionary to store analyzer module instances
         self.modules = {}
-
-        # Order in which modules will be executed
         self.module_execution_order = [
             "dns",
             "whois",
@@ -94,23 +73,14 @@ class DomainAnalyzer:
             "ip_history",
         ]
 
-        # Maximum time each module is allowed to run before being stopped
         self.module_timeouts = dict(MODULE_TIMEOUTS)
-
-        # Variables to track current analysis state
         self.current_analysis = None
         self.execution_metrics = {}
-
-        # Initialize all analyzer modules
         self._initialize_system()
-
-        # Set up result aggregation system
         self.result_aggregator = create_result_aggregator()
 
     def _setup_logging(self) -> None:
-        """Configure logging to file with timestamps and rotation"""
         if LOGURU_AVAILABLE:
-            # Remove default logger and add custom file logger
             logger.remove()
             log_file = (
                 self.logs_dir
@@ -125,14 +95,12 @@ class DomainAnalyzer:
             self.logger = logger
             self.logger.info("Domain Analyzer session started", platform=self.platform)
         else:
-            # Fallback to basic Python logging
             import logging
 
             logging.basicConfig(level=logging.INFO)
             self.logger = logging.getLogger("DomainAnalyzer")
 
     def _initialize_system(self) -> None:
-        """Start up all analyzer modules if they imported correctly"""
         if not CORE_MODULES_AVAILABLE:
             return
 
@@ -145,7 +113,6 @@ class DomainAnalyzer:
             self.logger.error("System initialization failed", error=str(error))
 
     def _initialize_modules(self) -> None:
-        """Create instances of all analyzer modules and store them"""
         module_classes = {
             "dns": DNSAnalyzer,
             "whois": get_whois if WHOIS_MODULE_AVAILABLE else None,
@@ -160,7 +127,6 @@ class DomainAnalyzer:
             "ssl": SSLAnalyzer,
         }
 
-        # Try to create each module, log warnings for any that fail
         for module_name, module_class in module_classes.items():
             try:
                 if module_class is None:
@@ -175,18 +141,15 @@ class DomainAnalyzer:
                 )
 
     def analyze_domain(self, domain: str) -> UnifiedResult:
-        """Main function to analyze a domain using all available modules"""
-        # Check if domain format is valid
+        """Run all 11 modules against the domain and return aggregated results."""
         if not DomainValidator.is_valid_domain(domain):
             raise ValueError(f"Invalid domain format: {domain}")
 
-        # Clean the domain input and start timing
         clean_domain = DomainValidator.clean_domain(domain)
         start_time = datetime.now()
 
         self.logger.info("Starting multi-API domain analysis", domain=clean_domain)
 
-        # Set up tracking variables for this analysis
         self.current_analysis = {
             "domain": clean_domain,
             "start_time": start_time,
@@ -196,14 +159,9 @@ class DomainAnalyzer:
             "warnings": [],
         }
         self.execution_metrics = {}
-
-        # Run all the analyzer modules
         self._execute_analysis_workflow()
-
-        # Calculate how long everything took
         execution_time = (datetime.now() - start_time).total_seconds()
 
-        # Log summary statistics
         self.logger.info(
             "Analysis completed",
             domain=clean_domain,
@@ -223,7 +181,6 @@ class DomainAnalyzer:
             ),
         )
 
-        # Combine all results into a unified format
         result = self.result_aggregator.aggregate_results(
             domain=clean_domain,
             module_results=self.current_analysis["results"],
@@ -233,8 +190,6 @@ class DomainAnalyzer:
         return result
 
     def _execute_analysis_workflow(self) -> None:
-        """Run all modules in sequence with progress tracking and error handling"""
-        # Only run modules that loaded successfully
         modules_to_run = [
             m for m in self.current_analysis["modules_to_run"] if m in self.modules
         ]
@@ -246,21 +201,16 @@ class DomainAnalyzer:
         print(f"\nStarting analysis...")
         start_time = time.time()
 
-        # Execute each module and track progress
         for i, module_name in enumerate(modules_to_run, 1):
             module_label = module_name.replace("_", " ").title()
             print(
                 f"   [{i}/{len(modules_to_run)}] {module_label}...", end="", flush=True
             )
 
-            # Run the module with timeout protection
             execution_result = self._execute_module_with_timeout(module_name)
             self.execution_metrics[module_name] = execution_result
-
-            # Store the result for later use
             self.current_analysis["results"][module_name] = execution_result.result
 
-            # Show what happened with timing
             if execution_result.success:
                 status_icon = "COMPLETE"
                 timing = f"({execution_result.execution_time:.1f}s)"
@@ -273,7 +223,6 @@ class DomainAnalyzer:
 
             print(f" {status_icon} {timing}")
 
-        # Show final statistics
         total_time = time.time() - start_time
         successful, failed, timeout, skipped, api_success, api_total = (
             self._compute_execution_statistics(modules_to_run)
@@ -359,7 +308,6 @@ class DomainAnalyzer:
         module = self.modules.get(module_name)
 
         if not module:
-            # Return failure result if module doesn't exist
             return ModuleExecutionResult(
                 success=False,
                 result={"error": "Module not available", "analysis_status": "failed"},
@@ -371,11 +319,9 @@ class DomainAnalyzer:
         timeout = self.module_timeouts.get(module_name, 60)
         start_time = time.time()
 
-        # Container to share results between threads
         result_container = {"result": None, "error": None}
 
         def execute_module():
-            """Function that runs in separate thread to enable timeout"""
             stdout_router = (
                 sys.stdout if isinstance(sys.stdout, ThreadAwareStdoutRouter) else None
             )
@@ -391,16 +337,13 @@ class DomainAnalyzer:
                 if stdout_router:
                     stdout_router.unmute_current_thread()
 
-        # Start module in separate thread and wait for completion or timeout
         thread = threading.Thread(target=execute_module, daemon=True)
         thread.start()
         thread.join(timeout)
 
         execution_time = time.time() - start_time
 
-        # Check what happened with the module execution
         if thread.is_alive():
-            # Module took too long and was stopped
             self.logger.warning(
                 f"{module_name} analysis timeout",
                 domain=domain,
@@ -417,7 +360,6 @@ class DomainAnalyzer:
             )
 
         elif result_container["error"]:
-            # Module crashed with an error
             error = result_container["error"]
             self.logger.error(
                 f"{module_name} analysis failed",
@@ -434,7 +376,6 @@ class DomainAnalyzer:
             )
 
         else:
-            # Module completed successfully
             result = result_container["result"]
             if not isinstance(result, dict):
                 self.logger.error(
@@ -479,7 +420,6 @@ class DomainAnalyzer:
     def _call_module_function(
         self, module_name: str, module: Any, domain: str
     ) -> Dict[str, Any]:
-        """Call the correct function for each type of analyzer module"""
         if module_name == "dns":
             return module.analyze_domain(domain)
 
@@ -496,7 +436,6 @@ class DomainAnalyzer:
             return module.analyze_dns_history(domain)
 
         elif module_name == "cdn":
-            # CDN analyzer needs IP address from DNS results
             dns_result = self.current_analysis["results"].get("dns", {})
             ip_address = dns_result.get("ipv4")
             rdns_hostname = dns_result.get("reverse_dns")
@@ -513,12 +452,10 @@ class DomainAnalyzer:
                 raise Exception("No IP address available from DNS analysis")
 
         elif module_name == "network":
-            # Network analyzer also needs IP address from DNS
             dns_result = self.current_analysis["results"].get("dns", {})
             ip_address = dns_result.get("ipv4")
 
             if not ip_address:
-                # Try backup data
                 fallback_data = dns_result.get("fallback_data", {})
                 ip_address = fallback_data.get("ipv4")
 
@@ -534,12 +471,10 @@ class DomainAnalyzer:
             return module.analyze_domain_intelligence(domain)
 
         elif module_name == "abuseipdb":
-            # AbuseIPDB checks IP reputation, so needs IP from DNS
             dns_result = self.current_analysis["results"].get("dns", {})
             ip_address = dns_result.get("ipv4")
 
             if not ip_address:
-                # Try backup data
                 fallback_data = dns_result.get("fallback_data", {})
                 ip_address = fallback_data.get("ipv4")
 
@@ -549,7 +484,6 @@ class DomainAnalyzer:
                 raise Exception("No IP address available for reputation analysis")
 
         elif module_name == "virustotal":
-            # VirusTotal can check domain directly
             return module.analyze_domain_reputation(domain)
 
         elif module_name == "ip_history":
@@ -572,7 +506,6 @@ class DomainAnalyzer:
     def _get_fallback_result(
         self, module_name: str, failure_type: str, error_details: str = ""
     ) -> Dict[str, Any]:
-        """Create a safe fallback result when a module fails"""
         base_result = {
             "analysis_status": "failed",
             "error": error_details,
@@ -580,7 +513,6 @@ class DomainAnalyzer:
             "failure_timestamp": datetime.now().isoformat(),
         }
 
-        # Provide appropriate fallback data for each module type
         domain = (
             self.current_analysis.get("domain", "unknown")
             if self.current_analysis
