@@ -45,10 +45,10 @@ def _parse_domain_list(path_str: str):
 
 
 def run_list_mode(file_path: str) -> None:
-    from src.core.domain_analyzer import (DomainAnalyzer,
-                                          _compute_risk_summary,
-                                          display_forensic_header,
-                                          display_forensic_summary)
+    from src.core.domain_analyzer import DomainAnalyzer
+    from src.core.result_formatter import (_compute_risk_summary,
+                                           display_forensic_header,
+                                           display_forensic_summary)
     from src.core.report_exporter import ReportExporter
 
     domains = _parse_domain_list(file_path)
@@ -156,7 +156,7 @@ def run_list_mode(file_path: str) -> None:
 
 
 def main():
-    from src.core.domain_analyzer import main as single_main
+    from src.core.cli import main as single_main
 
     args = sys.argv[1:]
 
