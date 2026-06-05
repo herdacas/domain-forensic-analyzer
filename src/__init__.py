@@ -1,8 +1,5 @@
-"""
-Domain Forensic Analyzer v3.4
-Hauptpaket fuer forensische Domain-Analyse
-"""
+"""Domain Forensic Analyzer — terminal-based OSINT tool for domain intelligence."""
 
-__version__ = "3.4"
-__author__ = "Domain Forensic Analyzer Team"
-__description__ = "Professional OSINT tool for domain forensic investigations"
+__version__ = "1.0.0"
+__author__ = "herdacas"
+__description__ = "Terminal-based OSINT tool for domain forensic investigations"
