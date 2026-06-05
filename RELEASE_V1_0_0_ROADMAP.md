@@ -199,58 +199,112 @@ Agent konfiguriert Packaging selbst:
 - Optional: README als long_description
 
 ---
+## PHASE 4: Cross-Platform & OPSEC Validation (MANUAL TESTING WITH AGENT SCRIPTS)
 
-## PHASE 4: Cross-Platform & OPSEC Validation
+### Ziel
+Agent erstellt automatisierte Test-Skripte. User führt die 4 Szenarien manuell aus und liefert Reports zurück.
 
-### Anforderungen
-**Ziel:** Validieren, dass Scans auf Windows/Linux mit/ohne VPN konsistent funktionieren
+### Agent macht (Autonom):
+- ✅ Erstellt 4 Test-Skripte (scenario_a.sh, scenario_b.sh, scenario_c.sh, scenario_d.sh)
+- ✅ Skripte dokumentieren, was zu tun ist (VPN starten, etc.)
+- ✅ Skripte generieren Reports als JSON in docs/examples/
+- ✅ Erstellt VALIDATION_REPORT_TEMPLATE.md (Vorlage für Ergebnisse)
+- ✅ Erstellt README_PHASE4_MANUAL.md mit Schritt-für-Schritt Anleitung
 
-**Test-Szenarien (je Domain - mindestens example.com):**
-- Szenario A: Linux + Direktverbindung
-- Szenario B: Linux + VPN (z.B. NL/DE/AT)
-- Szenario C: Windows + Direktverbindung
-- Szenario D: Windows + VPN (z.B. DE/AT/CH)
+### User macht (Manuell):
+- ✅ Szenario A: Linux + Direktverbindung → Führt scenario_a.sh aus
+- ✅ Szenario B: Linux + VPN (NL/DE/AT) → Startet VPN, führt scenario_b.sh aus
+- ✅ Szenario C: Windows + Direktverbindung → Führt scenario_c.sh aus
+- ✅ Szenario D: Windows + VPN (AT/CH) → Startet VPN, führt scenario_d.sh aus
+- ✅ Liefert 4 JSON-Reports dem Agent zurück
 
-**Validierungs-Checkliste pro Szenario:**
-- ✅ OPSEC-Assessment funktioniert (VPN erkannt ja/nein?)
-- ✅ DNS-Auflösung konsistent (gleiche A-Records)
-- ✅ SSL/TLS Zertifikat identisch
-- ✅ WHOIS-Daten konsistent
-- ✅ ASN/Geolocation unterschiedlich je Query-IP (erwartet!)
-- ✅ Traceroute/Ping funktioniert oder graceful degradation
-- ✅ Reports mit vollständiger Metadata erstellt
-- ✅ Keine Fehler in Logs
+### Agent macht (Nach Reports erhalten):
+- ✅ Vergleicht alle 4 Reports automatisch
+- ✅ Füllt VALIDATION_REPORT.md mit Ergebnissen
+- ✅ Erstellt Vergleichsmatrix
+- ✅ Dokumentiert Abweichungen & deren Ursachen
+- ✅ Archiviert Reports in docs/examples/
 
-**Vergleichsmatrix erstellen:**
-```
-Domain | OS | Location | External_IP | VPN_Detected | ASN | Risk_Score
-──────────────────────────────────────────────────────────────────────
-ex.com | L  | Direct   | 1.2.3.4     | False        | DE  | LOW
-ex.com | L  | VPN-NL   | 5.6.7.8     | True (NL)    | NL  | LOW
-ex.com | W  | Direct   | 1.2.3.4     | False        | DE  | LOW
-ex.com | W  | VPN-AT   | 9.10.11.12  | True (AT)    | AT  | LOW
-```
+### Test-Skripte Details
 
-**Dokumentation:**
-- `docs/VALIDATION_REPORT.md` mit Ergebnissen
-- Screenshots/Reports in `docs/examples/`
-- Hinweise auf Abweichungen und deren Ursachen
+**scenario_a.sh** (Linux + Direct):
+```bash
+#!/bin/bash
+echo "=== PHASE 4: Szenario A (Linux + Direktverbindung) ==="
+python -m src.run example.com --output-format json > docs/examples/scenario_a_linux_direct.json
+echo "✅ Report gespeichert: docs/examples/scenario_a_linux_direct.json"
+scenario_b.sh (Linux + VPN):
 
-### Deliverables
-- ✅ Alle 4 Szenarien getestet
-- ✅ Vergleichsmatrix erstellt
-- ✅ Keine blockierenden Fehler
-- ✅ VALIDATION_REPORT.md dokumentiert
-- ✅ Reports in docs/examples/ archiviert
-- ✅ PR mergen
-- ✅ Report erstellen
+bash
+#!/bin/bash
+echo "=== PHASE 4: Szenario B (Linux + VPN) ==="
+echo "⚠️ WICHTIG: VPN muss aktiv sein zu Niederlande/Deutschland/Österreich"
+echo "Prüfe: curl https://ipinfo.io (sollte andere IP zeigen)"
+echo "Drücke ENTER wenn VPN aktiv ist..."
+read
+python -m src.run example.com --output-format json > docs/examples/scenario_b_linux_vpn.json
+echo "✅ Report gespeichert: docs/examples/scenario_b_linux_vpn.json"
+scenario_c.bat (Windows + Direct):
 
-### Autonome Arbeitsweise
-Agent organisiert Tests selbst:
-- Test-Automatisierung (Skripte für lokale Runs)
-- Report-Generierung
-- Fehlerbehandlung bei fehlenden APIs
-- Dokumentation der Ergebnisse
+batch
+REM PHASE 4: Szenario C (Windows + Direktverbindung)
+echo === PHASE 4: Szenario C (Windows + Direktverbindung) ===
+python -m src.run example.com --output-format json > docs\examples\scenario_c_windows_direct.json
+echo ✅ Report gespeichert: docs\examples\scenario_c_windows_direct.json
+scenario_d.bat (Windows + VPN):
+
+batch
+REM PHASE 4: Szenario D (Windows + VPN)
+echo === PHASE 4: Szenario D (Windows + VPN) ===
+echo ⚠️ WICHTIG: VPN muss aktiv sein zu Österreich/Schweiz
+echo Prüfe: curl https://ipinfo.io (sollte andere IP zeigen)
+pause
+python -m src.run example.com --output-format json > docs\examples\scenario_d_windows_vpn.json
+echo ✅ Report gespeichert: docs\examples\scenario_d_windows_vpn.json
+Validierungs-Checkliste pro Szenario
+Nach Ausführung jedes Skripts überprüfen:
+
+✅ Report wurde erstellt (JSON existiert)
+✅ Keine Fehler in der Ausgabe
+✅ OPSEC-Assessment vorhanden (VPN erkannt ja/nein?)
+✅ DNS-Records lesbar
+✅ SSL-Zertifikat Info da
+✅ WHOIS-Daten vorhanden
+✅ ASN korrekt (unterschiedlich bei VPN erwartet)
+✅ Externe IP dokumentiert
+Vergleichsmatrix (Agent erstellt nach allen 4 Reports)
+Code
+Domain   | OS      | Location | External_IP | VPN_Detected | ASN | DNS_OK | SSL_OK
+─────────────────────────────────────────────────────────────────────────────────
+example  | Linux   | Direct   | 1.2.3.4     | Nein         | DE  | ✅     | ✅
+example  | Linux   | VPN-NL   | 5.6.7.8     | Ja (NL)      | NL  | ✅     | ✅
+example  | Windows | Direct   | 1.2.3.4     | Nein         | DE  | ✅     | ✅
+example  | Windows | VPN-AT   | 9.10.11.12  | Ja (AT)      | AT  | ✅     | ✅
+Deliverables
+Agent liefert:
+
+✅ 4 Test-Skripte (scenario_a.sh, scenario_b.sh, scenario_c.bat, scenario_d.bat)
+✅ README_PHASE4_MANUAL.md (Schritt-für-Schritt Anleitung)
+✅ VALIDATION_REPORT_TEMPLATE.md (Vorlage zum Füllen)
+✅ PR mit allen Skripten
+User liefert:
+
+✅ 4 JSON-Reports (nach manueller Ausführung)
+Agent macht nach Reports:
+
+✅ VALIDATION_REPORT.md mit Ergebnissen
+✅ Vergleichsmatrix mit Analyse
+✅ docs/examples/ mit allen 4 Reports
+✅ Final PR mergen
+Workflow
+Agent erstellt Skripte & PR
+User reviewt Skripte (sinnvoll?)
+User gibt OK
+User führt alle 4 Szenarien aus (manuell)
+User liefert 4 JSON-Reports
+Agent verarbeitet Reports → VALIDATION_REPORT.md
+Agent erstellt Final PR
+User reviewt & merged
 
 ---
 
