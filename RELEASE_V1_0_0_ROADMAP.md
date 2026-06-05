@@ -43,6 +43,52 @@ Nach jeder Phase:
 
 ---
 
+## ⚠️ WICHTIG: VERSION MANAGEMENT
+
+### Status vor Phase 1
+**`__version__` wurde in einer vorherigen Session bereits auf `"1.0.0"` gesetzt.**
+
+Aktueller Status:
+- ✅ `src/__init__.py`: `__version__ = "1.0.0"` (bereits gesetzt)
+
+### Agent-Anweisung: Version-Handling
+
+**Phase 1 (Test-Suite):**
+- ❌ NICHT anfassen — Version bleibt, wie sie ist
+- Keine Änderungen an `__version__` oder anderen Version-Strings
+- Fokus: Tests aufbauen
+
+**Phase 2 (CI/CD Pipeline):**
+- ❌ NICHT anfassen — Version bleibt, wie sie ist
+- Fokus: GitHub Actions Workflow
+
+**Phase 3 (Packaging):**
+- ✅ **HIER AKTIV:** Version-Management durchführen
+- Überprüfe aktuellen `__version__` in `src/__init__.py`
+- **Erwarteter Status:** Bereits `"1.0.0"` (gesetzt von vorheriger Session)
+- **Falls bereits 1.0.0:** Keine Änderung nötig — Dokumentiere im Report: "✅ Version bereits konsistent auf 1.0.0"
+- **Falls nicht 1.0.0:** Setze auf `"1.0.0"` in allen Dateien:
+  - `src/__init__.py`
+  - `setup.py` / `pyproject.toml` (wenn vorhanden)
+  - Aktualisiere `CHANGELOG.md` und erwähne die Versionierung
+- Verifiziere Konsistenz über alle Dateien
+
+**Phase 6 (Finalisierung & Release):**
+- ✅ Final-Check: `__version__` überall `"1.0.0"` (sollte nach Phase 3 OK sein)
+- Setze Git-Tag `v1.0.0`
+
+### Wichtig für Agent-Dokumentation (claude.md)
+Speichere diese Information in deiner internen Arbeitsmappe:
+```
+⚠️ VERSION STATUS
+- v1.0.0 wurde bereits in vorheriger Session gesetzt
+- Phase 1-2: NICHT anfassen
+- Phase 3: Überprüfen & ggf. konsolidieren
+- Phase 6: Final-Check vor Release-Tag
+```
+
+---
+
 ## 🎯 PHASEN-ÜBERSICHT
 
 | Phase | Titel | Autonomie | User-Verif. |
@@ -127,7 +173,9 @@ Agent konfiguriert Pipeline selbst:
   - Version: `1.0.0`
   - Dependencies aus requirements.txt deklarieren
   - Entry-point optional: `dfa` command
-- `__version__` in `src/__init__.py` auf `1.0.0` setzen
+- `__version__` Konsistenz-Check durchführen (siehe "VERSION MANAGEMENT" oben)
+  - **Aktueller Status:** Bereits `1.0.0` gesetzt
+  - Verifiziere, dass `src/__init__.py`, `setup.py`, etc. konsistent sind
 - `CHANGELOG.md` erstellen mit:
   - V1.0.0 Highlights
   - Bugfixes seit v0.9
@@ -138,7 +186,7 @@ Agent konfiguriert Pipeline selbst:
 ### Deliverables
 - ✅ setup.py / pyproject.toml funktional
 - ✅ Installierbarkeit verifiziert
-- ✅ __version__ konsistent überall
+- ✅ __version__ konsistent überall (und dokumentiert, dass es bereits 1.0.0 war)
 - ✅ CHANGELOG.md vollständig
 - ✅ PR mergen
 - ✅ Report erstellen
@@ -253,10 +301,10 @@ Agent schreibt Dokumentation selbst:
 ## PHASE 6: Finalisierung & Release
 
 ### Anforderungen
-- `__version__` überall auf `1.0.0` konsistent
-  - `src/__init__.py`
-  - `setup.py` / `pyproject.toml`
-  - CHANGELOG.md (aktualisiert)
+- **Version-Check:** `__version__` überall auf `1.0.0` konsistent (sollte nach Phase 3 bereits OK sein)
+  - `src/__init__.py`: `1.0.0`
+  - `setup.py` / `pyproject.toml`: `1.0.0`
+  - CHANGELOG.md: Aktualisiert mit V1.0.0 Abschnitt
   
 - Git-Tag `v1.0.0` setzen mit Message:
   ```
@@ -279,7 +327,7 @@ Agent schreibt Dokumentation selbst:
 - Optional: Create GitHub Release (Release Notes aus CHANGELOG)
 
 ### Deliverables
-- ✅ __version__ überall `1.0.0`
+- ✅ __version__ überall `1.0.0` (Final-Check)
 - ✅ Git-Tag `v1.0.0` gesetzt
 - ✅ Final PR/Commit
 - ✅ GitHub Release (optional)
@@ -299,7 +347,7 @@ Alle Kriterien müssen erfüllt sein, bevor Phase 6 abgeschlossen wird:
 - [ ] **Code Quality:** pylint ≥ 8.0, keine offenen TODOs
 - [ ] **Dokumentation:** README, CONTRIBUTING, SECURITY vollständig
 - [ ] **Changelog:** CHANGELOG.md gefüllt & aktuell
-- [ ] **Metadata:** __version__ konsistent
+- [ ] **Metadata:** __version__ konsistent (bereits 1.0.0)
 - [ ] **Git:** Tag `v1.0.0` gesetzt
 
 ---
@@ -401,3 +449,4 @@ Falls Agent unsicher ist:
 **Status:** Ready for Phase 1 Start  
 **Last Updated:** 2026-06-05  
 **Maintained by:** Coding Agent (autonomous mode)
+**Version Status:** v1.0.0 bereits in src/__init__.py gesetzt (vorherige Session)
