@@ -1,5 +1,10 @@
 # Domain Forensic Analyzer
 
+[![Tests](https://github.com/herdacas/domain-forensic-analyzer/actions/workflows/test.yml/badge.svg)](https://github.com/herdacas/domain-forensic-analyzer/actions/workflows/test.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org)
+[![Coverage](https://img.shields.io/badge/coverage-70%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
+[![Pylint](https://img.shields.io/badge/pylint-9.11%2F10-brightgreen)](https://pylint.readthedocs.io)
+
 A terminal-based OSINT tool that gives you a complete intelligence picture of any domain in one run — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Designed for security analysts, incident responders, and researchers who need actionable data without juggling 10 different tools.
 
 ---
