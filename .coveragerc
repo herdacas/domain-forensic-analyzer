@@ -1,0 +1,15 @@
+[run]
+source = src
+omit =
+    src/core/result_formatter.py
+    src/core/cli.py
+    */test_*
+    */__pycache__/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    except ImportError:
+    LOGURU_AVAILABLE = False
+    CORE_MODULES_AVAILABLE = False

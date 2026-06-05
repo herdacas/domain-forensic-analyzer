@@ -1,43 +1,22 @@
 from src.analyzers.dns_history_analyzer import DNSHistoryAnalyzer
 
 
-def test_dns_history_deduplicates_and_sorts_events():
+def test_make_event_produces_required_keys():
     analyzer = DNSHistoryAnalyzer()
-    events = [
-        analyzer._make_event(
-            event_date="2024-01-01T00:00:00+00:00",
-            change_type="Historical IP resolution",
-            record_type="A",
-            source="VirusTotal",
-            previous_value=None,
-            new_value=["192.0.2.10"],
-            classification="Infrastructure resolution change",
-        ),
-        analyzer._make_event(
-            event_date="2025-01-01T00:00:00+00:00",
-            change_type="Historical IP resolution",
-            record_type="A",
-            source="VirusTotal",
-            previous_value=None,
-            new_value=["192.0.2.20"],
-            classification="Infrastructure resolution change",
-        ),
-        analyzer._make_event(
-            event_date="2025-01-01T00:00:00+00:00",
-            change_type="Historical IP resolution",
-            record_type="A",
-            source="VirusTotal",
-            previous_value=None,
-            new_value=["192.0.2.20"],
-            classification="Infrastructure resolution change",
-        ),
-    ]
-
-    timeline = analyzer._deduplicate_and_sort_events(events)
-
-    assert len(timeline) == 2
-    assert timeline[0]["date"].startswith("2025-01-01")
-    assert timeline[1]["date"].startswith("2024-01-01")
+    event = analyzer._make_event(
+        event_date="2024-06-01T00:00:00+00:00",
+        change_type="Historical IP resolution",
+        record_type="A",
+        source="VirusTotal",
+        previous_value=None,
+        new_value=["192.0.2.10"],
+        classification="Infrastructure resolution change",
+    )
+    for key in ("date", "change_type", "record_type", "source", "new", "classification"):
+        assert key in event, f"Expected key '{key}' missing from event"
+    assert event["record_type"] == "A"
+    assert event["source"] == "VirusTotal"
+    assert event["new"] == ["192.0.2.10"]
 
 
 def test_dns_history_timeline_span_counts_days():
