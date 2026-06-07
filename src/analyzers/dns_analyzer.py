@@ -49,21 +49,41 @@ class DNSAnalyzer:
             "s1",
             "smtp",
         ]
+        self._reachable_nameservers = self._probe_nameservers()
+
+    def _probe_nameservers(self) -> List[str]:
+        """Return only the DNS nameservers that are actually network-reachable.
+
+        Under VPN with DNS-leak-protection, the physical adapter's DNS servers
+        are silently dropped (no RST). dnspython reads ALL adapters from the
+        Windows registry and tries them sequentially, causing every query to
+        hang for the full per-server timeout before reaching the VPN's DNS.
+        A quick TCP-port-53 probe with a 1 s timeout distinguishes reachable
+        servers (fast TCP-connect or RST) from blocked ones (timeout/drop).
+        """
+        default_ns = dns.resolver.Resolver().nameservers
+        reachable: List[str] = []
+        for ns_ip in default_ns:
+            try:
+                with socket.create_connection((ns_ip, 53), timeout=1.0):
+                    reachable.append(ns_ip)
+            except ConnectionRefusedError:
+                # RST received — IP is network-reachable, UDP DNS may still work
+                reachable.append(ns_ip)
+            except (socket.timeout, OSError):
+                pass  # packet dropped or other network error — skip this server
+        return reachable if reachable else default_ns
 
     def _create_resolver(
         self, nameservers: Optional[List[str]] = None
     ) -> dns.resolver.Resolver:
-        """
-        Erstellt einen Resolver mit konsistenten Timeouts.
-
-        Die DNS-Forensik-Funktionen sollen auf derselben Timeout-Basis laufen wie
-        die restliche Analyse, aber ohne weiteren globalen Prozesszustand.
-        """
         resolver = dns.resolver.Resolver()
-        resolver.timeout = self.dns_timeout
-        resolver.lifetime = self.dns_timeout
+        resolver.timeout = 2  # per-server timeout: fail fast, try next server
+        resolver.lifetime = self.dns_timeout  # total budget across all servers
         if nameservers:
             resolver.nameservers = nameservers
+        elif self._reachable_nameservers:
+            resolver.nameservers = self._reachable_nameservers
         return resolver
 
     def _resolve_dns_records(
