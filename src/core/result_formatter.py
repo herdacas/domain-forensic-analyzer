@@ -1174,7 +1174,8 @@ def _build_summary_context(result: UnifiedResult) -> Dict[str, Any]:
                 hist_ip = _ip
                 hist_date = str(_ev.get("date", "unknown"))
                 break
-    is_historical = bool(hist_ip and not dns_result.get("ipv4"))
+    dns_module_network_failure = dns_result.get("failure_type") in ("timeout", "error")
+    is_historical = bool(hist_ip and not dns_result.get("ipv4") and not dns_module_network_failure)
     network_result = result.results.get("network", {})
     http_behavior = network_result.get("http_behavior", {})
     ssl_result = result.results.get("ssl", {})

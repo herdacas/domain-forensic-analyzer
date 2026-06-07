@@ -24,7 +24,7 @@ MODULE_TIMEOUTS: Dict[str, int] = {
 class ScanSettings:
     """Timeout and threading parameters for scan modules."""
 
-    dns_timeout: int = 10
+    dns_timeout: int = 5
     traceroute_timeout_regional: int = 50
     traceroute_timeout_international: int = 75
     api_timeout: int = 15
@@ -78,7 +78,7 @@ class Settings:
         self.api_config.shodan_api_key = os.getenv('SHODAN_API_KEY')
 
         try:
-            self.scan_settings.dns_timeout = int(os.getenv('DNS_TIMEOUT', '10'))
+            self.scan_settings.dns_timeout = int(os.getenv('DNS_TIMEOUT', str(self.scan_settings.dns_timeout)))
             self.scan_settings.api_timeout = int(os.getenv('API_TIMEOUT', '15'))
             self.scan_settings.traceroute_timeout_regional = int(os.getenv('TRACEROUTE_TIMEOUT_REGIONAL', '50'))
             self.scan_settings.traceroute_timeout_international = int(os.getenv('TRACEROUTE_TIMEOUT_INTERNATIONAL', '75'))

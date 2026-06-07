@@ -559,30 +559,36 @@ class DNSAnalyzer:
         self, domain: str, nameservers: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """Attempt AXFR zone transfer against authoritative nameservers."""
+        _AXFR_TIMEOUT = 3
         tested_nameservers = []
 
-        for nameserver in nameservers[:3]:
-            server_ips = self._resolve_dns_records(nameserver, "A")
-            for server_ip in server_ips[:1]:
-                ns_ip = str(server_ip)
-                tested_nameservers.append(ns_ip)
-                try:
-                    zone = dns.zone.from_xfr(
-                        dns.query.xfr(ns_ip, domain, lifetime=self.dns_timeout)
-                    )
-                    if zone:
-                        record_count = len(zone.nodes.keys())
-                        return {
-                            "zone_transfer": {
-                                "status": "allowed",
-                                "successful_nameserver": nameserver,
-                                "successful_nameserver_ip": ns_ip,
-                                "record_count": record_count,
-                                "tested_nameservers": tested_nameservers,
+        old_socket_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(_AXFR_TIMEOUT)
+        try:
+            for nameserver in nameservers[:3]:
+                server_ips = self._resolve_dns_records(nameserver, "A")
+                for server_ip in server_ips[:1]:
+                    ns_ip = str(server_ip)
+                    tested_nameservers.append(ns_ip)
+                    try:
+                        zone = dns.zone.from_xfr(
+                            dns.query.xfr(ns_ip, domain, lifetime=_AXFR_TIMEOUT)
+                        )
+                        if zone:
+                            record_count = len(zone.nodes.keys())
+                            return {
+                                "zone_transfer": {
+                                    "status": "allowed",
+                                    "successful_nameserver": nameserver,
+                                    "successful_nameserver_ip": ns_ip,
+                                    "record_count": record_count,
+                                    "tested_nameservers": tested_nameservers,
+                                }
                             }
-                        }
-                except Exception:
-                    continue
+                    except Exception:
+                        continue
+        finally:
+            socket.setdefaulttimeout(old_socket_timeout)
 
         return {
             "zone_transfer": {
