@@ -2270,7 +2270,7 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"\nOPSEC Assessment:")
     print(f"├── Analysis Type: {Colors.info(opsec_assessment['analysis_type'])}")
     print(f"├── Attribution Risk: {risk_color(opsec_assessment['attribution_risk'])}")
-    print(f"├── Stealth Level: {stealth_color(opsec_assessment['stealth_level'])}")
+    print(f"├── Stealth Level: {stealth_color(opsec_assessment['stealth_level'])} {Colors.dim('(aggregated external signals)')}")
 
     if opsec_assessment["behind_nat"]:
         print(f"├── Network Topology: {Colors.success('NAT Protected')}")
@@ -2278,9 +2278,9 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
         print(f"├── Network Topology: {Colors.warning('Direct Connection')}")
 
     if opsec_assessment["potential_vpn"]:
-        print(f"├── Proxy/VPN: {Colors.success('Detected')}")
+        print(f"├── VPN/Proxy Signals: {Colors.success('VPN provider detected')} {Colors.dim('(rDNS match)')}")
     else:
-        print(f"├── Proxy/VPN: {Colors.dim('Not Detected')}")
+        print(f"├── VPN/Proxy Signals: {Colors.dim('No known provider signatures observed')}")
 
     print(f"├── Active Probes (target sees your IP):")
     print(f"│   ├── DNS resolution (direct nameserver query)")
