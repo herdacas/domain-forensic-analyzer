@@ -24,7 +24,6 @@ import dns.zone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config.settings import get_settings
-from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
 
 
@@ -113,7 +112,7 @@ class DNSAnalyzer:
         clean_domain = DomainValidator.clean_domain(domain)
 
         # Das Basisschema bleibt absichtlich klein und stabil.
-        results = {
+        results: Dict[str, Any] = {
             "domain": clean_domain,
             "ipv4": None,
             "ipv6": None,
@@ -245,6 +244,7 @@ class DNSAnalyzer:
                 timeout=self.dns_timeout,
                 encoding="cp850",
                 errors="replace",
+                check=False,
             )
         except subprocess.TimeoutExpired:
             return None
@@ -435,7 +435,7 @@ class DNSAnalyzer:
 
     def _parse_policy_directives(self, record: Optional[str]) -> Dict[str, str]:
         """Parse semicolon-separated policy directives (e.g. DMARC) into a key/value dict."""
-        directives = {}
+        directives: Dict[str, str] = {}
         if not record:
             return directives
 
@@ -458,7 +458,7 @@ class DNSAnalyzer:
         ruf = directives.get("ruf")
         has_reporting = bool(rua or ruf)
 
-        analysis = {
+        analysis: Dict[str, Any] = {
             "status": "missing" if not dmarc_record else "configured",
             "policy": policy or "not_set",
             "subdomain_policy": directives.get("sp") or policy or "not_set",
@@ -579,11 +579,11 @@ class DNSAnalyzer:
         self, domain: str, nameservers: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """Attempt AXFR zone transfer against authoritative nameservers."""
-        _AXFR_TIMEOUT = 3
+        axfr_timeout = 3
         tested_nameservers = []
 
         old_socket_timeout = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(_AXFR_TIMEOUT)
+        socket.setdefaulttimeout(axfr_timeout)
         try:
             for nameserver in nameservers[:3]:
                 server_ips = self._resolve_dns_records(nameserver, "A")
@@ -592,7 +592,7 @@ class DNSAnalyzer:
                     tested_nameservers.append(ns_ip)
                     try:
                         zone = dns.zone.from_xfr(
-                            dns.query.xfr(ns_ip, domain, lifetime=_AXFR_TIMEOUT)
+                            dns.query.xfr(ns_ip, domain, lifetime=axfr_timeout)
                         )
                         if zone:
                             record_count = len(zone.nodes.keys())
@@ -730,7 +730,7 @@ class DNSAnalyzer:
     _SPF_MAX_DEPTH = 2
 
     def _resolve_spf_includes_chain(
-        self, spf_record: Optional[str], domain: str
+        self, spf_record: Optional[str], _domain: str
     ) -> Dict[str, Any]:
         """Resolve SPF include/redirect references recursively (max depth = _SPF_MAX_DEPTH)."""
         flat: List[Dict[str, Any]] = []

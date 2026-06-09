@@ -3,6 +3,9 @@ Terminal Colors Utility for Domain Forensic Analyzer
 Professionelle Farbschemata und Formatierung fuer forensische Terminal-Ausgabe
 """
 
+import os
+import sys
+
 
 class Colors:
     """
@@ -178,8 +181,7 @@ class Colors:
         """
         if is_positive:
             return Colors.success(status)
-        else:
-            return Colors.error(status)
+        return Colors.error(status)
 
     @staticmethod
     def investigation_separator(length: int = 60) -> str:
@@ -227,14 +229,13 @@ class Colors:
 
         if level_upper == "LOW":
             return Colors.success(level_upper)
-        elif level_upper == "MEDIUM":
+        if level_upper == "MEDIUM":
             return Colors.warning(level_upper)
-        elif level_upper == "HIGH":
+        if level_upper == "HIGH":
             return Colors.error(level_upper)
-        elif level_upper == "CRITICAL":
+        if level_upper == "CRITICAL":
             return Colors.critical(level_upper)
-        else:
-            return Colors.dim(level_upper)
+        return Colors.dim(level_upper)
 
     @staticmethod
     def is_color_supported() -> bool:
@@ -244,9 +245,6 @@ class Colors:
         Returns:
             bool: True wenn Farben unterstuetzt werden
         """
-        import os
-        import sys
-
         # Windows-spezifische Pruefung
         if os.name == "nt":
             try:

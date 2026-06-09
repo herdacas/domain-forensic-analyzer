@@ -56,7 +56,7 @@ class NetworkIntelligence:
             'sprint', 'seabone', 'retn.net', 'lumen', 'zayo',
         ]
 
-    def analyze_network(self, ip_address: str, domain: str = None) -> Dict[str, Any]:
+    def analyze_network(self, ip_address: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """Run full network intelligence analysis and return structured result dict."""
         if not ip_address:
             return {'error': 'No IP address available for network analysis', 'analysis_status': 'fehlgeschlagen'}
@@ -101,7 +101,7 @@ class NetworkIntelligence:
         self.results = results
         return results
 
-    def _test_connectivity(self, ip_address: str, domain: str = None) -> Dict[str, Any]:
+    def _test_connectivity(self, ip_address: str, domain: Optional[str] = None) -> Dict[str, Any]:
         """Test ping and HTTP/S reachability."""
         connectivity = {
             'ping_reachable': False,
@@ -127,7 +127,7 @@ class NetworkIntelligence:
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=15,
                 encoding=self.encoding if self.is_windows else 'utf-8',
-                errors='replace',
+                errors='replace', check=False,
             )
             if result.returncode == 0:
                 return {'reachable': True, 'avg_time': self._extract_ping_time(result.stdout)}
@@ -306,7 +306,7 @@ class NetworkIntelligence:
                     encoding=self.encoding, errors='replace',
                 )
 
-                output_lines = []
+                output_lines: List[str] = []
                 start_time = time.monotonic()
                 consecutive_no_response_hops = 0
 
@@ -489,7 +489,7 @@ class NetworkIntelligence:
                 if '[' in part and ']' in part:
                     ip_address = part.strip('[]')
                     break
-                elif '.' in part and len(part.split('.')) == 4:
+                if '.' in part and len(part.split('.')) == 4:
                     if all(p.isdigit() for p in part.split('.')):
                         ip_address = part
                         break
@@ -630,7 +630,7 @@ class NetworkIntelligence:
                 return info
         return None
 
-    def _classify_route(self, enhanced_path: List[Dict[str, Any]], hop_intelligence: Dict[str, Any]) -> Dict[str, Any]:
+    def _classify_route(self, enhanced_path: List[Dict[str, Any]], _hop_intelligence: Dict[str, Any]) -> Dict[str, Any]:
         """Classify route type and privacy level from hop classifications."""
         consumer_hops = [h for h in enhanced_path if h['is_consumer_isp']]
         national_hops = [h for h in enhanced_path if h['is_national_isp']]
@@ -661,9 +661,9 @@ class NetworkIntelligence:
 
         return classification
 
-    def _assess_enhanced_opsec_risks(self, enhanced_path: List[Dict[str, Any]], hop_intelligence: Dict[str, Any], route_classification: Dict[str, Any]) -> Dict[str, Any]:
+    def _assess_enhanced_opsec_risks(self, enhanced_path: List[Dict[str, Any]], hop_intelligence: Dict[str, Any], _route_classification: Dict[str, Any]) -> Dict[str, Any]:
         """Assess OPSEC attribution risk from route characteristics."""
-        assessment = {
+        assessment: Dict[str, Any] = {
             'risk_level': 'low',
             'risk_factors': [],
             'recommendations': [],
