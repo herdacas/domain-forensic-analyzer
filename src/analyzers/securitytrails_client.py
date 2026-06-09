@@ -5,7 +5,7 @@ SecurityTrails Client for Domain Forensic Analyzer.
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import requests
 
@@ -103,7 +103,7 @@ class SecurityTrailsClient:
 
     def _get_historical_dns_summary(self, domain: str) -> Dict[str, Any]:
         """Get historical DNS summary for key record types"""
-        historical_data = {"a_records": [], "mx_records": [], "status": "success"}
+        historical_data: Dict[str, Any] = {"a_records": [], "mx_records": [], "status": "success"}
 
         try:
             # Get A record history (most important)
@@ -184,7 +184,7 @@ class SecurityTrailsClient:
 
     def _categorize_subdomains(self, subdomains: list) -> Dict[str, list]:
         """Categorize subdomains for security analysis"""
-        categories = {"admin": [], "api": [], "dev": [], "mail": [], "other": []}
+        categories: Dict[str, List[str]] = {"admin": [], "api": [], "dev": [], "mail": [], "other": []}
 
         for subdomain in subdomains:
             sub_lower = subdomain.lower()

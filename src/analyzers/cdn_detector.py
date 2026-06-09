@@ -10,12 +10,11 @@ import os
 import sys
 import urllib.request
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 # Foundation-Module importieren
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config.settings import get_settings
-from src.utils.colors import Colors
 
 
 class CDNDetector:
@@ -265,7 +264,7 @@ class CDNDetector:
         }
 
     def analyze_infrastructure(
-        self, ip_address: str, domain: str = None, rdns_hostname: str = None
+        self, ip_address: str, domain: Optional[str] = None, rdns_hostname: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Hauptanalyse-Funktion fuer Infrastructure-Klassifikation.
@@ -308,7 +307,7 @@ class CDNDetector:
         return results
 
     def _detect_provider(
-        self, ip_address: str, rdns_hostname: str = None
+        self, ip_address: str, rdns_hostname: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Erkennt CDN/Cloud-Provider basierend auf Hostname-Pattern (Pass 1) und IP-Prefix (Pass 2).
@@ -362,7 +361,7 @@ class CDNDetector:
             req = urllib.request.Request(url)
             req.add_header("User-Agent", "Domain-Forensic-Analyzer/3.4")
 
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:  # nosec B310 -- URL built from validated IP address, file:/ scheme not possible
                 data = json.loads(response.read().decode())
 
                 if data.get("status") == "success":
@@ -377,8 +376,7 @@ class CDNDetector:
                         "isp": data.get("isp"),
                         "status": "success",
                     }
-                else:
-                    return {"status": "failed", "error": "API returned failure status"}
+                return {"status": "failed", "error": "API returned failure status"}
 
         except urllib.error.URLError as error:
             return {"status": "error", "error": f"Network error: {str(error)}"}

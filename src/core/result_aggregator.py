@@ -291,7 +291,7 @@ class ResultAggregator:
     def _extract_and_standardize_assets_fixed(
         self, module_results: Dict[str, Any]
     ) -> List[StandardizedAsset]:
-        assets = []
+        assets: List[StandardizedAsset] = []
         subdomain_result = module_results.get("subdomain", {})
         if subdomain_result.get("analysis_status") != "abgeschlossen":
             return assets

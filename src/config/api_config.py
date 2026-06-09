@@ -53,11 +53,12 @@ class SecureAPIManager:
         self._load_configurations()
 
     def _load_configurations(self) -> None:
+        """Load API keys from file and environment variables (env takes priority)."""
         # 1. Start from file (if it exists)
         file_keys: Dict[str, Dict] = {}
         try:
             if self.config_file.exists():
-                with open(self.config_file, "r") as f:
+                with open(self.config_file, "r", encoding="utf-8") as f:
                     file_keys = json.load(f)
             else:
                 self._create_config_template()
@@ -97,17 +98,20 @@ class SecureAPIManager:
                 "base_url": base_url,
                 "rate_limit": rate_limit,
             }
-        with open(self.config_file, "w") as f:
+        with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
 
     def get_api_config(self, service: str) -> Optional[APIConfig]:
+        """Return a validated APIConfig for the given service, or None."""
         config = self.api_configs.get(service)
         if config and config.is_valid():
             return config
         return None
 
     def is_service_available(self, service: str) -> bool:
+        """Return True if the service has a valid API key configured."""
         return self.get_api_config(service) is not None
 
     def get_available_services(self) -> list:
+        """Return list of service names with valid API keys."""
         return [s for s in self.api_configs if self.is_service_available(s)]

@@ -123,7 +123,7 @@ def capture_console() -> Generator[io.StringIO, None, None]:
     else:
         original_stdout = sys.stdout
 
-        class _Tee:
+        class _TeeStdout:
             def write(self, data: str) -> int:
                 buf.write(data)
                 return original_stdout.write(data)
@@ -134,7 +134,7 @@ def capture_console() -> Generator[io.StringIO, None, None]:
             def __getattr__(self, name: str) -> Any:
                 return getattr(original_stdout, name)
 
-        sys.stdout = _Tee()
+        sys.stdout = _TeeStdout()
         try:
             yield buf
         finally:
