@@ -151,7 +151,7 @@ class NetworkIntelligence:
         try:
             req = urllib.request.Request(f"https://{domain}")
             req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
                 if response.status == 200:
                     connectivity['https_accessible'] = True
         except Exception:
@@ -161,7 +161,7 @@ class NetworkIntelligence:
             try:
                 req = urllib.request.Request(f"http://{domain}")
                 req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
-                with urllib.request.urlopen(req, timeout=10) as response:
+                with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
                     if response.status == 200:
                         connectivity['http_accessible'] = True
             except Exception:

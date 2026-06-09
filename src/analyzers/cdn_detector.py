@@ -361,7 +361,7 @@ class CDNDetector:
             req = urllib.request.Request(url)
             req.add_header("User-Agent", "Domain-Forensic-Analyzer/3.4")
 
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:  # nosec B310 -- URL built from validated IP address, file:/ scheme not possible
                 data = json.loads(response.read().decode())
 
                 if data.get("status") == "success":
