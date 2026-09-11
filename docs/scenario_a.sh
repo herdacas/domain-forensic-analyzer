@@ -14,6 +14,12 @@ DOMAIN="example.com"
 OUTPUT="docs/examples/scenario_a_linux_direct.json"
 REPORT_DIR="docs/examples"
 
+# Explizite venv-Binary bevorzugen (robust gegen PATH-Reset unter sudo)
+PYTHON="python3"
+if [ -x ".venv/bin/python" ]; then
+    PYTHON=".venv/bin/python"
+fi
+
 echo ""
 echo "=== PHASE 4: Szenario A (Linux + Direktverbindung) ==="
 echo "Domain  : $DOMAIN"
@@ -28,7 +34,7 @@ echo ""
 mkdir -p "$REPORT_DIR"
 
 # Scan ausführen und Report in reports/ speichern
-python3 run.py "$DOMAIN"
+"$PYTHON" run.py "$DOMAIN"
 
 # Letzten JSON-Report aus reports/ holen
 LATEST=$(ls -t reports/*.json 2>/dev/null | head -1)
@@ -38,7 +44,7 @@ if [ -z "$LATEST" ]; then
 fi
 
 # Metadaten hinzufügen und als Szenario-Report speichern
-python3 - <<PYEOF
+"$PYTHON" - <<PYEOF
 import json, sys, os
 from datetime import datetime
 

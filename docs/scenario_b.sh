@@ -14,6 +14,14 @@ DOMAIN="example.com"
 OUTPUT="docs/examples/scenario_b_linux_vpn.json"
 REPORT_DIR="docs/examples"
 
+# Läuft dieses Skript unter "sudo vpn-ns run bash docs/scenario_b.sh", geht die
+# aktivierte venv (source .venv/bin/activate) i.d.R. verloren, weil sudo PATH
+# zurücksetzt. Deshalb explizit die venv-Binary bevorzugen, falls vorhanden.
+PYTHON="python3"
+if [ -x ".venv/bin/python" ]; then
+    PYTHON=".venv/bin/python"
+fi
+
 echo ""
 echo "=== PHASE 4: Szenario B (Linux + VPN) ==="
 echo ""
@@ -37,7 +45,7 @@ fi
 mkdir -p "$REPORT_DIR"
 
 # Scan ausführen
-python3 run.py "$DOMAIN"
+"$PYTHON" run.py "$DOMAIN"
 
 # Letzten Report holen
 LATEST=$(ls -t reports/*.json 2>/dev/null | head -1)
@@ -46,7 +54,7 @@ if [ -z "$LATEST" ]; then
     exit 1
 fi
 
-python3 - <<PYEOF
+"$PYTHON" - <<PYEOF
 import json
 from datetime import datetime
 
