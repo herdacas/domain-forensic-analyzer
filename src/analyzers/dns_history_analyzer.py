@@ -411,7 +411,7 @@ class DNSHistoryAnalyzer:
         endpoint = "https://crt.sh/"
         params = {"q": f"%.{domain}", "output": "json"}
         max_retries = 2
-        last_error: Exception = None
+        last_error: Optional[Exception] = None
         for attempt in range(1, max_retries + 2):
             try:
                 response = self.session.get(endpoint, params=params, timeout=25)
@@ -475,7 +475,7 @@ class DNSHistoryAnalyzer:
         endpoint = "https://api.certspotter.com/v1/issuances"
         params = {"domain": domain, "include_subdomains": "true", "expand": "dns_names"}
         max_retries = 2
-        last_error: Exception = None
+        last_error: Optional[Exception] = None
         for attempt in range(1, max_retries + 2):
             try:
                 response = self.session.get(endpoint, params=params, timeout=25)
@@ -682,8 +682,8 @@ class DNSHistoryAnalyzer:
     def _calculate_timeline_span(
         self, timeline: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        dates = [self._parse_datetime(event.get("date")) for event in timeline]
-        dates = [date for date in dates if date]
+        raw_dates = [self._parse_datetime(event.get("date")) for event in timeline]
+        dates: List[datetime] = [d for d in raw_dates if d is not None]
         if not dates:
             return {"start_date": None, "end_date": None, "days": 0}
         start_date = min(dates)
@@ -766,7 +766,7 @@ class DNSHistoryAnalyzer:
             "historical_risk_events": suspicious,
         }
 
-    def _classify_change(self, record_type: str, values: List[str]) -> str:
+    def _classify_change(self, record_type: str, _values: List[str]) -> str:
         normalized_type = record_type.lower()
         if normalized_type in {"a", "aaaa"}:
             return "Infrastructure resolution change"

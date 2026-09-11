@@ -1,9 +1,10 @@
 # whois.py — WHOIS integration for Domain Forensic Analyzer
 # MIT License – Copyright (c) 2025 herdacas
+"""WHOIS integration for Domain Forensic Analyzer."""
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 import whois  # python-whois
@@ -95,7 +96,7 @@ def _extract_whoisxml_nameservers(
     record: Dict[str, Any], registry_data: Dict[str, Any]
 ) -> list:
     """Extract nameservers from all WhoisXML locations seen in API responses."""
-    nameservers = []
+    nameservers: List[str] = []
 
     for source in (record.get("nameServers"), registry_data.get("nameServers")):
         if not source:
@@ -124,7 +125,7 @@ def _extract_whoisxml_nameservers(
 
 def get_whois_local(domain: str) -> Dict[str, Any]:
     """Query WHOIS via python-whois (no API key required). Used as fallback."""
-    logger.info(f"WHOIS (lokal) – Abfrage für {domain}")
+    logger.info("WHOIS (lokal) - Abfrage fuer %s", domain)
     try:
         w = whois.whois(domain)
 
@@ -147,11 +148,11 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
             ),
             "raw_text": str(w),
         }
-        logger.debug(f"WHOIS lokal erfolgreich für {domain}")
+        logger.debug("WHOIS lokal erfolgreich fuer %s", domain)
         return result
 
     except Exception as e:
-        logger.warning(f"WHOIS lokal fehlgeschlagen für {domain}: {str(e)}")
+        logger.warning("WHOIS lokal fehlgeschlagen fuer %s: %s", domain, e)
         return {
             "source": "python-whois (lokal)",
             "domain": domain.lower(),
@@ -177,7 +178,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
         "da": "1",  # include registrant data where available
     }
 
-    logger.info(f"WHOIS (WhoisXML API) – Abfrage für {domain}")
+    logger.info("WHOIS (WhoisXML API) - Abfrage fuer %s", domain)
     try:
         response = requests.get(url, params=params, timeout=20)
         response.raise_for_status()
@@ -185,7 +186,7 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
 
         if "ErrorMessage" in data:
             err = data["ErrorMessage"]["msg"]
-            logger.warning(f"WhoisXML API Fehler für {domain}: {err}")
+            logger.warning("WhoisXML API Fehler fuer %s: %s", domain, err)
             return {"source": "WhoisXML API", "error": err}
 
         record = data.get("WhoisRecord", {})
@@ -222,14 +223,14 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
             ),
             "raw_json": data,
         }
-        logger.debug(f"WHOIS WhoisXML API erfolgreich für {domain}")
+        logger.debug("WHOIS WhoisXML API erfolgreich fuer %s", domain)
         return result
 
     except requests.exceptions.RequestException as e:
-        logger.warning(f"WHOIS WhoisXML API Request-Fehler für {domain}: {str(e)}")
+        logger.warning("WHOIS WhoisXML API Request-Fehler fuer %s: %s", domain, e)
         return {"source": "WhoisXML API", "error": str(e)}
     except Exception as e:
-        logger.error(f"Unerwarteter Fehler bei WhoisXML API für {domain}: {str(e)}")
+        logger.error("Unerwarteter Fehler bei WhoisXML API fuer %s: %s", domain, e)
         return {"source": "WhoisXML API", "error": str(e)}
 
 
@@ -240,8 +241,8 @@ def get_whois(domain: str) -> Dict[str, Any]:
     if WHOISXML_API_KEY and WHOISXML_API_KEY.strip():
         result = get_whois_xmlapi(domain)
         if "error" not in result or "rate limit" in str(result.get("error", "")).lower():
-            logger.info(f"WHOIS via WhoisXML API for {domain}")
+            logger.info("WHOIS via WhoisXML API for %s", domain)
             return result
 
-    logger.info(f"WHOIS fallback to python-whois for {domain}")
+    logger.info("WHOIS fallback to python-whois for %s", domain)
     return get_whois_local(domain)

@@ -1,0 +1,4404 @@
+{
+  "scan_id": "0292",
+  "timestamp": "2026-09-11T21:03:36.421190",
+  "domain": "example.com",
+  "session_id": "20260911-210336",
+  "scan_duration_seconds": 74.36,
+  "analyst": {
+    "external_ip": "95.91.196.245",
+    "local_ip": "192.168.0.200",
+    "system": {
+      "hostname": "LAPTOP-2CC9B721",
+      "username": "dexter",
+      "platform": "Windows",
+      "platform_version": "10.0.19045",
+      "architecture": "AMD64"
+    },
+    "opsec": {
+      "attribution_risk": "LOW",
+      "stealth_level": "MEDIUM",
+      "analysis_type": "MIXED - Passive APIs + Active Probes",
+      "behind_nat": true,
+      "potential_vpn": false
+    }
+  },
+  "result": {
+    "domain": "example.com",
+    "analysis_timestamp": "2026-09-11T21:04:50.771776",
+    "total_execution_time": 73.812437,
+    "modules_executed": [
+      "dns",
+      "whois",
+      "dns_history",
+      "cdn",
+      "network",
+      "subdomain",
+      "ssl",
+      "securitytrails",
+      "abuseipdb",
+      "virustotal",
+      "ip_history"
+    ],
+    "modules_successful": [
+      "dns",
+      "whois",
+      "dns_history",
+      "cdn",
+      "network",
+      "subdomain",
+      "ssl",
+      "securitytrails",
+      "abuseipdb",
+      "virustotal",
+      "ip_history"
+    ],
+    "modules_failed": [],
+    "total_assets_found": 1,
+    "assets": [
+      {
+        "asset_id": "subdomain_www",
+        "asset_type": "subdomain",
+        "value": "www",
+        "risk_level": "informational",
+        "confidence": "high",
+        "source": "subdomain_scan",
+        "metadata": {
+          "subdomain": "www",
+          "full_domain": "www.example.com",
+          "ip_address": "172.66.147.243",
+          "status": "active"
+        },
+        "discovered_at": "2026-09-11T21:04:50.771711"
+      }
+    ],
+    "sensitive_assets_found": 0,
+    "critical_assets_count": 0,
+    "infrastructure": {
+      "provider_name": "Cloudflare",
+      "provider_type": "cdn",
+      "protection_level": "high",
+      "location": {},
+      "asn_info": {
+        "asn": null,
+        "organization": null
+      },
+      "confidence": "high",
+      "source": "cdn_detection"
+    },
+    "network_path": {
+      "total_hops": 9,
+      "responsive_hops": 0,
+      "connectivity_status": "unknown",
+      "opsec_risk_level": "low",
+      "response_times": {
+        "ping": "18ms"
+      },
+      "route_type": "unknown",
+      "confidence": "high",
+      "source": "network_intelligence"
+    },
+    "dns_info": {
+      "ipv4": "172.66.147.243",
+      "ipv6": null,
+      "reverse_dns": null,
+      "nameservers": [
+        "elliott.ns.cloudflare.com",
+        "hera.ns.cloudflare.com"
+      ],
+      "mail_servers": [],
+      "soa_record": {
+        "primary_nameserver": "elliott.ns.cloudflare.com",
+        "responsible_party": "dns.cloudflare.com",
+        "serial": 2413856909,
+        "refresh": 10000,
+        "retry": 2400,
+        "expire": 604800,
+        "minimum_ttl": 1800
+      },
+      "txt_records": [
+        "_k2n1y4vw3qtb4skdx9e7dxt97qrmmq9",
+        "v=spf1 -all"
+      ],
+      "spf_record": "v=spf1 -all",
+      "spf_analysis": {
+        "status": "configured",
+        "all_mechanism": "hard_fail",
+        "includes_count": 0,
+        "redirect_present": false,
+        "ip4_count": 0,
+        "ip6_count": 0,
+        "summary": "hard fail (-all), includes: 0",
+        "findings": []
+      },
+      "dmarc_record": "v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s",
+      "dmarc_analysis": {
+        "status": "configured",
+        "policy": "reject",
+        "subdomain_policy": "reject",
+        "reporting_enabled": false,
+        "rua": null,
+        "ruf": null,
+        "alignment": {
+          "adkim": "s",
+          "aspf": "s"
+        },
+        "summary": "policy: reject, no reporting endpoints",
+        "findings": [
+          "DMARC has no rua/ruf reporting destination"
+        ]
+      },
+      "dkim": {
+        "status": "selectors_found",
+        "selectors": [
+          {
+            "selector": "default",
+            "record": "v=DKIM1; p="
+          },
+          {
+            "selector": "selector1",
+            "record": "v=DKIM1; p="
+          },
+          {
+            "selector": "selector2",
+            "record": "v=DKIM1; p="
+          }
+        ],
+        "tested_selectors": [
+          "default",
+          "selector1",
+          "selector2"
+        ],
+        "discovery_mode": "heuristic_common_selectors"
+      },
+      "caa_records": [],
+      "dnssec": {
+        "has_ds": true,
+        "has_dnskey": true,
+        "status": "enabled"
+      },
+      "zone_transfer": {
+        "status": "not_allowed",
+        "tested_nameservers": [
+          "108.162.195.228",
+          "172.64.32.162"
+        ]
+      },
+      "dns_configuration_assessment": {
+        "status": "partially_hardened",
+        "summary": "partially hardened configuration",
+        "findings": [
+          "DMARC reporting not configured",
+          "CAA policy not configured"
+        ],
+        "strengths": [
+          "SPF hard-fail enforcement present",
+          "DMARC enforcement policy: reject",
+          "Common DKIM selectors detected via heuristic discovery",
+          "DNSSEC indicators detected",
+          "Zone transfer not allowed or filtered"
+        ]
+      }
+    },
+    "overall_risk_level": "minimal",
+    "risk_factors": [],
+    "risk_score": 0.0,
+    "intelligence_sources": [
+      "dns_analysis",
+      "whois",
+      "dns_history",
+      "cdn_detection",
+      "network_intelligence",
+      "subdomain_scan"
+    ],
+    "data_freshness": {
+      "dns": "2026-09-11T21:04:50.771764",
+      "whois": "2026-09-11T21:04:50.771764",
+      "dns_history": "2026-09-11T21:04:50.771764",
+      "cdn": "2026-09-11T21:04:50.771764",
+      "network": "2026-09-11T21:04:50.771764",
+      "subdomain": "2026-09-11T21:04:50.771764",
+      "ssl": "2026-09-11T21:04:50.771764",
+      "abuseipdb": "2026-09-11T21:04:50.771764",
+      "virustotal": "2026-09-11T21:04:50.771764",
+      "ip_history": "2026-09-11T21:04:50.771764"
+    },
+    "confidence_metrics": {
+      "overall": "medium",
+      "asset_discovery": "high"
+    },
+    "warnings": [],
+    "errors": [],
+    "results": {
+      "dns": {
+        "domain": "example.com",
+        "ipv4": "172.66.147.243",
+        "ipv6": null,
+        "reverse_dns": null,
+        "a_record_ttl": 76,
+        "mx_records": [],
+        "mx_record_ttl": 125,
+        "ns_records": [
+          "elliott.ns.cloudflare.com",
+          "hera.ns.cloudflare.com"
+        ],
+        "ns_record_ttl": 43025,
+        "soa_record": {
+          "primary_nameserver": "elliott.ns.cloudflare.com",
+          "responsible_party": "dns.cloudflare.com",
+          "serial": 2413856909,
+          "refresh": 10000,
+          "retry": 2400,
+          "expire": 604800,
+          "minimum_ttl": 1800
+        },
+        "txt_records": [
+          "_k2n1y4vw3qtb4skdx9e7dxt97qrmmq9",
+          "v=spf1 -all"
+        ],
+        "spf_record": "v=spf1 -all",
+        "spf_analysis": {
+          "status": "configured",
+          "all_mechanism": "hard_fail",
+          "includes_count": 0,
+          "redirect_present": false,
+          "ip4_count": 0,
+          "ip6_count": 0,
+          "summary": "hard fail (-all), includes: 0",
+          "findings": []
+        },
+        "spf_includes": [],
+        "dmarc_record": "v=DMARC1;p=reject;sp=reject;adkim=s;aspf=s",
+        "dmarc_analysis": {
+          "status": "configured",
+          "policy": "reject",
+          "subdomain_policy": "reject",
+          "reporting_enabled": false,
+          "rua": null,
+          "ruf": null,
+          "alignment": {
+            "adkim": "s",
+            "aspf": "s"
+          },
+          "summary": "policy: reject, no reporting endpoints",
+          "findings": [
+            "DMARC has no rua/ruf reporting destination"
+          ]
+        },
+        "dkim": {
+          "status": "selectors_found",
+          "selectors": [
+            {
+              "selector": "default",
+              "record": "v=DKIM1; p="
+            },
+            {
+              "selector": "selector1",
+              "record": "v=DKIM1; p="
+            },
+            {
+              "selector": "selector2",
+              "record": "v=DKIM1; p="
+            }
+          ],
+          "tested_selectors": [
+            "default",
+            "selector1",
+            "selector2"
+          ],
+          "discovery_mode": "heuristic_common_selectors"
+        },
+        "cname_target": null,
+        "caa_records": [],
+        "dnssec": {
+          "has_ds": true,
+          "has_dnskey": true,
+          "status": "enabled"
+        },
+        "zone_transfer": {
+          "status": "not_allowed",
+          "tested_nameservers": [
+            "108.162.195.228",
+            "172.64.32.162"
+          ]
+        },
+        "dns_configuration_assessment": {
+          "status": "partially_hardened",
+          "summary": "partially hardened configuration",
+          "findings": [
+            "DMARC reporting not configured",
+            "CAA policy not configured"
+          ],
+          "strengths": [
+            "SPF hard-fail enforcement present",
+            "DMARC enforcement policy: reject",
+            "Common DKIM selectors detected via heuristic discovery",
+            "DNSSEC indicators detected",
+            "Zone transfer not allowed or filtered"
+          ]
+        },
+        "analysis_status": "abgeschlossen"
+      },
+      "whois": {
+        "source": "python-whois (lokal)",
+        "domain": "example.com",
+        "registrar": "RESERVED-Internet Assigned Numbers Authority",
+        "creation_date": "1995-08-14T04:00:00+00:00",
+        "expiration_date": "2027-08-13T04:00:00+00:00",
+        "updated_date": "2026-08-14T08:01:43+00:00",
+        "name_servers": [
+          "ELLIOTT.NS.CLOUDFLARE.COM",
+          "HERA.NS.CLOUDFLARE.COM"
+        ],
+        "status": [
+          "clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited",
+          "clientTransferProhibited https://icann.org/epp#clientTransferProhibited",
+          "clientUpdateProhibited https://icann.org/epp#clientUpdateProhibited"
+        ],
+        "registrant_name": null,
+        "registrant_organization": null,
+        "registrant_country": null,
+        "registrant_email": null,
+        "registry_policy": null,
+        "privacy_proxy": null,
+        "raw_text": "{\n  \"domain_name\": \"EXAMPLE.COM\",\n  \"registrar\": \"RESERVED-Internet Assigned Numbers Authority\",\n  \"registrar_url\": \"http://res-dom.iana.org\",\n  \"reseller\": null,\n  \"whois_server\": \"whois.iana.org\",\n  \"referral_url\": null,\n  \"updated_date\": \"2026-08-14 08:01:43+00:00\",\n  \"creation_date\": \"1995-08-14 04:00:00+00:00\",\n  \"expiration_date\": \"2027-08-13 04:00:00+00:00\",\n  \"name_servers\": [\n    \"ELLIOTT.NS.CLOUDFLARE.COM\",\n    \"HERA.NS.CLOUDFLARE.COM\"\n  ],\n  \"status\": [\n    \"clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited\",\n    \"clientTransferProhibited https://icann.org/epp#clientTransferProhibited\",\n    \"clientUpdateProhibited https://icann.org/epp#clientUpdateProhibited\"\n  ],\n  \"emails\": null,\n  \"dnssec\": \"signedDelegation\",\n  \"name\": null,\n  \"org\": null,\n  \"address\": null,\n  \"city\": null,\n  \"state\": null,\n  \"registrant_postal_code\": null,\n  \"country\": null,\n  \"tech_name\": null,\n  \"tech_org\": null,\n  \"admin_name\": null,\n  \"admin_org\": null\n}",
+        "analysis_status": "abgeschlossen"
+      },
+      "dns_history": {
+        "analysis_status": "abgeschlossen",
+        "domain": "example.com",
+        "api_status": "live_data",
+        "data_sources": [
+          "RobTex",
+          "Mnemonic",
+          "VirusTotal",
+          "crt.sh"
+        ],
+        "timeline_span": {
+          "start_date": "2009-07-04",
+          "end_date": "2026-07-29",
+          "days": 6234
+        },
+        "major_changes": 5,
+        "timeline": [
+          {
+            "date": "2026-04-13",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a",
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.20.23.154"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "104.20.23.154",
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-03-17",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "8.47.69.6",
+              "8.6.112.6"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-02-01",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "8.47.69.0",
+              "8.6.112.0"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2025-12-20",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78",
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "elliott.ns.cloudflare.com"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "hera.ns.cloudflare.com"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.18.26.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.18.27.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2019-10-14T13:17:02+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "ns.icann.org"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "208.77.188.166"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "sns.dns.icann.org"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "a.iana-servers.net"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "b.iana-servers.net"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:2800:220:1:248:1893:25c8:1946"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "93.184.216.34"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.20.23.154"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.18.27.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.18.26.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.20.34.220"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "172.66.144.113"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:22dc"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:9071"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.220.75.245"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.220.75.232"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.215.0.138"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.215.0.136"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.192.228.84"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.192.228.80"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:bc00:53::b81e:94c8"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:bc00:53::b81e:94ce"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1408:ec00:36::1736:7f24"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1408:ec00:36::1736:7f31"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:5e00:6::17ce:bc12"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:5e00:6::17ce:bc1b"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "96.7.128.198"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "96.7.128.175"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:3a00:21::173e:2e66"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:3a00:21::173e:2e65"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "93.184.215.14"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:21f:cb07:6820:80da:af6b:8b2c"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:021f:cb07:6820:80da:af6b:8b2c"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "93.184.216.34"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:220:1:248:1893:25c8:1946"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "103.74.119.182"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "127.0.0.1"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "210.211.113.133"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "74.117.222.18"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          }
+        ],
+        "a_history": [
+          {
+            "date": "2026-04-13",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a",
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.20.23.154"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10T07:51:58+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-10",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "104.20.23.154",
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-03-17",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "8.47.69.6",
+              "8.6.112.6"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2026-02-01",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "8.47.69.0",
+              "8.6.112.0"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2025-12-20",
+            "last_seen": null,
+            "change_type": "Historical IP resolution",
+            "record_type": "A",
+            "source": "VirusTotal",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78",
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "medium"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.18.26.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "104.18.27.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "208.77.188.166"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "AAAA record observed",
+            "record_type": "AAAA",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "2606:2800:220:1:248:1893:25c8:1946"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "93.184.216.34"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:179a"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:93f3"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "172.66.147.243"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.20.23.154"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.18.27.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.18.26.120"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1b78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700::6812:1a78"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "104.20.34.220"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "172.66.144.113"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::6814:22dc"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:4700:10::ac42:9071"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.220.75.245"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.220.75.232"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.215.0.138"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.215.0.136"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.192.228.84"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "23.192.228.80"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:bc00:53::b81e:94c8"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:bc00:53::b81e:94ce"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1408:ec00:36::1736:7f24"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1408:ec00:36::1736:7f31"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:5e00:6::17ce:bc12"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:5e00:6::17ce:bc1b"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "96.7.128.198"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "96.7.128.175"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:3a00:21::173e:2e66"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2600:1406:3a00:21::173e:2e65"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "93.184.215.14"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:21f:cb07:6820:80da:af6b:8b2c"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:021f:cb07:6820:80da:af6b:8b2c"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "93.184.216.34"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          },
+          {
+            "date": "unknown",
+            "last_seen": null,
+            "change_type": "A record observed",
+            "record_type": "A",
+            "source": "Mnemonic",
+            "previous": [],
+            "new": [
+              "2606:2800:220:1:248:1893:25c8:1946"
+            ],
+            "classification": "Infrastructure resolution change",
+            "severity": "low"
+          }
+        ],
+        "ns_history": [
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "sns.dns.icann.org"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "a.iana-servers.net"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2009-07-04T03:41:38+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "b.iana-servers.net"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2019-10-14T13:17:02+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "ns.icann.org"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "elliott.ns.cloudflare.com"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          },
+          {
+            "date": "2022-01-13T19:52:50+00:00",
+            "last_seen": "2026-09-11T19:03:42+00:00",
+            "change_type": "NS record observed",
+            "record_type": "NS",
+            "source": "RobTex",
+            "previous": [],
+            "new": [
+              "hera.ns.cloudflare.com"
+            ],
+            "classification": "Authority / nameserver change",
+            "severity": "low"
+          }
+        ],
+        "mx_history": [],
+        "ct_history": [
+          {
+            "date": "2026-07-29T22:10:08+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-07-29T22:09:26+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-07-29T21:52:31+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-07-29T21:52:13+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-05-31T21:39:12+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-05-31T21:39:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-15T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-02T21:18:57+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-04-02T21:17:13+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-02-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-02-13T18:53:48+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2026-02-13T18:50:59+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-12-16T19:39:32+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-12-16T18:50:39+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-12-16T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-12-02T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-11-21T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-11-20T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-02-07T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-01-27T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-01-15T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2025-01-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2024-01-30T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2023-01-27T01:21:18+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2023-01-13T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2022-03-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2021-12-10T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2020-11-24T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2018-11-28T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2016-07-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "dev.example.com",
+              "example.com",
+              "products.example.com",
+              "support.example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "medium"
+          },
+          {
+            "date": "2016-07-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2016-07-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "m.example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2016-07-14T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2015-11-03T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          },
+          {
+            "date": "2014-11-06T00:00:00+00:00",
+            "last_seen": null,
+            "change_type": "Certificate names observed",
+            "record_type": "CT",
+            "source": "crt.sh",
+            "previous": [],
+            "new": [
+              "example.com",
+              "www.example.com"
+            ],
+            "classification": "Certificate / subdomain expansion",
+            "severity": "low"
+          }
+        ],
+        "ct_metadata": {
+          "count": 35,
+          "source_label": "crt.sh",
+          "earliest": "2014-11-06",
+          "latest": "2026-07-29",
+          "subdomains": []
+        },
+        "pattern_analysis": {
+          "change_frequency": "low change velocity",
+          "infrastructure_stability": "moderately dynamic",
+          "suspicious_patterns": [
+            "many historical IP resolutions",
+            "multiple nameserver changes"
+          ],
+          "risk_level": "MEDIUM",
+          "historical_risk_events": [
+            "many historical IP resolutions",
+            "multiple nameserver changes"
+          ]
+        },
+        "historical_risk_events": [
+          "many historical IP resolutions",
+          "multiple nameserver changes"
+        ],
+        "source_errors": [
+          "securitytrails: API quota exceeded"
+        ]
+      },
+      "cdn": {
+        "ip_address": "172.66.147.243",
+        "domain": "example.com",
+        "rdns_hostname": null,
+        "timestamp": "2026-09-11T21:04:03.566789",
+        "provider_detected": "cloudflare",
+        "provider_name": "Cloudflare",
+        "infrastructure_type": "cdn",
+        "protection_level": "high",
+        "features": [
+          "DDoS Protection",
+          "WAF",
+          "Bot Management",
+          "Always Online"
+        ],
+        "geolocation": {
+          "country": "Canada",
+          "countryCode": "CA",
+          "city": "Toronto",
+          "region": "ON",
+          "timezone": "America/Toronto",
+          "org": "Cloudflare, Inc.",
+          "as": "AS13335 Cloudflare, Inc.",
+          "isp": "Cloudflare, Inc.",
+          "status": "success"
+        },
+        "asn_info": {
+          "asn": "AS13335 Cloudflare, Inc.",
+          "organization": "Cloudflare, Inc.",
+          "isp": "Cloudflare, Inc."
+        },
+        "analysis_status": "abgeschlossen"
+      },
+      "network": {
+        "target_ip": "172.66.147.243",
+        "target_domain": "example.com",
+        "timestamp": "2026-09-11T21:04:03.681494",
+        "traceroute_data": {
+          "status": "success",
+          "hops": [
+            {
+              "hop": 1,
+              "ip": "192.168.0.1",
+              "hostname": "kabelbox.local",
+              "status": "responsive",
+              "latencies": [
+                "1ms",
+                "1ms",
+                "1ms"
+              ]
+            },
+            {
+              "hop": 2,
+              "ip": "83.169.183.43",
+              "hostname": "ip53a9b72b.static.kabel-deutschland.de",
+              "status": "responsive",
+              "latencies": [
+                "13ms",
+                "10ms",
+                "10ms"
+              ]
+            },
+            {
+              "hop": 3,
+              "ip": "88.134.235.133",
+              "hostname": "ip5886eb85.static.kabel-deutschland.de",
+              "status": "responsive",
+              "latencies": [
+                "12ms",
+                "12ms",
+                "55ms"
+              ]
+            },
+            {
+              "hop": 4,
+              "ip": "145.254.3.122",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "15ms",
+                "13ms",
+                "15ms"
+              ]
+            },
+            {
+              "hop": 5,
+              "ip": "92.79.215.51",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "20ms",
+                "19ms",
+                "23ms"
+              ]
+            },
+            {
+              "hop": 6,
+              "ip": "92.79.215.51",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "20ms",
+                "19ms",
+                "18ms"
+              ]
+            },
+            {
+              "hop": 7,
+              "ip": "162.158.112.2",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "31ms",
+                "27ms",
+                "24ms"
+              ]
+            },
+            {
+              "hop": 8,
+              "ip": "162.158.112.33",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "23ms",
+                "27ms",
+                "32ms"
+              ]
+            },
+            {
+              "hop": 9,
+              "ip": "172.66.147.243",
+              "hostname": null,
+              "status": "responsive",
+              "latencies": [
+                "20ms",
+                "18ms",
+                "18ms"
+              ]
+            }
+          ],
+          "total_hops": 9,
+          "command_timeout_seconds": 50,
+          "probe_timeout_ms": 2000,
+          "max_hops": 15,
+          "last_responsive_hop": 9,
+          "first_unresponsive_hop": null
+        },
+        "enhanced_network_path": [
+          {
+            "hop_number": 1,
+            "ip_address": "192.168.0.1",
+            "hostname": "kabelbox.local",
+            "status": "responsive",
+            "latencies": [
+              "1ms",
+              "1ms",
+              "1ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "local_gateway"
+          },
+          {
+            "hop_number": 2,
+            "ip_address": "83.169.183.43",
+            "hostname": "ip53a9b72b.static.kabel-deutschland.de",
+            "status": "responsive",
+            "latencies": [
+              "13ms",
+              "10ms",
+              "10ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 3,
+            "ip_address": "88.134.235.133",
+            "hostname": "ip5886eb85.static.kabel-deutschland.de",
+            "status": "responsive",
+            "latencies": [
+              "12ms",
+              "12ms",
+              "55ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 4,
+            "ip_address": "145.254.3.122",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "15ms",
+              "13ms",
+              "15ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 5,
+            "ip_address": "92.79.215.51",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "20ms",
+              "19ms",
+              "23ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 6,
+            "ip_address": "92.79.215.51",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "20ms",
+              "19ms",
+              "18ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 7,
+            "ip_address": "162.158.112.2",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "31ms",
+              "27ms",
+              "24ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 8,
+            "ip_address": "162.158.112.33",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "23ms",
+              "27ms",
+              "32ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          },
+          {
+            "hop_number": 9,
+            "ip_address": "172.66.147.243",
+            "hostname": null,
+            "status": "responsive",
+            "latencies": [
+              "20ms",
+              "18ms",
+              "18ms"
+            ],
+            "provider_type": "unknown",
+            "is_consumer_isp": false,
+            "is_national_isp": false,
+            "is_international_backbone": false,
+            "is_critical_hop": false,
+            "hop_classification": "transit"
+          }
+        ],
+        "connectivity_test": {
+          "ping_reachable": true,
+          "http_accessible": false,
+          "https_accessible": true,
+          "response_times": {
+            "ping": "18ms"
+          }
+        },
+        "opsec_assessment": {
+          "risk_level": "low",
+          "risk_factors": [],
+          "recommendations": [
+            "Current route provides good anonymity for standard analysis"
+          ],
+          "analyst_attribution_risk": "low",
+          "intelligence_exposure": "minimal"
+        },
+        "route_classification": {
+          "contains_consumer_isp": false,
+          "contains_national_isp": false,
+          "contains_international_backbone": false,
+          "intelligence_availability": "medium",
+          "route_type": "standard_route",
+          "privacy_level": "good"
+        },
+        "hop_intelligence": {
+          "total_hops_analyzed": 9,
+          "responsive_hops": 9,
+          "provider_analysis": {},
+          "intelligence_summary": {
+            "providers_identified": 0,
+            "provider_types": {},
+            "consumer_isps_detected": 0,
+            "national_isps_detected": 0,
+            "backbones_detected": 0
+          }
+        },
+        "analysis_status": "abgeschlossen",
+        "http_behavior": {
+          "available": true,
+          "http_status": 200,
+          "https_status": 200,
+          "server": "cloudflare",
+          "hsts": false,
+          "hsts_max_age": null,
+          "hsts_include_subdomains": false,
+          "csp": null,
+          "x_frame_options": null,
+          "has_redirect": false,
+          "redirect_chain": [],
+          "assessment": "weak"
+        }
+      },
+      "subdomain": {
+        "domain": "example.com",
+        "timestamp": "2026-09-11T21:04:46.255286",
+        "wildcard_detected": false,
+        "total_subdomains_tested": 95,
+        "discovered_assets": [
+          {
+            "subdomain": "www",
+            "full_domain": "www.example.com",
+            "ip_address": "172.66.147.243",
+            "status": "active"
+          }
+        ],
+        "categorized_assets": {
+          "admin": [],
+          "api": [],
+          "dev": [],
+          "service": [],
+          "commerce": [],
+          "content": [],
+          "infrastructure": [],
+          "basic": [
+            {
+              "subdomain": "www",
+              "full_domain": "www.example.com",
+              "ip_address": "172.66.147.243",
+              "status": "active"
+            }
+          ]
+        },
+        "sensitive_assets": [],
+        "analysis_status": "abgeschlossen"
+      },
+      "ssl": {
+        "analysis_status": "abgeschlossen",
+        "domain": "example.com",
+        "available": true,
+        "verified": true,
+        "self_signed": false,
+        "issuer_org": "SSL Corporation",
+        "issuer_cn": "Cloudflare TLS Issuing ECC CA 3",
+        "valid_from": "2026-07-29",
+        "valid_until": "2026-10-27",
+        "days_to_expiry": 46,
+        "sans": [
+          "example.com",
+          "*.example.com"
+        ],
+        "has_wildcard": true,
+        "cert_type": "Wildcard",
+        "tls_version": "TLSv1.3",
+        "assessment": "Valid - modern TLS"
+      },
+      "securitytrails": {
+        "analysis_status": "quota_exceeded",
+        "domain": "example.com",
+        "api_status": "quota_exceeded",
+        "error": "SecurityTrails API quota exceeded",
+        "domain_details": {
+          "subdomain_count": 0
+        }
+      },
+      "abuseipdb": {
+        "analysis_status": "abgeschlossen",
+        "ip_address": "172.66.147.243",
+        "associated_domain": "example.com",
+        "abuse_confidence": 0,
+        "country_code": "US",
+        "is_whitelisted": true,
+        "usage_type": "Content Delivery Network",
+        "recent_reports": 1,
+        "last_reported": "2026-07-24T22:06:47+00:00",
+        "threat_categories": {
+          "Port Scan": 1
+        },
+        "reputation_intelligence": {
+          "risk_level": "LOW",
+          "risk_description": "Clean IP - no significant abuse reports",
+          "confidence_score": 0,
+          "geographic_risk": {
+            "level": "LOW",
+            "reason": "IP from standard geographic region: US"
+          },
+          "usage_assessment": "Content Delivery Network"
+        },
+        "api_status": "live_data"
+      },
+      "virustotal": {
+        "analysis_status": "abgeschlossen",
+        "domain": "example.com",
+        "reputation": 28,
+        "threat_analysis": {
+          "total_security_vendors": 89,
+          "malicious_detections": 0,
+          "suspicious_detections": 0,
+          "clean_detections": 0,
+          "undetected": 27,
+          "detection_ratio": "0/89"
+        },
+        "categories": {},
+        "last_analysis_stats": {
+          "malicious": 0,
+          "suspicious": 0,
+          "undetected": 27,
+          "harmless": 62,
+          "timeout": 0
+        },
+        "threat_intelligence": {
+          "threat_level": "CLEAN",
+          "threat_description": "No significant threats detected",
+          "reputation_score": 28,
+          "vendor_consensus": {
+            "consensus": "UNCERTAIN",
+            "confidence": 0.0,
+            "malicious_percentage": 0.0,
+            "clean_percentage": 0.0
+          },
+          "threat_categories": []
+        },
+        "dns_records": {
+          "dns_records": [],
+          "whois_data": "Creation Date: 1995-08-14T04:00:00Z\nDNSSEC: signedDelegation\nDomain Name: EXAMPLE.COM\nDomain Status: clientDeleteProhibited https://icann.org/epp#clientDeleteProhibited\nDomain Status: clientTransferProhibited https://icann.org/epp#clientTransferProhibited\nDomain Status: clientUpdateProhibited https://icann.org/epp#clientUpdateProhibited\nName Server: ELLIOTT.NS.CLOUDFLARE.COM\nName Server: HERA.NS.CLOUDFLARE.COM\nRegistrar IANA ID: 376\nRegistrar URL: http://res-dom.iana.org\nRegistrar WHOIS Server: whois.iana.org\nRegistrar: RESERVED-Internet Assigned Numbers Authority\nRegistry Domain ID: 2336799_DOMAIN_COM-VRSN\nRegistry Expiry Date: 2027-08-13T04:00:00Z\nUpdated Date: 2026-08-14T08:01:43Z\ncreated: 1992-01-01\ndomain: EXAMPLE.COM\norganisation: Internet Assigned Numbers Authority\nsource: IANA",
+          "creation_date": 808372800,
+          "last_modification_date": 1789153449
+        },
+        "related_threats": {
+          "similar_domains": [],
+          "communicating_files": [],
+          "referrer_files": []
+        },
+        "api_status": "live_data"
+      },
+      "ip_history": {
+        "analysis_status": "abgeschlossen",
+        "ip_address": "172.66.147.243",
+        "domain": "example.com",
+        "sources": {
+          "virustotal": {
+            "status": "success",
+            "domains": [
+              {
+                "domain": "dorinell.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.dorinell.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.tenlore.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.zuremiwear.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "porvyn.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.auvrisea.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "elyvique.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "alloriah.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.alloriah.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "melvienne.com",
+                "last_seen": "2026-09-11"
+              }
+            ],
+            "count": 10
+          },
+          "robtex": {
+            "status": "success",
+            "domains": [
+              {
+                "domain": "tomrichards.dev",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "mengzhou.org",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "crtkr.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "revisit.place",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "kuramacapital.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "boudhar.eu",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "s5club.ph",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "atlabs.dev",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "akkilab.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.example.com.cdn.cloudflare.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "auroratrainingadvantage.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "cynab.al",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "contribute.app",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "cfknb.vip",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "ashtuts.site",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.turbus.cl",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "nigel.sh",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "rybicka.live",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "95271111.xyz",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "mixworshipartscamp.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "forexclub.am",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "letmecook.lol",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "caofangkuai666.top",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "drrevision.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "heartunderbla.de",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "kinkprojects.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "doewife.fyi",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "interntp.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "s5-games.ph",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "bhmlcs.top",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "petsafespot.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "caedistsecuritydashboard.blog",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "unlimweb.online",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "manusly.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "johnbaohuasmith.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.kinkprojects.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "noteid.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "mpdft.eu.org",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "forkai.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "mohamedelghamrawy.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "ajd.dev",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "lachlanmiskin.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "luxscintilla.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "top100escorts.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "em.auroratrainingadvantage.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "fintechgroup.tech",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "fzc0.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "bryceit.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "ahrefs.pk",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "keelobite.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "phila-test.ninja",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "pearspeak.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "asdfashgfddfasdf.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "turbus.cl",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "swapgs.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "zpack.dev",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "example.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "lunarpad.com",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "tomaka.me",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "janluna.eu.org",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "example.com.cdn.cloudflare.net",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "0x1bf52.top",
+                "last_seen": "2026-09-11"
+              },
+              {
+                "domain": "www.example.com",
+                "last_seen": "2026-09-11"
+              }
+            ],
+            "count": 63
+          },
+          "hackertarget": {
+            "status": "success",
+            "domains": [
+              {
+                "domain": "000a331.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "096666.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "0x1bf52.top",
+                "last_seen": null
+              },
+              {
+                "domain": "100a331.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "123456.050826.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "233333.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "4bec1df.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "62ad.com",
+                "last_seen": null
+              },
+              {
+                "domain": "6688.bangxuankeji.icu",
+                "last_seen": null
+              },
+              {
+                "domain": "888420.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "94021.top",
+                "last_seen": null
+              },
+              {
+                "domain": "9421.fun",
+                "last_seen": null
+              },
+              {
+                "domain": "95271111.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "abwp.jjblog.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "agensia-og-os.agensia.space",
+                "last_seen": null
+              },
+              {
+                "domain": "agensia-os.agensia.space",
+                "last_seen": null
+              },
+              {
+                "domain": "ahrefs.pk",
+                "last_seen": null
+              },
+              {
+                "domain": "ajd.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "akkilab.net",
+                "last_seen": null
+              },
+              {
+                "domain": "allie-in-progress2.bigtacocat.com",
+                "last_seen": null
+              },
+              {
+                "domain": "analytics.xtrading.exchange",
+                "last_seen": null
+              },
+              {
+                "domain": "api.nomiq.site",
+                "last_seen": null
+              },
+              {
+                "domain": "api.paysplit.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "app.nomiq.site",
+                "last_seen": null
+              },
+              {
+                "domain": "app.paysplit.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "artdedana.nl",
+                "last_seen": null
+              },
+              {
+                "domain": "arthurschiro.com",
+                "last_seen": null
+              },
+              {
+                "domain": "asdfsagas.net",
+                "last_seen": null
+              },
+              {
+                "domain": "atlabs.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "atomiscooter.com",
+                "last_seen": null
+              },
+              {
+                "domain": "auroratrainingadvantage.com",
+                "last_seen": null
+              },
+              {
+                "domain": "axxu.com",
+                "last_seen": null
+              },
+              {
+                "domain": "axxxxu.com",
+                "last_seen": null
+              },
+              {
+                "domain": "b2dc5cf.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "b2dc5cf.ddns.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "bakery-show2025.com",
+                "last_seen": null
+              },
+              {
+                "domain": "bets5.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "birdsite.csachweh.de",
+                "last_seen": null
+              },
+              {
+                "domain": "blog.050826.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "blog.freebuild.gg",
+                "last_seen": null
+              },
+              {
+                "domain": "boudhar.eu",
+                "last_seen": null
+              },
+              {
+                "domain": "bouncer-dns-test.nonprod.klarna.net",
+                "last_seen": null
+              },
+              {
+                "domain": "briannaandconnor.com",
+                "last_seen": null
+              },
+              {
+                "domain": "bryceit.com",
+                "last_seen": null
+              },
+              {
+                "domain": "caedistsecuritydashboard.blog",
+                "last_seen": null
+              },
+              {
+                "domain": "cag.actionkit.com",
+                "last_seen": null
+              },
+              {
+                "domain": "caofangkuai666.top",
+                "last_seen": null
+              },
+              {
+                "domain": "careers.signality.com",
+                "last_seen": null
+              },
+              {
+                "domain": "cdn.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "cdn.yourdomainexample.com",
+                "last_seen": null
+              },
+              {
+                "domain": "cdn1.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "cdn2.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "cdn3.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "cfknb.vip",
+                "last_seen": null
+              },
+              {
+                "domain": "chengyi-56.com",
+                "last_seen": null
+              },
+              {
+                "domain": "clivado.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "configs.dulluk.online",
+                "last_seen": null
+              },
+              {
+                "domain": "contribute.app",
+                "last_seen": null
+              },
+              {
+                "domain": "crtkr.com",
+                "last_seen": null
+              },
+              {
+                "domain": "cum.box",
+                "last_seen": null
+              },
+              {
+                "domain": "cw.work.inrouge.today",
+                "last_seen": null
+              },
+              {
+                "domain": "cynab.al",
+                "last_seen": null
+              },
+              {
+                "domain": "dd4a692.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "dd4a692.ddns.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddd.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddd2.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddd3.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddd4.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddd5.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddns.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "ddnspod.net",
+                "last_seen": null
+              },
+              {
+                "domain": "demo.kinkprojects.com",
+                "last_seen": null
+              },
+              {
+                "domain": "demo.vlok.ai",
+                "last_seen": null
+              },
+              {
+                "domain": "demolb.jjblog.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "denodo-ai.dev.data.lutron.io",
+                "last_seen": null
+              },
+              {
+                "domain": "dev.favorua.com",
+                "last_seen": null
+              },
+              {
+                "domain": "dev.talk.makerspace.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "dev13-edm-auth.us.kainos-product.com",
+                "last_seen": null
+              },
+              {
+                "domain": "diplomingenieur.net",
+                "last_seen": null
+              },
+              {
+                "domain": "docs.stratarouter.com",
+                "last_seen": null
+              },
+              {
+                "domain": "doewife.fyi",
+                "last_seen": null
+              },
+              {
+                "domain": "dragon-s.net",
+                "last_seen": null
+              },
+              {
+                "domain": "drrevision.com",
+                "last_seen": null
+              },
+              {
+                "domain": "echo-gig.sandbox.vf-test.engineering.vodafone.com",
+                "last_seen": null
+              },
+              {
+                "domain": "ef87c5b.acme.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "em.auroratrainingadvantage.com",
+                "last_seen": null
+              },
+              {
+                "domain": "enpssl.bizsmarterp.com",
+                "last_seen": null
+              },
+              {
+                "domain": "example.com",
+                "last_seen": null
+              },
+              {
+                "domain": "example.com.cdn.cloudflare.net",
+                "last_seen": null
+              },
+              {
+                "domain": "example.impartdemo.com",
+                "last_seen": null
+              },
+              {
+                "domain": "fbug0988.qzz.io",
+                "last_seen": null
+              },
+              {
+                "domain": "fedded.cc",
+                "last_seen": null
+              },
+              {
+                "domain": "fenio.cloud-observability.akadns.net",
+                "last_seen": null
+              },
+              {
+                "domain": "files.dulluk.online",
+                "last_seen": null
+              },
+              {
+                "domain": "files.justiceformyanmar.org",
+                "last_seen": null
+              },
+              {
+                "domain": "fintechgroup.tech",
+                "last_seen": null
+              },
+              {
+                "domain": "forexclub.am",
+                "last_seen": null
+              },
+              {
+                "domain": "forkai.com",
+                "last_seen": null
+              },
+              {
+                "domain": "formatoschile.cl",
+                "last_seen": null
+              },
+              {
+                "domain": "forum.freebuild.gg",
+                "last_seen": null
+              },
+              {
+                "domain": "fwd.9a045c.d8e8.log.cdd.net.sap",
+                "last_seen": null
+              },
+              {
+                "domain": "fzc0.net",
+                "last_seen": null
+              },
+              {
+                "domain": "gcp.jackyccc.tw",
+                "last_seen": null
+              },
+              {
+                "domain": "godb.yixueyice.com",
+                "last_seen": null
+              },
+              {
+                "domain": "gql.loveydovey.seayoogames.cn",
+                "last_seen": null
+              },
+              {
+                "domain": "gurao.frii.site",
+                "last_seen": null
+              },
+              {
+                "domain": "heartunderbla.de",
+                "last_seen": null
+              },
+              {
+                "domain": "hhyy.lingfangwh.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "ilazki.net",
+                "last_seen": null
+              },
+              {
+                "domain": "imgs3.cflr.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "inst.teamlease.com",
+                "last_seen": null
+              },
+              {
+                "domain": "internal.wip.fr.pdm.autodesk.com",
+                "last_seen": null
+              },
+              {
+                "domain": "internal.wip.stg.fr.pdm.autodesk.com",
+                "last_seen": null
+              },
+              {
+                "domain": "interntp.com",
+                "last_seen": null
+              },
+              {
+                "domain": "invite.nomiq.site",
+                "last_seen": null
+              },
+              {
+                "domain": "iriswy.com",
+                "last_seen": null
+              },
+              {
+                "domain": "janikbruell.com",
+                "last_seen": null
+              },
+              {
+                "domain": "janluna.eu.org",
+                "last_seen": null
+              },
+              {
+                "domain": "jarvis.xtrading.exchange",
+                "last_seen": null
+              },
+              {
+                "domain": "jj.perselan.shop",
+                "last_seen": null
+              },
+              {
+                "domain": "johnbaohuasmith.com",
+                "last_seen": null
+              },
+              {
+                "domain": "keelobite.com",
+                "last_seen": null
+              },
+              {
+                "domain": "kinkprojects.com",
+                "last_seen": null
+              },
+              {
+                "domain": "kuramacapital.com",
+                "last_seen": null
+              },
+              {
+                "domain": "lachlanmiskin.com",
+                "last_seen": null
+              },
+              {
+                "domain": "leejkc.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "lemmy.carck.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "letmecook.lol",
+                "last_seen": null
+              },
+              {
+                "domain": "lindenyuan.org",
+                "last_seen": null
+              },
+              {
+                "domain": "liquidation.xtrading.exchange",
+                "last_seen": null
+              },
+              {
+                "domain": "log.soimort.org",
+                "last_seen": null
+              },
+              {
+                "domain": "lunarpad.com",
+                "last_seen": null
+              },
+              {
+                "domain": "luxscintilla.com",
+                "last_seen": null
+              },
+              {
+                "domain": "macopsworld.com",
+                "last_seen": null
+              },
+              {
+                "domain": "manusly.com",
+                "last_seen": null
+              },
+              {
+                "domain": "many6.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "marvosa.work",
+                "last_seen": null
+              },
+              {
+                "domain": "media.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "mengzhou.org",
+                "last_seen": null
+              },
+              {
+                "domain": "merch.higherleaf.com",
+                "last_seen": null
+              },
+              {
+                "domain": "misery.farm",
+                "last_seen": null
+              },
+              {
+                "domain": "mixworshipartscamp.net",
+                "last_seen": null
+              },
+              {
+                "domain": "mobile.macworld.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "mohamedelghamrawy.com",
+                "last_seen": null
+              },
+              {
+                "domain": "mpdft.eu.org",
+                "last_seen": null
+              },
+              {
+                "domain": "nailong114514.ggff.net",
+                "last_seen": null
+              },
+              {
+                "domain": "new.agensia.space",
+                "last_seen": null
+              },
+              {
+                "domain": "nigel.sh",
+                "last_seen": null
+              },
+              {
+                "domain": "nocname.impartdemo.com",
+                "last_seen": null
+              },
+              {
+                "domain": "noteid.com",
+                "last_seen": null
+              },
+              {
+                "domain": "oakvi.eu",
+                "last_seen": null
+              },
+              {
+                "domain": "odds-feed-files.dulluk.online",
+                "last_seen": null
+              },
+              {
+                "domain": "old.spuc.org.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "os2.agensia.space",
+                "last_seen": null
+              },
+              {
+                "domain": "pearspeak.com",
+                "last_seen": null
+              },
+              {
+                "domain": "petsafespot.net",
+                "last_seen": null
+              },
+              {
+                "domain": "phila-test.ninja",
+                "last_seen": null
+              },
+              {
+                "domain": "pkmm.nekocross.xyz",
+                "last_seen": null
+              },
+              {
+                "domain": "play.katorly.net",
+                "last_seen": null
+              },
+              {
+                "domain": "play.s5vip.com.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "pmt.mcpe.me",
+                "last_seen": null
+              },
+              {
+                "domain": "prod-dbrs-website-api.morningstar.com",
+                "last_seen": null
+              },
+              {
+                "domain": "promo.drmanhlinhmd.com",
+                "last_seen": null
+              },
+              {
+                "domain": "protohax-repo.caofangkuai666.top",
+                "last_seen": null
+              },
+              {
+                "domain": "qa.auroratrainingadvantage.com",
+                "last_seen": null
+              },
+              {
+                "domain": "queue.theorganprojects.work.gd",
+                "last_seen": null
+              },
+              {
+                "domain": "redis.joeyt.dpdns.org",
+                "last_seen": null
+              },
+              {
+                "domain": "refoo.tale-testing.net",
+                "last_seen": null
+              },
+              {
+                "domain": "reversed.coffee",
+                "last_seen": null
+              },
+              {
+                "domain": "revisit.place",
+                "last_seen": null
+              },
+              {
+                "domain": "rybicka.live",
+                "last_seen": null
+              },
+              {
+                "domain": "s5-games.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "s5club.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "s5games.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "s5live.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "scheduleit.live",
+                "last_seen": null
+              },
+              {
+                "domain": "sdmbs07.com",
+                "last_seen": null
+              },
+              {
+                "domain": "server.frii.site",
+                "last_seen": null
+              },
+              {
+                "domain": "shahidboka.qzz.io",
+                "last_seen": null
+              },
+              {
+                "domain": "sheds.idearoominc.com",
+                "last_seen": null
+              },
+              {
+                "domain": "snippets.salacia.pp.ua",
+                "last_seen": null
+              },
+              {
+                "domain": "solutions.stoque.com.br",
+                "last_seen": null
+              },
+              {
+                "domain": "stage.auroratrainingadvantage.com",
+                "last_seen": null
+              },
+              {
+                "domain": "status.freebuild.gg",
+                "last_seen": null
+              },
+              {
+                "domain": "stg.admin.lgfamilyclub.com",
+                "last_seen": null
+              },
+              {
+                "domain": "substracker.caofangkuai666.top",
+                "last_seen": null
+              },
+              {
+                "domain": "superr-link.com",
+                "last_seen": null
+              },
+              {
+                "domain": "support.nuula.com",
+                "last_seen": null
+              },
+              {
+                "domain": "suxnet.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "swapgs.net",
+                "last_seen": null
+              },
+              {
+                "domain": "t.nam.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "t11s.net",
+                "last_seen": null
+              },
+              {
+                "domain": "techwikie.com",
+                "last_seen": null
+              },
+              {
+                "domain": "test.cdd.net.sap",
+                "last_seen": null
+              },
+              {
+                "domain": "test.kwalee.com",
+                "last_seen": null
+              },
+              {
+                "domain": "test.weechow.com",
+                "last_seen": null
+              },
+              {
+                "domain": "the-shades.net",
+                "last_seen": null
+              },
+              {
+                "domain": "theorganprojects.2bd.net",
+                "last_seen": null
+              },
+              {
+                "domain": "tomaka.me",
+                "last_seen": null
+              },
+              {
+                "domain": "tomrichards.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "tools.wpnas.dedyn.io",
+                "last_seen": null
+              },
+              {
+                "domain": "top100escorts.com",
+                "last_seen": null
+              },
+              {
+                "domain": "trans.dulluk.online",
+                "last_seen": null
+              },
+              {
+                "domain": "turbus.cl",
+                "last_seen": null
+              },
+              {
+                "domain": "ua.frii.site",
+                "last_seen": null
+              },
+              {
+                "domain": "unlimweb.online",
+                "last_seen": null
+              },
+              {
+                "domain": "var.edu.kg",
+                "last_seen": null
+              },
+              {
+                "domain": "vbcerttest.blitztesting.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www-demo-gm.ductoid.com.cdn.cloudflare.net",
+                "last_seen": null
+              },
+              {
+                "domain": "www.ansoraai.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.apexcircuit.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "www.artdedana.nl",
+                "last_seen": null
+              },
+              {
+                "domain": "www.auroratrainingadvantage.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.autismdadvocates.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.axxu.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.baysrealtyco.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.bets5.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "www.cheata.de",
+                "last_seen": null
+              },
+              {
+                "domain": "www.credfone.online",
+                "last_seen": null
+              },
+              {
+                "domain": "www.cum.box",
+                "last_seen": null
+              },
+              {
+                "domain": "www.e-keystore.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.ericbalsa.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.example.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.expworld.cn",
+                "last_seen": null
+              },
+              {
+                "domain": "www.floorfinex.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.freebuild.gg",
+                "last_seen": null
+              },
+              {
+                "domain": "www.freewillydomain.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.fweco.net",
+                "last_seen": null
+              },
+              {
+                "domain": "www.gurukulgyanlearnings.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.hove.ai",
+                "last_seen": null
+              },
+              {
+                "domain": "www.ilazki.net",
+                "last_seen": null
+              },
+              {
+                "domain": "www.inboxadsuite.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.jdactw.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.jtescrowservice.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.kinkprojects.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.macopsworld.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.martincordes.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.michaelbusch.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.mwp-step-in.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.noblecaretransport.net",
+                "last_seen": null
+              },
+              {
+                "domain": "www.ordenstrategicsistems.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.paysplit.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "www.prepacmfg.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.quanyi123.com.cn",
+                "last_seen": null
+              },
+              {
+                "domain": "www.rate-lock.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.rustyroad2recovery.co.uk",
+                "last_seen": null
+              },
+              {
+                "domain": "www.s5-games.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "www.s5club.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "www.s5games.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "www.s5live.ph",
+                "last_seen": null
+              },
+              {
+                "domain": "www.samuel.zone.id",
+                "last_seen": null
+              },
+              {
+                "domain": "www.striam.ch",
+                "last_seen": null
+              },
+              {
+                "domain": "www.thefashioncloset.in",
+                "last_seen": null
+              },
+              {
+                "domain": "www.toptiertiesmanagement.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.turbus.cl",
+                "last_seen": null
+              },
+              {
+                "domain": "www.uoec.org",
+                "last_seen": null
+              },
+              {
+                "domain": "www.walterkwaninsurance.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.waltoncustomcarpentry.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.wedesignwecreate.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.xrivalbc.com",
+                "last_seen": null
+              },
+              {
+                "domain": "www.yoyonailsspa.com",
+                "last_seen": null
+              },
+              {
+                "domain": "xn--djr4ls5lzrcvu8a9lr.cc.cd",
+                "last_seen": null
+              },
+              {
+                "domain": "xn--tht-mlz.nam.mien.ca",
+                "last_seen": null
+              },
+              {
+                "domain": "xn--xhq34jbd8qm2uurd3v4ajli8v3a.cc.cd",
+                "last_seen": null
+              },
+              {
+                "domain": "zfwskp.com",
+                "last_seen": null
+              },
+              {
+                "domain": "zhima.qzz.io",
+                "last_seen": null
+              },
+              {
+                "domain": "zpack.dev",
+                "last_seen": null
+              },
+              {
+                "domain": "zybtoken.caofangkuai666.top",
+                "last_seen": null
+              },
+              {
+                "domain": "zynika-intake-test-service.zynika-prod.nikecloud.com",
+                "last_seen": null
+              }
+            ],
+            "count": 269
+          }
+        },
+        "total_co_hosted": 282,
+        "top_co_hosted": [
+          {
+            "domain": "zpack.dev",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "www.zuremiwear.com",
+            "last_seen": "2026-09-11",
+            "source": "VirusTotal"
+          },
+          {
+            "domain": "www.turbus.cl",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "www.tenlore.com",
+            "last_seen": "2026-09-11",
+            "source": "VirusTotal"
+          },
+          {
+            "domain": "www.kinkprojects.com",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "www.example.com.cdn.cloudflare.net",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "www.example.com",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "www.dorinell.com",
+            "last_seen": "2026-09-11",
+            "source": "VirusTotal"
+          },
+          {
+            "domain": "www.auvrisea.com",
+            "last_seen": "2026-09-11",
+            "source": "VirusTotal"
+          },
+          {
+            "domain": "www.alloriah.com",
+            "last_seen": "2026-09-11",
+            "source": "VirusTotal"
+          },
+          {
+            "domain": "unlimweb.online",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "turbus.cl",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "top100escorts.com",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "tomrichards.dev",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "tomaka.me",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "swapgs.net",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "s5club.ph",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "s5-games.ph",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "rybicka.live",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          },
+          {
+            "domain": "revisit.place",
+            "last_seen": "2026-09-11",
+            "source": "RobTex"
+          }
+        ]
+      }
+    }
+  },
+  "scenario": {
+    "id": "C",
+    "label": "Windows + Direktverbindung",
+    "os": "Windows",
+    "vpn": false,
+    "external_ip": "95.91.196.245",
+    "timestamp": "2026-09-11T19:04:51.077111+00:00"
+  }
+}
