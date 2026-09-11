@@ -36,42 +36,8 @@ mkdir -p "$REPORT_DIR"
 # Scan ausführen und Report in reports/ speichern
 "$PYTHON" run.py "$DOMAIN"
 
-# Letzten JSON-Report aus reports/ holen
-LATEST=$(ls -t reports/*.json 2>/dev/null | head -1)
-if [ -z "$LATEST" ]; then
-    echo "ERROR: Kein Report gefunden in reports/"
-    exit 1
-fi
-
-# Metadaten hinzufügen und als Szenario-Report speichern
-"$PYTHON" - <<PYEOF
-import json, sys, os
-from datetime import datetime
-
-with open("$LATEST") as f:
-    data = json.load(f)
-
-data["scenario"] = {
-    "id": "A",
-    "label": "Linux + Direktverbindung",
-    "os": "Linux",
-    "vpn": False,
-    "external_ip": "$EXTERNAL_IP",
-    "timestamp": datetime.utcnow().isoformat() + "Z"
-}
-
-with open("$OUTPUT", "w") as f:
-    json.dump(data, f, indent=2, default=str)
-
-print(f"Report gespeichert: $OUTPUT")
-print(f"Domain   : {data.get('domain', 'unknown')}")
-print(f"External : $EXTERNAL_IP")
-meta = data.get("analyst", {})
-asn = data.get("results", {}).get("cdn", {}).get("asn_info", {})
-opsec = meta.get("opsec_assessment", {})
-print(f"VPN det. : {opsec.get('potential_vpn', 'n/a')}")
-print(f"ASN      : {asn.get('asn', 'n/a')} {asn.get('organization', '')}")
-PYEOF
+# Letzten Report holen und Szenario-Metadaten anhängen
+"$PYTHON" docs/attach_scenario_metadata.py --id A --label "Linux + Direktverbindung" --os Linux --external-ip "$EXTERNAL_IP" --output "$OUTPUT"
 
 echo ""
 echo "=== Szenario A abgeschlossen ==="

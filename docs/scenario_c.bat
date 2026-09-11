@@ -35,38 +35,7 @@ if errorlevel 1 (
 )
 
 REM Letzten Report holen und Szenario-Metadaten hinzufügen
-python -c "
-import json, os, glob
-from datetime import datetime
-
-reports = sorted(glob.glob('reports/*.json'), key=os.path.getmtime, reverse=True)
-if not reports:
-    print('ERROR: Kein Report in reports/')
-    exit(1)
-
-with open(reports[0]) as f:
-    data = json.load(f)
-
-data['scenario'] = {
-    'id': 'C',
-    'label': 'Windows + Direktverbindung',
-    'os': 'Windows',
-    'vpn': False,
-    'external_ip': '%EXTERNAL_IP%',
-    'timestamp': datetime.utcnow().isoformat() + 'Z'
-}
-
-os.makedirs('%REPORT_DIR%', exist_ok=True)
-with open('%OUTPUT%', 'w') as f:
-    json.dump(data, f, indent=2, default=str)
-
-print(f'Report gespeichert: %OUTPUT%')
-meta = data.get('analyst', {})
-asn = data.get('results', {}).get('cdn', {}).get('asn_info', {})
-opsec = meta.get('opsec_assessment', {})
-print(f'VPN det. : {opsec.get(\"potential_vpn\", \"n/a\")}')
-print(f'ASN      : {asn.get(\"asn\", \"n/a\")} {asn.get(\"organization\", \"\")}')
-"
+python docs\attach_scenario_metadata.py --id C --label "Windows + Direktverbindung" --os Windows --external-ip "%EXTERNAL_IP%" --output "%OUTPUT%"
 
 echo.
 echo === Szenario C abgeschlossen ===

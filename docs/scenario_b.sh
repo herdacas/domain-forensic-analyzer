@@ -47,40 +47,8 @@ mkdir -p "$REPORT_DIR"
 # Scan ausführen
 "$PYTHON" run.py "$DOMAIN"
 
-# Letzten Report holen
-LATEST=$(ls -t reports/*.json 2>/dev/null | head -1)
-if [ -z "$LATEST" ]; then
-    echo "ERROR: Kein Report in reports/"
-    exit 1
-fi
-
-"$PYTHON" - <<PYEOF
-import json
-from datetime import datetime
-
-with open("$LATEST") as f:
-    data = json.load(f)
-
-data["scenario"] = {
-    "id": "B",
-    "label": "Linux + VPN",
-    "os": "Linux",
-    "vpn": True,
-    "vpn_country": "$GEO",
-    "external_ip": "$EXTERNAL_IP",
-    "timestamp": datetime.utcnow().isoformat() + "Z"
-}
-
-with open("$OUTPUT", "w") as f:
-    json.dump(data, f, indent=2, default=str)
-
-print(f"Report gespeichert: $OUTPUT")
-meta = data.get("analyst", {})
-asn = data.get("results", {}).get("cdn", {}).get("asn_info", {})
-opsec = meta.get("opsec_assessment", {})
-print(f"VPN det. : {opsec.get('potential_vpn', 'n/a')}")
-print(f"ASN      : {asn.get('asn', 'n/a')} {asn.get('organization', '')}")
-PYEOF
+# Letzten Report holen und Szenario-Metadaten anhängen
+"$PYTHON" docs/attach_scenario_metadata.py --id B --label "Linux + VPN" --os Linux --external-ip "$EXTERNAL_IP" --vpn --vpn-country "$GEO" --output "$OUTPUT"
 
 echo ""
 echo "=== Szenario B abgeschlossen ==="
