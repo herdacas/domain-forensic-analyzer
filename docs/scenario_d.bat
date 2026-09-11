@@ -19,15 +19,16 @@ echo === PHASE 4: Szenario D (Windows + VPN) ===
 echo.
 echo ^>^> WICHTIG: VPN muss aktiv sein zu Oesterreich / Schweiz / Deutschland
 echo.
+echo Verbinde jetzt dein VPN, dann Taste druecken wenn bereit...
+pause >nul
 
-REM Externe IP + Land prüfen
+REM Externe IP + Land pruefen - ERST NACH dem VPN-Connect, sonst werden
+REM die direkten (Nicht-VPN) Werte faelschlich als Szenario-Metadaten gespeichert.
 for /f "tokens=*" %%i in ('curl -s --max-time 5 https://api.ipify.org 2^>nul') do set EXTERNAL_IP=%%i
 for /f "tokens=*" %%i in ('curl -s --max-time 5 https://ipinfo.io/%EXTERNAL_IP%/country 2^>nul') do set GEO=%%i
 
-echo Externe IP : %EXTERNAL_IP%  (Land: %GEO%)
+echo Externe IP (ueber VPN) : %EXTERNAL_IP%  (Land: %GEO%)
 echo.
-echo Drücke eine Taste wenn VPN aktiv ist und bereit...
-pause >nul
 
 if not exist "%REPORT_DIR%" mkdir "%REPORT_DIR%"
 
