@@ -148,8 +148,6 @@ def test_dns_forensics_bundle_builds_expected_records(monkeypatch):
         ("_dmarc.example.com", "TXT"): [FakeTXTRecord([b"v=DMARC1; p=reject; rua=mailto:dmarc@example.com"])],
         ("selector1._domainkey.example.com", "TXT"): [FakeTXTRecord([b"v=DKIM1; p=ABC123"])],
         ("example.com", "CAA"): [FakeCAARecord(0, "issue", "letsencrypt.org")],
-        ("example.com", "DS"): ["ds-present"],
-        ("example.com", "DNSKEY"): [],
         ("ns1.example.net", "A"): [],
     }
 
@@ -157,6 +155,11 @@ def test_dns_forensics_bundle_builds_expected_records(monkeypatch):
         return fake_answers.get((name, record_type), [])
 
     monkeypatch.setattr(analyzer, "_resolve_dns_records", fake_resolve)
+    monkeypatch.setattr(
+        analyzer,
+        "_query_dnssec_type",
+        lambda domain, record_type: (["ds-present"], False) if record_type == "DS" else ([], False),
+    )
 
     soa = analyzer._analyze_soa_record("example.com")
     txt = analyzer._analyze_txt_records("example.com")
@@ -188,6 +191,124 @@ def test_dns_forensics_bundle_builds_expected_records(monkeypatch):
     assert dnssec["dnssec"]["status"] == "enabled"
     assert axfr["zone_transfer"]["status"] == "not_allowed"
     assert dns_assessment["dns_configuration_assessment"]["status"] == "well_hardened"
+
+
+# ---------------------------------------------------------------------------
+# _analyze_dnssec / _query_dnssec_type — distinguishes "not signed" from
+# "couldn't determine" (network/timeout failures must not read as not_detected)
+# ---------------------------------------------------------------------------
+
+def test_dnssec_enabled_via_ds_record(monkeypatch):
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.return_value = ["ds-present"]
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "enabled"
+    assert result["dnssec"]["has_ds"] is True
+
+
+def test_dnssec_enabled_via_dnskey_record(monkeypatch):
+    import dns.resolver
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    def resolve(name, record_type):
+        if record_type == "DNSKEY":
+            return ["dnskey-present"]
+        raise dns.resolver.NoAnswer()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = resolve
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "enabled"
+    assert result["dnssec"]["has_dnskey"] is True
+
+
+def test_dnssec_not_detected_on_clean_no_answer(monkeypatch):
+    import dns.resolver
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = dns.resolver.NoAnswer()
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "not_detected"
+    assert result["dnssec"]["has_ds"] is False
+    assert result["dnssec"]["has_dnskey"] is False
+
+
+def test_dnssec_check_failed_on_timeout(monkeypatch):
+    import dns.exception
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = dns.exception.Timeout()
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "check_failed"
+
+
+def test_dnssec_check_failed_on_no_nameservers(monkeypatch):
+    import dns.resolver
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = dns.resolver.NoNameservers()
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "check_failed"
+
+
+def test_dnssec_check_failed_when_only_one_query_errors(monkeypatch):
+    """DS cleanly absent, DNSKEY query times out — result must stay
+    inconclusive rather than silently reporting not_detected."""
+    import dns.exception
+    import dns.resolver
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    def resolve(name, record_type):
+        if record_type == "DS":
+            raise dns.resolver.NoAnswer()
+        raise dns.exception.Timeout()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = resolve
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "check_failed"
+
+
+def test_dnssec_enabled_even_if_other_query_errors(monkeypatch):
+    """DS present, DNSKEY query fails — a confirmed positive signal wins."""
+    import dns.exception
+    from unittest.mock import MagicMock
+    analyzer = DNSAnalyzer()
+
+    def resolve(name, record_type):
+        if record_type == "DS":
+            return ["ds-present"]
+        raise dns.exception.Timeout()
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.side_effect = resolve
+    monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
+
+    result = analyzer._analyze_dnssec("example.com")
+    assert result["dnssec"]["status"] == "enabled"
 
 
 # ---------------------------------------------------------------------------
