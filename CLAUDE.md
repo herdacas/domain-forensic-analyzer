@@ -992,23 +992,49 @@ Das ist korrektes Verhalten — das Tool macht kein aktives VPN-Fingerprinting.
 
 ---
 
+## What Was Implemented (Session 2026-09-23 — Phase 4 merge, Phase 5, CI fix)
+
+### 50. Phase 4 PR merged, Phase 5 (Dokumentation) COMPLETE
+
+- PR #3 (`feature/phase-4-validation`) gemerged nach `main` (`ae58b40`)
+- PR #4 (`feature/phase-5-docs`) gemerged nach `main` (`ace7a60`): `CONTRIBUTING.md`, `SECURITY.md`, `docs/ARCHITECTURE.md` neu; `README.md` erweitert um Platform-Compatibility-Matrix, Example-Reports-Sektion, Troubleshooting-Tabelle, FAQ
+
+### 51. CI durchgehend rot seit Phase 3 — zwei unabhängige Root Causes gefunden und gefixt
+
+Beim Start von Phase 6 (Final-Check) aufgefallen: **Tests & Lint** war auf `main` seit dem Phase-3-Merge (`57814e4`) durchgehend rot — alle 6 Test-Matrix-Jobs (Python 3.10–3.12 × Windows/Ubuntu), nur Pylint/CodeQL grün. Niemand hatte es bemerkt, weil PRs trotzdem gemerged wurden. PR #5 (`fix/ci-api-client-test-fixtures`) behebt beide Ursachen, alle 17 Checks jetzt grün, gemerged (`57117b7`).
+
+**Ursache 1 — Test-Fixture testete nicht, was sie zu testen vorgab:**
+`VirusTotalClient`/`AbuseIPDBClient`/`SecurityTrailsClient` (`src/analyzers/*.py`) entscheiden Demo-Mode über `self.config` (ein `APIConfig`-Objekt aus `SecureAPIManager`, gebaut aus Env-Var/`config/api_keys.json`), nicht über ein `self.api_key`-Attribut. Die `client`-Fixtures in `tests/test_api_clients.py` setzten `c.api_key = "test_key_..."` — ein totes Attribut, nirgends gelesen. Ob ein Test also den gemockten HTTP-Pfad traf oder in `_get_demo_result()` fiel, hing komplett davon ab, ob `config/api_keys.json` auf der ausführenden Maschine existiert (lokal: ja, git-ignored, war noch vorhanden → grün; CI-Runner: nein → `analysis_status: 'demo_abgeschlossen'` statt der erwarteten Werte → `test_quota_exceeded_returns_correct_status` failed).
+Fix: Fixtures setzen jetzt `c.config = APIConfig(api_key=..., base_url=..., rate_limit=...)` (Demo-Mode deterministisch aus) bzw. `c.config = None` bei den "kein Key"-Tests (Demo-Mode deterministisch an). Zusätzlich zwei AbuseIPDB-Tests korrigiert, die `requests.get` statt `client.session.get` gemockt hatten (totes Mock — hätte nach dem Fix echte Netzwerkaufrufe ausgelöst, da `AbuseIPDBClient` intern `self.session.get()` nutzt).
+
+**Ursache 2 — Windows-Jobs liefen nie bis zu pytest (PowerShell-Parser-Fehler):**
+`.github/workflows/test.yml` — der "Run tests with coverage"-Step nutzt bash-Style Backslash-Zeilenfortsetzung (`\`). `windows-latest`-Runner nutzen standardmäßig PowerShell für `run:`-Steps, das diese Syntax nicht versteht (`ParserError: Missing expression after unary operator '--'`). Fix: `shell: bash` explizit für diesen Step gesetzt (Git Bash ist auf `windows-latest` vorinstalliert).
+
+**Verifikation:** 291/291 Tests lokal grün mit `config/api_keys.json` UND `.env` temporär entfernt (exakte CI-Simulation), danach lokale Dateien wiederhergestellt. GitHub-CI: alle 7 Checks (6× Matrix + Pylint) grün auf dem Fix-Branch, dann alle 17 Checks (inkl. CodeQL, PR+Push-Duplikate) grün nach Merge.
+
+**Für zukünftige Sessions:** Bei neuen API-Client-Tests in `test_api_clients.py` immer `c.config` faken (`APIConfig(...)` oder `None`), nie `c.api_key` — dieses Attribut existiert auf keinem der drei Clients und wird von niemandem gelesen.
+
+### 52. Pylint-Score aktualisiert
+README-Badge war stale (9.11, tatsächlich 9.41 nach den Q-Fixes aus Session 2026-05-14 und dem Code-Hygiene-Commit vom 2026-06-08). Badge korrigiert in `README.md`.
+
+---
+
 ## Next Session To-Do
 
-**Roadmap-Stand: Phase 4 ABGESCHLOSSEN (Report + Commit), PR-Merge nach main steht noch aus**
+**Roadmap-Stand: Phase 4 + 5 ABGESCHLOSSEN, Phase 6 (Finalisierung & Release) läuft gerade**
 
-Ablauf (nächste Session):
-1. PR `feature/phase-4-validation` → `main` öffnen (kein `gh` CLI verfügbar — manuell über GitHub-UI, Compare-Link siehe oben) und mergen
-2. Die drei Nebenbefunde aus §49 (ASN null, DNSSEC-Flake, network_path responsive_hops) als separate Follow-up-Issues anlegen oder bewusst zurückstellen
-3. Unstaged Pylint-Cleanup (13 Dateien: `run.py`, `src/core/cli.py`, `src/core/domain_analyzer.py`, `src/core/result_formatter.py`, 8× `tests/*.py`) sichten und committen oder verwerfen — unklar aus welcher Session, nicht Teil von Phase 4
-4. `VALIDATION_SPEC.md` (untracked, 203 Zeilen) klären: neue Spec für eine autonome Genauigkeits-Validierungs-Harness (Oracle-basiert, Phasen 0–6), in keiner Session dokumentiert, nicht begonnen (`scope.yaml`/`corpus/` fehlen). Mit User klären ob/wann das gestartet werden soll.
-5. Scratch-Dateien klären/aufräumen: `Test-DomainForensic.ps1`, `Test-DomainForensicAnalyzer.ps1`, `template/index.html`, `test_pflicht.txt` — untracked, teils vom 14. Mai, Zweck unklar
-6. Danach Phase 5: CONTRIBUTING.md, SECURITY.md, README-Erweiterungen
-7. Phase 6: Final-Check, GitHub Release
+Ablauf (nächste Session, falls Phase 6 nicht in dieser Session fertig wird):
+1. Version-Check: `src/__init__.py` + `pyproject.toml` bereits konsistent auf `1.0.0` — keine Änderung nötig
+2. Git-Tag `v1.0.0` setzen (Nachricht siehe Roadmap Phase 6) — **noch zu erledigen**
+3. Optional: GitHub Release aus `CHANGELOG.md` erstellen
+4. Die drei Nebenbefunde aus §49 (ASN null, DNSSEC-Flake, network_path responsive_hops) als separate Follow-up-Issues anlegen oder bewusst zurückstellen — noch offen
+5. Gestashte Änderungen klären (`git stash list` → 1 Eintrag: unstaged Pylint-Cleanup aus unbekannter Vorsession + Scratch-Dateien `VALIDATION_SPEC.md`, `test_pflicht.txt`, `Test-DomainForensic*.ps1`, `template/`). Mit User klären ob relevant, sonst verwerfen (`git stash drop`).
+6. `VALIDATION_SPEC.md` (im Stash, 203 Zeilen) klären: Spec für eine autonome Genauigkeits-Validierungs-Harness, in keiner Session dokumentiert, nicht begonnen — noch offen
 
 **Offene Phasen laut RELEASE_V1_0_0_ROADMAP.md:**
-- Phase 4: Cross-Platform OPSEC — **Report + Commit fertig, PR-Merge ausstehend**
-- Phase 5: Dokumentation (CONTRIBUTING.md, SECURITY.md, README-Erweiterung)
-- Phase 6: Finalisierung & Release (Final-Check, GitHub Release)
+- Phase 4: Cross-Platform OPSEC — ✅ ABGESCHLOSSEN
+- Phase 5: Dokumentation — ✅ ABGESCHLOSSEN
+- Phase 6: Finalisierung & Release — 🔵 läuft (Version-Check ✅, CI grün ✅, Tag ausstehend)
 
 ---
 
