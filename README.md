@@ -7,6 +7,8 @@
 
 A terminal-based OSINT tool that gives you a complete intelligence picture of any domain in one run — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Designed for security analysts, incident responders, and researchers who need actionable data without juggling 10 different tools.
 
+See [SECURITY.md](SECURITY.md) for the OPSEC threat model (what this tool exposes to a scanned target), [CONTRIBUTING.md](CONTRIBUTING.md) if you want to work on it, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and the report lifecycle.
+
 ---
 
 ## What you get
@@ -132,6 +134,16 @@ EXECUTION         — module timing, API coverage, log reference
 
 ---
 
+## Platform Compatibility
+
+| Platform | Python | Status |
+|---|---|---|
+| Windows 10/11 (PowerShell) | 3.10 – 3.12 | ✅ Validated — CI + manual cross-platform scenarios (direct + VPN) |
+| Linux (Ubuntu) | 3.10 – 3.12 | ✅ Validated — CI + manual cross-platform scenarios (direct + VPN) |
+| macOS | 3.10 – 3.12 | ⚠️ Should work (no OS-specific code paths beyond the Windows/Linux traceroute split) but not covered by CI or manual validation — report issues if you hit one |
+
+Windows uses `tracert`; Linux uses `tracepath` (auto-detected). Neither being installed degrades the NETWORK PATH block gracefully instead of failing the scan. See [`docs/VALIDATION_REPORT.md`](docs/VALIDATION_REPORT.md) for the full cross-platform validation results (4 scenarios: Windows/Linux × direct connection/VPN).
+
 ## Network Dependencies (Linux)
 
 | Binary | Used for | Install |
@@ -148,7 +160,60 @@ If neither is available the NETWORK PATH module degrades gracefully — all othe
 - Active probes (DNS resolution, SSL/TLS handshake, HTTP/S, ping, traceroute, subdomain DNS) are visible to the target host.
 - Passive APIs (VirusTotal, AbuseIPDB, SecurityTrails, RobTex, Mnemonic, crt.sh) do not expose your IP to the target.
 - For low-footprint investigations, route traffic through a VPN at OS level before running.
+- VPN/proxy detection in the OPSEC block is rDNS keyword matching — it will not catch every VPN provider (see [SECURITY.md](SECURITY.md) for details). Don't treat "not detected" as proof no VPN is active.
 - Do not commit `config/api_keys.json` or `.env` files.
+
+Full threat model, data-handling notes, and known security-relevant limitations: [SECURITY.md](SECURITY.md).
+
+---
+
+## Example Reports
+
+Real scan output (`example.com`) from the Phase 4 cross-platform validation, one per platform/network combination:
+
+| Scenario | File |
+|---|---|
+| Linux, direct connection | [`docs/examples/scenario_a_linux_direct.json`](docs/examples/scenario_a_linux_direct.json) |
+| Linux, VPN | [`docs/examples/scenario_b_linux_vpn.json`](docs/examples/scenario_b_linux_vpn.json) |
+| Windows, direct connection | [`docs/examples/scenario_c_windows_direct.json`](docs/examples/scenario_c_windows_direct.json) |
+| Windows, VPN | [`docs/examples/scenario_d_windows_vpn.json`](docs/examples/scenario_d_windows_vpn.json) |
+
+These are the structured `reports/<id>_<domain>.json` exports the tool writes automatically — use them to see the full field set without running a scan yourself. A raw console capture (what you'd see in the terminal, ANSI codes included) is at [`docs/vpn_pretest_windows.txt`](docs/vpn_pretest_windows.txt).
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `UnicodeEncodeError: 'charmap' codec can't encode characters` | Legacy Windows console (cp1252) rendering `├──` box-drawing characters | Fixed as of the UTF-8 console reconfiguration in `run.py` — if you still see this, make sure you're running `run.py` directly (not importing `domain_analyzer` in a script without the same startup) |
+| Module marked `FAILED` immediately after starting a VPN | DNS query sent to a nameserver blocked by the VPN's routing (commonly seen with ProtonVPN, which blocks port 53 to the physical adapter's DNS) | Already handled — `DNSAnalyzer` probes each candidate nameserver's TCP port 53 reachability before querying and skips unreachable ones. If it still happens, the VPN may be blocking *all* resolvers; check `nslookup` works manually first |
+| `DNS History: UNAVAILABLE` or a `NameError` in `dns_history_analyzer.py` | Missing `import json` (fixed in a past release) or a source returning malformed data | Update to the latest `main` — this was a known bug fixed pre-1.0 |
+| A module reports "no API key" even though one is set in `config/api_keys.json` | A placeholder value in `.env` (e.g. `VIRUSTOTAL_API_KEY=your_key_here`) is overriding it via `load_dotenv()` | Remove or fill in the placeholder line in `.env` — env vars take priority over the JSON config |
+| `192.168.0.1` or similar gets scanned instead of rejected | You're on an older build — IP-address rejection was added in a later 1.0.x-track fix | Update to the latest `main` |
+| Traceroute/ping section shows "not available" | `traceroute`/`tracepath`/`ping` binary not installed (Linux) or blocked by a firewall | `sudo apt install iputils-ping traceroute` — the rest of the report is unaffected either way |
+| `crt.sh` certificate history missing | crt.sh is a shared community service and occasionally rate-limits or times out | The tool retries automatically, then falls back to CertSpotter. If both fail, `Certificate History` shows `not available (all sources failed)` — this is upstream flakiness, not a bug |
+| Domain shows `HISTORICAL ANALYSIS (domain inactive)` but you know it's live | Current DNS resolution failed — could be a genuinely expired domain, or a transient network/VPN DNS issue | Check the domain resolves manually (`nslookup domain.com`) before trusting the historical-mode fallback |
+
+## FAQ
+
+**Do I need API keys to use this?**
+No. Active probes and free APIs (ip-api.com, crt.sh, CertSpotter, RobTex, HackerTarget, Mnemonic PDNS) cover roughly 70% of the report with zero configuration. API keys unlock deeper WHOIS, reputation, and historical DNS data.
+
+**Does this tool actively exploit or attack the target?**
+No. Every probe is standard reconnaissance (DNS queries, a TLS handshake, an HTTP request, ping/traceroute, a zone-transfer *attempt*). It does not brute-force, exploit, or send any malicious payloads. See [SECURITY.md](SECURITY.md) for exactly what's active vs. passive.
+
+**Will the target know I scanned them?**
+Possibly — see the "Active probes" list in [SECURITY.md](SECURITY.md). DNS queries, the TLS handshake, ping/traceroute, and the zone-transfer attempt all originate from your IP and can appear in the target's own logs. The passive API lookups do not.
+
+**Why does GEO & ASN sometimes show empty or `null` fields?**
+Geolocation and ASN data come from `ip-api.com` (free tier, no key). Coverage varies by IP range and CDN provider — some anycast/CDN IPs don't carry meaningful ASN data through that API. This is an upstream data-availability gap, not a bug in the tool.
+
+**Can I run this against a batch of domains unattended?**
+Yes — `python run.py --list domains.txt`. Each domain gets its own timeout budget (`MODULE_TIMEOUTS` in `config/settings.py`) so one slow/unresponsive domain won't stall the whole batch indefinitely.
+
+**Does it work on macOS?**
+Almost certainly, since there's no macOS-specific code path missing, but it hasn't been part of CI or the manual cross-platform validation — see the Platform Compatibility table above.
 
 ---
 
