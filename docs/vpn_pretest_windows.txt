@@ -1,0 +1,1190 @@
+VPN Test(VPN Off, funktionstest), Windows, Location: Germany(Original IP)
+
+DOMAIN FORENSIC ANALYZER
+Target Domain Selection
+========================================
+Enter target domain: heise.de
+Collecting forensic metadata... COMPLETE
+
+================================================================================
+DOMAIN FORENSIC ANALYZER - SESSION: 20260607-200701
+================================================================================
+Analysis Timestamp: 2026-06-07 20:07:01 UTC
+Target Domain: HEISE.DE
+Session ID: 20260607-200701
+
+Analyst Metadata:
+├── External IP: 95.91.197.2
+├── Local IP: 192.168.0.85
+├── Hostname: LAPTOP-2CC9B721
+├── Username: dexter
+└── System: Windows 10 (AMD64)
+
+OPSEC Assessment:
+├── Analysis Type: MIXED - Passive APIs + Active Probes
+├── Attribution Risk: LOW
+├── Stealth Level: MEDIUM
+├── Network Topology: NAT Protected
+├── Proxy/VPN: Not Detected
+├── Active Probes (target sees your IP):
+│   ├── DNS resolution (direct nameserver query)
+│   ├── Traceroute (ICMP packets to target)
+│   ├── Ping (ICMP to target)
+│   ├── HTTP/S connectivity check
+│   ├── Zone transfer attempt (direct to NS)
+│   ├── Subdomain DNS probes
+│   └── SSL/TLS handshake (direct connection to target:443)
+└── Passive Sources (target does not see your IP):
+    ├── VirusTotal, AbuseIPDB, WhoisXML
+    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS
+    └── crt.sh, CertSpotter, ip-api.com
+
+================================================================================
+OSINT Tool | Network Intelligence | Asset Discovery
+Multi-API Threat Intelligence | Security Analysis
+================================================================================
+Platform: Windows | Modules: 11 Core Analyzers | APIs: 5 Intelligence Sources | Status: Ready
+
+Starting analysis...
+   [1/11] Dns... COMPLETE (1.2s)
+   [2/11] Whois... COMPLETE (0.7s)
+   [3/11] Dns History... COMPLETE (9.2s)
+   [4/11] Cdn... COMPLETE (0.1s)
+   [5/11] Network... COMPLETE (40.7s)
+   [6/11] Subdomain... COMPLETE (2.3s)
+   [7/11] Ssl... COMPLETE (0.1s)
+   [8/11] Securitytrails... COMPLETE (0.7s)
+   [9/11] Abuseipdb... COMPLETE (0.3s)
+   [10/11] Virustotal... COMPLETE (0.3s)
+   [11/11] Ip History... COMPLETE (2.1s)
+   [done] Analysis complete: 11/11 successful | 0 failed | 0 timeout | APIs: 5/6 | Total: 58.1s
+
+================================================================================
+DOMAIN FORENSIC ANALYSIS: HEISE.DE
+Summary: Risk LOW | Assets 10 | Sensitive 3 | Modules 11/11 | Time 58.2s
+================================================================================
+
+[                   SUMMARY                    ]
+├── Domain: HEISE.DE
+├── Overall Risk: LOW
+├── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+└── Execution: 58.2s | 11/11 modules successful
+
+[                    TARGET                    ]
+├── IPv4: 193.99.144.80
+├── IPv6: 2a02:2e0:3fe:1001:302::
+├── Nameservers: 5 configured
+│   ├── ns.s.plusline.de
+│   ├── ns2.pop-hannover.net
+│   ├── ns.plusline.de
+│   ├── ns.pop-hannover.de
+│   ├── ns.heise.de
+├── Reverse DNS: redirector.heise.de
+└── Mail Servers: 4 configured
+    ├── mx01.hornetsecurity.com (priority 10)
+    ├── mx02.hornetsecurity.com (priority 20)
+    ├── mx03.hornetsecurity.com (priority 30)
+    ├── mx04.hornetsecurity.com (priority 40)
+
+[                  GEO & ASN                   ]
+├── IP: 193.99.144.80
+├── Country: DE – Germany
+├── Region: NI
+├── City: Hanover
+├── ASN: AS12306
+├── ASN Organisation: Plus.line AG
+├── ISP: Verlag Heinz Heise
+├── Hosting Type: Commercial
+└── Geographic Risk: LOW
+
+[              WHOIS REGISTRATION              ]
+├── Registry Note: DENIC (.de) redacts registrar and date fields by policy
+├── Registrar: Not disclosed by registry (DENIC policy)
+├── Created: Not disclosed by registry (DENIC policy)
+├── Expires: Not disclosed by registry (DENIC policy)
+├── Updated: 2018-12-17T17:11:43+01:00
+├── Registrant: Not disclosed
+├── Country: Unknown
+├── Nameservers: 5 listed
+│   ├── ns2.pop-hannover.net
+│   ├── ns.heise.de 193.99.145.37 2a00:e68:14:800:0:0:0:d1ce
+│   ├── ns.plusline.de
+│   ├── ns.pop-hannover.de
+│   ├── ns.s.plusline.de
+└── Source: python-whois (lokal)
+
+[                DNS FORENSICS                 ]
+├── SOA Primary NS: ns.heise.de
+├── SOA Serial: 2026060710
+├── NS Records: 5 nameservers  [TTL 43200s]
+│   ├── ns.s.plusline.de
+│   ├── ns2.pop-hannover.net
+│   ├── ns.plusline.de
+│   ├── ns.pop-hannover.de
+│   ├── ns.heise.de
+├── MX Records: 4 mail servers  [TTL 43200s]
+│   ├──  10  mx01.hornetsecurity.com
+│   ├──  20  mx02.hornetsecurity.com
+│   ├──  30  mx03.hornetsecurity.com
+│   ├──  40  mx04.hornetsecurity.com
+├── A Record TTL: 37094s
+├── TXT Records: 11 observed
+├── SPF Policy: v=spf1 ip4:193.99.144.0/24 ip4:193.99.145.0/24 ip6:2a02:2e0:3fe:1001::/64 ip6:2a00:e68:...
+├── SPF Analysis: soft fail (~all), includes: 3
+├── SPF Include Chain (depth <= 2):
+│   ├── _spfdiv.heise.de: v=spf1 ip4:91.102.14.0/26 ip4:194.29.227.64/26 ip4:91.102.8.32/27 ip4:82...
+│       ├── spf.protection.outlook.com: v=spf1 ip4:40.92.0.0/15 ip4:40.107.0.0/16 ip4:52.100.0.0/15 ip4:52.102.0...
+│   ├── spf.dsb.net: v=spf1 +ip4:193.29.186.152 +ip4:193.29.186.153 +ip4:193.29.186.243 +ip4:...
+│   ├── spf.hornetsecurity.com: v=spf1 ip4:83.246.65.0/24 ip4:185.140.204.0/22 ip4:94.100.128.0/20 ip4:8...
+├── DMARC Policy: v=DMARC1; p=none; sp=none; rua=mailto:dmarc.report@heise.de
+├── DMARC Status: policy: none, reporting enabled
+├── DMARC Subdomain (sp=): none
+├── DMARC Reporting: rua: mailto:dmarc.report@heise.de
+├── DKIM Selectors: 2 discovered via heuristic lookup (mail, s1)
+├── CAA Policy: iodef mailto:hostmaster@heise.de, issue amazon.com, issue sectigo.com, issue letsencrypt.org
+│   ├── issuewild: sectigo.com
+├── DNSSEC: not detected
+├── DNS Config Assessment: baseline configuration with hardening gaps
+├── Zone Transfer: not allowed or filtered
+└── Assessment Findings: SPF uses soft-fail enforcement; DMARC is monitor-only
+
+[             DNS HISTORY TIMELINE             ]
+├── Data Sources: RobTex, Mnemonic, VirusTotal, CertSpotter
+├── First Seen: 2013-11-25 (RobTex)
+├── Current IP 193.99.144.80 first seen: 2015-09-04 – long-standing
+├── Timeline Span: 2013-11-25 to 2026-05-02 (4541 days)
+├── NS Record Changes: 1 change events
+│   └── 2015-09-04: ns.heise.de, ns.plusline.de, ns.pop-hannover.de, ns2.pop-hannover...
+├── MX Record Changes: 2 change events
+│   ├── 2015-09-04: relay.heise.de
+│   └── 2021-12-16: mx01.hornetsecurity.com, mx02.hornetsecurity.com, mx03.hornetsecu...
+├── Certificate History (CertSpotter): 99 certificates
+│   └── Earliest: 2025-05-28, Latest: 2026-03-12
+├── Major Changes: 3 detected
+├── Recent Events:
+│   ├── 2026-05-02: [A] 2a02:2e0:3fe:1001:302::
+│   ├── 2021-12-16: [MX] mx01.hornetsecurity.com
+│   └── 2021-12-16: [MX] mx02.hornetsecurity.com
+├── Pattern Analysis:
+│   ├── Change Frequency: low change velocity
+│   ├── Infrastructure Stability: moderately stable
+│   ├── Suspicious Patterns: none detected
+│   └── Risk Assessment: LOW
+└── Historical Risk Events: none detected
+
+[                 NETWORK PATH                 ]
+├── Connectivity: Ping reachable (19ms latency)
+├── Traceroute: 11 hops
+├── Hop 1: 192.168.0.1
+│   ├── Hostname: kabelbox.local
+│   ├── RTT: 1ms | 1ms | 2ms
+│   └── Type: LOCAL GATEWAY
+├── Hop 2: 83.169.183.43
+│   ├── Hostname: ip53a9b72b.static.kabel-deutschland.de
+│   ├── RTT: 20ms | 11ms | 13ms
+│   └── Type: TRANSIT
+├── Hop 3: 88.134.235.133
+│   ├── Hostname: ip5886eb85.static.kabel-deutschland.de
+│   ├── RTT: 14ms | 15ms | 13ms
+│   └── Type: TRANSIT
+├── Hop 4: 145.254.3.122
+│   ├── RTT: 19ms | 22ms | 14ms
+│   └── Type: TRANSIT
+├── Hop 5: 145.254.2.217
+│   ├── RTT: 17ms | 39ms | 13ms
+│   └── Type: TRANSIT
+├── Hop 6: 62.157.250.237
+│   ├── RTT: 17ms | 15ms | 14ms
+│   └── Type: TRANSIT
+├── Hop 7: 217.239.38.10
+│   ├── Hostname: f-eh4-i.F.DE.NET.DTAG.DE
+│   ├── RTT: 24ms | 25ms | 81ms
+│   └── Type: TRANSIT
+├── Hop 8: 62.159.61.15
+│   ├── RTT: 21ms | 24ms | 21ms
+│   └── Type: TRANSIT
+├── Hop 9: 82.98.102.138
+│   ├── RTT: 36ms | 30ms | 32ms
+│   └── Type: TRANSIT
+├── Hop 10: 212.19.61.13
+│   ├── RTT: 22ms | 20ms | 21ms
+│   └── Type: TRANSIT
+└── Hop 11: 193.99.144.80
+    ├── Hostname: redirector.heise.de
+    ├── RTT: 30ms | 25ms | 20ms
+    └── Type: TARGET
+
+[               HTTP/S BEHAVIOR                ]
+├── HTTP Status: 301 HTTPS redirect
+├── HTTPS Status: 200 OK
+├── Server: nginx
+├── X-Frame-Options: DENY
+├── Content-Security-Policy: not configured
+├── HSTS: max-age=15768000
+├── Redirect Chain: http://heise.de -> https://www.heise.de/ (1 hop)
+└── Assessment: Strong - HTTPS enforced, HSTS active
+
+[                  SSL / TLS                   ]
+├── Issuer: Let's Encrypt (R13)
+├── Valid From: 2026-05-05
+├── Valid Until: 2026-08-03
+├── Days to Expiry: 56 days
+├── Certificate Type: Single
+├── TLS Version: TLSv1.3
+├── Subject Alternative Names (1 total):
+│   ├── heise.de
+└── Assessment: Valid - modern TLS
+
+[                INFRASTRUCTURE                ]
+├── Infrastructure: Unknown/Direct (Direct)
+├── Protection Level: Minimal
+├── Edge Protection: No CDN/WAF detected
+├── WAF Assessment: Origin appears directly exposed
+└── Location: Hanover, Germany
+
+[                ATTACK SURFACE                ]
+├── Total Subdomains: 10 discovered
+├── Sensitive Assets: 3 identified
+├── API: 2 (SENSITIVE)
+├── Dev: 1 (SENSITIVE)
+├── Commerce: 2
+├── Infrastructure: 3
+├── Basic: 2
+├── Findings:
+│   ├── api.heise.de [HIGH] - API Endpoint
+│   ├── beta.heise.de [HIGH] - Development Environment
+│   ├── service.heise.de [HIGH] - API Endpoint
+├── Discovered Subdomains:
+│   ├── api.heise.de [HIGH] - API Endpoint
+│   ├── beta.heise.de [HIGH] - Development Environment
+│   ├── cdn.heise.de
+│   ├── download.heise.de
+│   ├── ftp.heise.de
+│   ├── media.heise.de
+│   ├── payment.heise.de
+│   ├── service.heise.de [HIGH] - API Endpoint
+│   ├── shop.heise.de
+│   ├── www.heise.de
+└── DNS Config: Standard Resolution
+
+[             THREAT INTELLIGENCE              ]
+├── Domain Reputation: CLEAN (0/91 vendors) [Live Data]
+├── VT Reputation Score: 0
+├── IP Reputation: CLEAN (0%) [Live Data]
+├── Geographic Risk: DE
+└── SecurityTrails: not available - quota exceeded or no API key
+
+[             IP & DOMAIN HISTORY              ]
+├── Current IP: 193.99.144.80
+├── Domain IP History (3 unique IPs observed):
+│   ├── 2026-05-02: 2a02:2e0:3fe:1001:302::
+│   ├── 2019-12-13: 193.99.144.80 (current)
+│   ├── 2013-11-25: 193.99.144.77
+├── Reverse IP (193.99.144.80, showing top 20 of 449 total):
+│   ├── www.techstage.com (RobTex, 2026-06-07)
+│   ├── www.technology-review.de (RobTex, 2026-06-07)
+│   ├── www.ixlab.de (RobTex, 2026-06-07)
+│   ├── www.hinstorff-media.de (RobTex, 2026-06-07)
+│   ├── www.heiseshop.de (RobTex, 2026-06-07)
+│   ├── www.heise.at (RobTex, 2026-06-07)
+│   ├── www.heise-online.co.uk (RobTex, 2026-06-07)
+│   ├── www.h-online.com (RobTex, 2026-06-07)
+│   ├── www.cttv.de (RobTex, 2026-06-07)
+│   ├── whitepaper.heise.de (RobTex, 2026-06-07)
+│   ├── weiterlesen-wo-andere-aufhoeren.de (RobTex, 2026-06-07)
+│   ├── verlag-heinz-heise.de (RobTex, 2026-06-07)
+│   ├── thuhoff.de (RobTex, 2026-06-07)
+│   ├── techstage.net (RobTex, 2026-06-07)
+│   ├── techstage.com (RobTex, 2026-06-07)
+│   ├── technologyreview.de (RobTex, 2026-06-07)
+│   ├── technology-review.de (RobTex, 2026-06-07)
+│   ├── tech-stage.de (RobTex, 2026-06-07)
+│   ├── tech-stage.com (RobTex, 2026-06-07)
+│   ├── stat.heiseshop.de (RobTex, 2026-06-07)
+│   ├── ... +429 more
+│   └── Total unique co-hosted: 449
+└── Assessment: shared hosting (high density)
+
+[               RISK ASSESSMENT                ]
+├── Overall Risk: LOW
+└── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+
+[                  EXECUTION                   ]
+├── Execution Time: 58.2 seconds
+├── Modules Executed: 11 successful, 0 failed, 0 timeout
+├── Live APIs Used: AbuseIPDB, VirusTotal, DNS History (RobTex, Mnemonic, VirusTotal), Reverse IP (virustotal, robtex, hackertarget)
+└── Detailed Logs: logs/domain_analyzer_*.log
+
+================================================================================
+FORENSIC ANALYSIS COMPLETE
+================================================================================
+
+Forensic session 20260607-200701 complete.
+Check logs for detailed technical information and audit trail.
+
+
+VPN Test, Proton VPN, Windows, Location: USA
+
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]> python run.py
+DOMAIN FORENSIC ANALYZER
+Target Domain Selection
+========================================
+Enter target domain: heise.de
+Collecting forensic metadata... COMPLETE
+
+================================================================================
+DOMAIN FORENSIC ANALYZER - SESSION: 20260607-195809
+================================================================================
+Analysis Timestamp: 2026-06-07 19:58:09 UTC
+Target Domain: HEISE.DE
+Session ID: 20260607-195809
+
+Analyst Metadata:
+├── External IP: 185.236.200.246
+├── Local IP: 10.2.0.2
+├── Hostname: LAPTOP-2CC9B721
+├── Username: dexter
+└── System: Windows 10 (AMD64)
+
+OPSEC Assessment:
+├── Analysis Type: MIXED - Passive APIs + Active Probes
+├── Attribution Risk: LOW
+├── Stealth Level: MEDIUM
+├── Network Topology: NAT Protected
+├── Proxy/VPN: Not Detected
+├── Active Probes (target sees your IP):
+│   ├── DNS resolution (direct nameserver query)
+│   ├── Traceroute (ICMP packets to target)
+│   ├── Ping (ICMP to target)
+│   ├── HTTP/S connectivity check
+│   ├── Zone transfer attempt (direct to NS)
+│   ├── Subdomain DNS probes
+│   └── SSL/TLS handshake (direct connection to target:443)
+└── Passive Sources (target does not see your IP):
+    ├── VirusTotal, AbuseIPDB, WhoisXML
+    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS
+    └── crt.sh, CertSpotter, ip-api.com
+
+================================================================================
+OSINT Tool | Network Intelligence | Asset Discovery
+Multi-API Threat Intelligence | Security Analysis
+================================================================================
+Platform: Windows | Modules: 11 Core Analyzers | APIs: 5 Intelligence Sources | Status: Ready
+
+Starting analysis...
+   [1/11] Dns... TIMEOUT (30.0s)
+   [2/11] Whois... COMPLETE (2.4s)
+   [3/11] Dns History... COMPLETE (20.5s)
+   [4/11] Cdn... FAILED (0.0s)
+   [5/11] Network... FAILED (0.0s)
+   [6/11] Subdomain... COMPLETE (3.5s)
+   [7/11] Ssl... COMPLETE (0.8s)
+   [8/11] Securitytrails... COMPLETE (1.9s)
+   [9/11] Abuseipdb... FAILED (0.0s)
+   [10/11] Virustotal... COMPLETE (0.8s)
+   [11/11] Ip History... FAILED (0.0s)
+   [done] Analysis complete: 6/11 successful | 4 failed | 1 timeout | APIs: 3/6 | Total: 60.1s
+
+================================================================================
+DOMAIN FORENSIC ANALYSIS: HEISE.DE
+Summary: Risk LOW | Assets 10 | Sensitive 3 | Modules 6/11 | Time 60.1s
+================================================================================
+
+[                   SUMMARY                    ]
+├── Domain: HEISE.DE
+├── Overall Risk: LOW
+├── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+└── Execution: 60.1s | 6/11 modules successful
+
+[                    TARGET                    ]
+├── DNS: FAILED
+└── Unable to resolve domain
+
+[             DNS HISTORY TIMELINE             ]
+├── Data Sources: RobTex, Mnemonic, VirusTotal, CertSpotter
+├── First Seen: 2013-11-25 (RobTex)
+├── Timeline Span: 2013-11-25 to 2026-05-02 (4541 days)
+├── NS Record Changes: 1 change events
+│   └── 2015-09-04: ns.heise.de, ns.plusline.de, ns.pop-hannover.de, ns2.pop-hannover...
+├── MX Record Changes: 2 change events
+│   ├── 2015-09-04: relay.heise.de
+│   └── 2021-12-16: mx01.hornetsecurity.com, mx02.hornetsecurity.com, mx03.hornetsecu...
+├── Certificate History (CertSpotter): 99 certificates
+│   └── Earliest: 2025-05-28, Latest: 2026-03-12
+├── Major Changes: 3 detected
+├── Recent Events:
+│   ├── 2026-05-02: [A] 2a02:2e0:3fe:1001:302::
+│   ├── 2021-12-16: [MX] mx01.hornetsecurity.com
+│   └── 2021-12-16: [MX] mx02.hornetsecurity.com
+├── Pattern Analysis:
+│   ├── Change Frequency: low change velocity
+│   ├── Infrastructure Stability: moderately stable
+│   ├── Suspicious Patterns: none detected
+│   └── Risk Assessment: LOW
+└── Historical Risk Events: none detected
+
+[             IP & DOMAIN HISTORY              ]
+├── Current IP: not resolving (domain inactive)
+├── Last Known IP: 193.99.144.80 (last seen 2019-12-13)
+├── Historical IPs (2 unique observed):
+│   ├── 2019-12-13: 193.99.144.80
+│   ├── 2013-11-25: 193.99.144.77
+└── Reverse IP: not available (domain inactive)
+
+[             THREAT INTELLIGENCE              ]
+├── Domain Reputation: CLEAN (0/91 vendors) [Live Data]
+├── VT Reputation Score: 0
+├── SecurityTrails: not available - quota exceeded or no API key
+└── IP Reputation: not available (domain inactive — no current IP)
+
+[               RISK ASSESSMENT                ]
+├── Overall Risk: LOW
+└── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+
+[                  EXECUTION                   ]
+├── Execution Time: 60.1 seconds
+├── Modules Executed: 6 successful, 4 failed, 1 timeout
+├── Mode: HISTORICAL ANALYSIS (domain inactive — current DNS resolution failed)
+├── Live APIs Used: VirusTotal, DNS History (RobTex, Mnemonic, VirusTotal)
+└── Detailed Logs: logs/domain_analyzer_*.log
+
+================================================================================
+FORENSIC ANALYSIS COMPLETE
+================================================================================
+
+Forensic session 20260607-195809 complete.
+Check logs for detailed technical information and audit trail.
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]>
+>> invoke-RestMethod -Uri "https://ifconfig.me"
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="content-style-type" content="text/css" />
+    <meta http-equiv="content-script-type" content="text/javascript" />
+    <meta http-equiv="content-language" content="en" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta name="description" content="Get my IP Address" />
+    <meta name="keywords" content="ip address ifconfig ifconfig.me" />
+    <meta name="author" content="" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="canonical" href="https://ifconfig.me/" />
+    <title>What Is My IP Address? - ifconfig.me</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="./static/styles/style.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="ad_container">
+        <div class="ad">
+            Need a robust API to Geolocate IPs and fetch other crucial information? Try
+            <a
+                href="https://ipinfo.io/?utm_source=ifconfig.me&utm_medium=referral&utm_campaign=upsell_sister_sites">IPinfo.io</a>.
+        </div>
+    </div>
+
+    <div id="container" class="clearfix">
+        <div id="header">
+            <table>
+                <tr>
+                    <td>
+                        <h1><a href="http://ifconfig.me">What Is My IP Address? - ifconfig.me</a></h1>
+                    </td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>
+                        <div id="plungins">
+                            <div class="plungin" id="button_facebook">
+                                <div id="fb-root"></div>
+                                <script src="http://connect.facebook.net/en_US/all.js#xfbml=1"></script>
+                                <fb:like href="http://ifconfig.me/" send="false" layout="button_count" width="100"
+                                    show_faces="true" font=""></fb:like>
+                            </div>
+
+                            <div class="plungin" id="button_twitter">
+                                <a href="http://twitter.com/share" class="twitter-share-button"
+                                    data-url="http://ifconfig.me/" data-text="What Is My IP Address? - ifconfig.me"
+                                    data-count="horizontal"></a>
+                                <script type="text/javascript" src="http://platform.twitter.com/widgets.js"></script>
+                            </div>
+
+                            <div class="plungin" id="button_plusone">
+                                <!-- Place this tag where you want the +1 button to render -->
+                                <g:plusone size="medium" href="http://ifconfig.me/"></g:plusone>
+                                <!-- Place this render call where appropriate -->
+                                <script type="text/javascript">
+                                    (function () {
+                                        var po = document.createElement('script');
+                                        po.type = 'text/javascript';
+                                        po.async = true;
+                                        po.src = 'https://apis.google.com/js/plusone.js';
+                                        var s = document.getElementsByTagName('script')[0];
+                                        s.parentNode.insertBefore(po, s);
+                                    })();
+                                </script>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div id="info_area">
+            <h2>Your Connection</h2>
+            <table id="info_table" summary="info">
+                <tr>
+                    <td class="info_table_label">IP Address</td>
+                    <td id="ip_address_cell"><strong id="ip_address">
+                            185.236.200.246
+                        </strong></td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">User Agent</td>
+                    <td>
+                        Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Language</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Referer</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Method</td>
+                    <td>
+                        GET
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Encoding</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">MIME Type</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Charset</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">X-Forwarded-For</td>
+                    <td>
+                        185.236.200.246,34.160.111.145
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <!--<div id="middle"></div>-->
+        <div id="cli_wrap">
+            <h2>Command Line Interface</h2>
+            <table id="cli_table" summary="cli">
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        185.236.200.246
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/ip</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        185.236.200.246
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/ua</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/lang</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/encoding</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/mime</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/charset</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/forwarded</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        185.236.200.246,34.160.111.145
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/all</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                            ip_addr: 185.236.200.246
+                            <br>
+
+                            remote_host: unavailable
+                            <br>
+
+                            user_agent: Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                            <br>
+
+                            port: 39338
+                            <br>
+
+                            language:
+                            <br>
+
+                            referer:
+                            <br>
+
+                            connection:
+                            <br>
+
+                            keep_alive:
+                            <br>
+
+                            method: GET
+                            <br>
+
+                            encoding:
+                            <br>
+
+                            mime:
+                            <br>
+
+                            charset:
+                            <br>
+
+                            via: 1.1 google
+                            <br>
+
+                            forwarded: 185.236.200.246,34.160.111.145
+                            <br>
+
+
+                            <br>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/all.json</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        {&quot;ip_addr&quot;:&quot;185.236.200.246&quot;,&quot;user_agent&quot;:&quot;Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456&quot;,&quot;port&quot;:&quot;39338&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;via&quot;:&quot;1.1 google&quot;,&quot;forwarded&quot;:&quot;185.236.200.246,34.160.111.145&quot;}
+                    </td>
+                </tr>
+
+            </table>
+        </div>
+        <div id="footer">&copy; 2026 ifconfig.me</div>
+    </div>
+</body>
+
+</html>
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]>
+
+
+VPN Test 2, Proton VPN, Windows, Location : Norwegen 
+
+>> invoke-RestMethod -Uri "https://ifconfig.me"
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="content-style-type" content="text/css" />
+    <meta http-equiv="content-script-type" content="text/javascript" />
+    <meta http-equiv="content-language" content="en" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta name="description" content="Get my IP Address" />
+    <meta name="keywords" content="ip address ifconfig ifconfig.me" />
+    <meta name="author" content="" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="canonical" href="https://ifconfig.me/" />
+    <title>What Is My IP Address? - ifconfig.me</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="./static/styles/style.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="ad_container">
+        <div class="ad">
+            Need a robust API to Geolocate IPs and fetch other crucial information? Try
+            <a
+                href="https://ipinfo.io/?utm_source=ifconfig.me&utm_medium=referral&utm_campaign=upsell_sister_sites">IPinfo.io</a>.
+        </div>
+    </div>
+
+    <div id="container" class="clearfix">
+        <div id="header">
+            <table>
+                <tr>
+                    <td>
+                        <h1><a href="http://ifconfig.me">What Is My IP Address? - ifconfig.me</a></h1>
+                    </td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td>
+                        <div id="plungins">
+                            <div class="plungin" id="button_facebook">
+                                <div id="fb-root"></div>
+                                <script src="http://connect.facebook.net/en_US/all.js#xfbml=1"></script>
+                                <fb:like href="http://ifconfig.me/" send="false" layout="button_count" width="100"
+                                    show_faces="true" font=""></fb:like>
+                            </div>
+
+                            <div class="plungin" id="button_twitter">
+                                <a href="http://twitter.com/share" class="twitter-share-button"
+                                    data-url="http://ifconfig.me/" data-text="What Is My IP Address? - ifconfig.me"
+                                    data-count="horizontal"></a>
+                                <script type="text/javascript" src="http://platform.twitter.com/widgets.js"></script>
+                            </div>
+
+                            <div class="plungin" id="button_plusone">
+                                <!-- Place this tag where you want the +1 button to render -->
+                                <g:plusone size="medium" href="http://ifconfig.me/"></g:plusone>
+                                <!-- Place this render call where appropriate -->
+                                <script type="text/javascript">
+                                    (function () {
+                                        var po = document.createElement('script');
+                                        po.type = 'text/javascript';
+                                        po.async = true;
+                                        po.src = 'https://apis.google.com/js/plusone.js';
+                                        var s = document.getElementsByTagName('script')[0];
+                                        s.parentNode.insertBefore(po, s);
+                                    })();
+                                </script>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div id="info_area">
+            <h2>Your Connection</h2>
+            <table id="info_table" summary="info">
+                <tr>
+                    <td class="info_table_label">IP Address</td>
+                    <td id="ip_address_cell"><strong id="ip_address">
+                            205.147.17.38
+                        </strong></td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">User Agent</td>
+                    <td>
+                        Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Language</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Referer</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Method</td>
+                    <td>
+                        GET
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Encoding</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">MIME Type</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">Charset</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="info_table_label">X-Forwarded-For</td>
+                    <td>
+                        205.147.17.38,34.160.111.145
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <!--<div id="middle"></div>-->
+        <div id="cli_wrap">
+            <h2>Command Line Interface</h2>
+            <table id="cli_table" summary="cli">
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        205.147.17.38
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/ip</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        205.147.17.38
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/ua</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/lang</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/encoding</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/mime</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/charset</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/forwarded</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        205.147.17.38,34.160.111.145
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/all</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+
+                            ip_addr: 205.147.17.38
+                            <br>
+
+                            remote_host: unavailable
+                            <br>
+
+                            user_agent: Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456
+                            <br>
+
+                            port: 42948
+                            <br>
+
+                            language:
+                            <br>
+
+                            referer:
+                            <br>
+
+                            connection:
+                            <br>
+
+                            keep_alive:
+                            <br>
+
+                            method: GET
+                            <br>
+
+                            encoding:
+                            <br>
+
+                            mime:
+                            <br>
+
+                            charset:
+                            <br>
+
+                            via: 1.1 google
+                            <br>
+
+                            forwarded: 205.147.17.38,34.160.111.145
+                            <br>
+
+
+                            <br>
+
+                    </td>
+                </tr>
+                <tr>
+                    <td class="cli_command">$ curl ifconfig.me/all.json</td>
+                    <td class="cli_arrow">&rArr;</td>
+                    <td>
+                        {&quot;ip_addr&quot;:&quot;205.147.17.38&quot;,&quot;user_agent&quot;:&quot;Mozilla/5.0 (Windows NT; Windows NT 10.0; de-DE) WindowsPowerShell/5.1.19041.6456&quot;,&quot;port&quot;:&quot;42948&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;via&quot;:&quot;1.1 google&quot;,&quot;forwarded&quot;:&quot;205.147.17.38,34.160.111.145&quot;}
+                    </td>
+                </tr>
+
+            </table>
+        </div>
+        <div id="footer">&copy; 2026 ifconfig.me</div>
+    </div>
+</body>
+
+</html>
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]> python run.py
+DOMAIN FORENSIC ANALYZER
+Target Domain Selection
+========================================
+Enter target domain: heise.de
+Collecting forensic metadata... COMPLETE
+
+================================================================================
+DOMAIN FORENSIC ANALYZER - SESSION: 20260607-200357
+================================================================================
+Analysis Timestamp: 2026-06-07 20:03:57 UTC
+Target Domain: HEISE.DE
+Session ID: 20260607-200357
+
+Analyst Metadata:
+├── External IP: 205.147.17.38
+├── Local IP: 10.2.0.2
+├── Hostname: LAPTOP-2CC9B721
+├── Username: dexter
+└── System: Windows 10 (AMD64)
+
+OPSEC Assessment:
+├── Analysis Type: MIXED - Passive APIs + Active Probes
+├── Attribution Risk: LOW
+├── Stealth Level: MEDIUM
+├── Network Topology: NAT Protected
+├── Proxy/VPN: Not Detected
+├── Active Probes (target sees your IP):
+│   ├── DNS resolution (direct nameserver query)
+│   ├── Traceroute (ICMP packets to target)
+│   ├── Ping (ICMP to target)
+│   ├── HTTP/S connectivity check
+│   ├── Zone transfer attempt (direct to NS)
+│   ├── Subdomain DNS probes
+│   └── SSL/TLS handshake (direct connection to target:443)
+└── Passive Sources (target does not see your IP):
+    ├── VirusTotal, AbuseIPDB, WhoisXML
+    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS
+    └── crt.sh, CertSpotter, ip-api.com
+
+================================================================================
+OSINT Tool | Network Intelligence | Asset Discovery
+Multi-API Threat Intelligence | Security Analysis
+================================================================================
+Platform: Windows | Modules: 11 Core Analyzers | APIs: 5 Intelligence Sources | Status: Ready
+
+Starting analysis...
+   [1/11] Dns... TIMEOUT (30.0s)
+   [2/11] Whois... COMPLETE (1.3s)
+   [3/11] Dns History... COMPLETE (10.8s)
+   [4/11] Cdn... FAILED (0.0s)
+   [5/11] Network... FAILED (0.0s)
+   [6/11] Subdomain... COMPLETE (0.8s)
+   [7/11] Ssl... COMPLETE (0.2s)
+   [8/11] Securitytrails... COMPLETE (1.0s)
+   [9/11] Abuseipdb... FAILED (0.0s)
+   [10/11] Virustotal... COMPLETE (0.4s)
+   [11/11] Ip History... FAILED (0.0s)
+   [done] Analysis complete: 6/11 successful | 4 failed | 1 timeout | APIs: 3/6 | Total: 44.6s
+
+================================================================================
+DOMAIN FORENSIC ANALYSIS: HEISE.DE
+Summary: Risk LOW | Assets 10 | Sensitive 3 | Modules 6/11 | Time 44.6s
+================================================================================
+
+[                   SUMMARY                    ]
+├── Domain: HEISE.DE
+├── Overall Risk: LOW
+├── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+└── Execution: 44.6s | 6/11 modules successful
+
+[                    TARGET                    ]
+├── DNS: FAILED
+└── Unable to resolve domain
+
+[             DNS HISTORY TIMELINE             ]
+├── Data Sources: RobTex, Mnemonic, VirusTotal, CertSpotter
+├── First Seen: 2013-11-25 (RobTex)
+├── Timeline Span: 2013-11-25 to 2026-05-02 (4541 days)
+├── NS Record Changes: 1 change events
+│   └── 2015-09-04: ns.heise.de, ns.plusline.de, ns.pop-hannover.de, ns2.pop-hannover...
+├── MX Record Changes: 2 change events
+│   ├── 2015-09-04: relay.heise.de
+│   └── 2021-12-16: mx01.hornetsecurity.com, mx02.hornetsecurity.com, mx03.hornetsecu...
+├── Certificate History (CertSpotter): 99 certificates
+│   └── Earliest: 2025-05-28, Latest: 2026-03-12
+├── Major Changes: 3 detected
+├── Recent Events:
+│   ├── 2026-05-02: [A] 2a02:2e0:3fe:1001:302::
+│   ├── 2021-12-16: [MX] mx01.hornetsecurity.com
+│   └── 2021-12-16: [MX] mx02.hornetsecurity.com
+├── Pattern Analysis:
+│   ├── Change Frequency: low change velocity
+│   ├── Infrastructure Stability: moderately stable
+│   ├── Suspicious Patterns: none detected
+│   └── Risk Assessment: LOW
+└── Historical Risk Events: none detected
+
+[             IP & DOMAIN HISTORY              ]
+├── Current IP: not resolving (domain inactive)
+├── Last Known IP: 193.99.144.80 (last seen 2019-12-13)
+├── Historical IPs (2 unique observed):
+│   ├── 2019-12-13: 193.99.144.80
+│   ├── 2013-11-25: 193.99.144.77
+└── Reverse IP: not available (domain inactive)
+
+[             THREAT INTELLIGENCE              ]
+├── Domain Reputation: CLEAN (0/91 vendors) [Live Data]
+├── VT Reputation Score: 0
+├── SecurityTrails: not available - quota exceeded or no API key
+└── IP Reputation: not available (domain inactive — no current IP)
+
+[               RISK ASSESSMENT                ]
+├── Overall Risk: LOW
+└── Recommendation: NO MALICIOUS INDICATORS - Low risk profile
+
+[                  EXECUTION                   ]
+├── Execution Time: 44.6 seconds
+├── Modules Executed: 6 successful, 4 failed, 1 timeout
+├── Mode: HISTORICAL ANALYSIS (domain inactive — current DNS resolution failed)
+├── Live APIs Used: VirusTotal, DNS History (RobTex, Mnemonic, VirusTotal)
+└── Detailed Logs: logs/domain_analyzer_*.log
+
+================================================================================
+FORENSIC ANALYSIS COMPLETE
+================================================================================
+
+Forensic session 20260607-200357 complete.
+Check logs for detailed technical information and audit trail.
+
+
+Prüfen ob tracert in Powershell mit VPN daten liefert :
+
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]> tracert heise.de
+
+Routenverfolgung zu heise.de [193.99.144.80]
+über maximal 30 Hops:
+
+  1   162 ms   156 ms   141 ms  10.2.0.1
+  2   156 ms   164 ms   162 ms  vlan138.as10-10g.qc1.ca.m247.ro [37.120.205.85]
+  3   151 ms   161 ms   157 ms  ae4-3101.bb1.qc1.ca.m247.ro [37.120.220.196]
+  4   203 ms   203 ms   218 ms  motl-b3-link.ip.twelve99.net [213.248.90.212]
+  5   215 ms   233 ms   248 ms  motl-b4-link.ip.twelve99.net [62.115.141.113]
+  6   220 ms     *      202 ms  nyk-bb5-link.ip.twelve99.net [62.115.137.142]
+  7   287 ms   281 ms     *     ldn-bb1-link.ip.twelve99.net [62.115.139.245]
+  8   289 ms   252 ms   285 ms  prs-bb1-link.ip.twelve99.net [62.115.135.25]
+  9   270 ms   255 ms   263 ms  ffm-bb1-link.ip.twelve99.net [62.115.123.12]
+ 10   281 ms   291 ms   279 ms  ffm-b16-link.ip.twelve99.net [62.115.132.227]
+ 11   297 ms   298 ms   292 ms  plusline-ic-323934.ip.twelve99-cust.net [62.115.153.153]
+ 12   332 ms   311 ms   333 ms  te2-2.c301.f.de.plusline.net [82.98.102.1]
+ 13   280 ms   297 ms   300 ms  82.98.103.3
+ 14   265 ms   234 ms   279 ms  212.19.61.13
+ 15   292 ms   285 ms   276 ms  redirector.heise.de [193.99.144.80]
+
+Ablaufverfolgung beendet.
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]> tracert heise.de
+
+Routenverfolgung zu heise.de [193.99.144.80]
+über maximal 30 Hops:
+
+  1    43 ms    44 ms    42 ms  10.2.0.1
+  2     *        *        *     Zeitüberschreitung der Anforderung.
+  3    43 ms    42 ms    43 ms  ae101-3101.core1.buc1.ro.m247.ro [146.70.1.62]
+  4    45 ms    45 ms    52 ms  irb-1906.agg1v.prg3.cz.m247.ro [185.206.226.99]
+  5    74 ms    65 ms    65 ms  hundredgige0-0-0-1-2933.core1n.fra2.de.m247.ro [89.44.212.184]
+  6    65 ms    65 ms    64 ms  vlan3904.pni2.fra2.de.m247.ro [193.27.15.165]
+  7    64 ms    65 ms    68 ms  ae17-0.fra20.core-backbone.com [5.56.17.177]
+  8    66 ms    66 ms     *     ae2-2025.fra30.core-backbone.com [5.56.17.26]
+  9    69 ms    71 ms    73 ms  core-backbone.plusline.net [5.56.18.114]
+ 10    74 ms    67 ms    70 ms  82.98.102.19
+ 11    73 ms    70 ms    68 ms  212.19.61.13
+ 12    67 ms    68 ms    67 ms  redirector.heise.de [193.99.144.80]
+
+Ablaufverfolgung beendet.
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]> tracert heise.de
+
+Ergebniss : Ja
+
+
+Test ohne VPN :
+
+
+Routenverfolgung zu heise.de [2a02:2e0:3fe:1001:302::]
+über maximal 30 Hops:
+
+  1     1 ms     1 ms     1 ms  2a02:8109:b20:6000:52a5:dcff:fed0:9370
+  2    15 ms    11 ms    11 ms  2a02:8109:1:16::1
+  3    13 ms    12 ms    13 ms  2a02:8100:6:2::102:5c1
+  4     *        *       13 ms  2a02:8100:6:2::4:101
+  5     *        *        *     Zeitüberschreitung der Anforderung.
+  6     *        *        *     Zeitüberschreitung der Anforderung.
+  7     *        *        *     Zeitüberschreitung der Anforderung.
+  8     *        *        *     Zeitüberschreitung der Anforderung.
+  9     *        *        *     Zeitüberschreitung der Anforderung.
+ 10    21 ms    20 ms    18 ms  2a02:2e0:3fe:0:c::1
+ 11    19 ms    19 ms    18 ms  redirector.heise.de [2a02:2e0:3fe:1001:302::]
+
+Ablaufverfolgung beendet.
+C:\github\domain-forensic-analyzer [feature/phase-4-validation +4 ~0 -0 !]>
+
