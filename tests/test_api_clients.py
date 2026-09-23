@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
+from src.config.api_config import APIConfig
+
 
 # ---------------------------------------------------------------------------
 # VirusTotal client
@@ -14,13 +16,17 @@ class TestVirusTotalClient:
     def client(self):
         from src.analyzers.virustotal_client import VirusTotalClient
         c = VirusTotalClient()
-        c.api_key = "test_key_1234567890"
+        c.config = APIConfig(
+            api_key="test_key_1234567890",
+            base_url="https://www.virustotal.com/api/v3",
+            rate_limit=1000,
+        )
         return c
 
     def test_no_api_key_returns_demo_mode(self):
         from src.analyzers.virustotal_client import VirusTotalClient
         c = VirusTotalClient()
-        c.api_key = None
+        c.config = None
         result = c.analyze_domain_reputation("example.com")
         assert result.get("api_status") in ("demo", "no_api_key", "failed", None) or \
                "[Demo" in str(result) or \
@@ -64,13 +70,17 @@ class TestAbuseIPDBClient:
     def client(self):
         from src.analyzers.abuseipdb_client import AbuseIPDBClient
         c = AbuseIPDBClient()
-        c.api_key = "test_key_1234567890"
+        c.config = APIConfig(
+            api_key="test_key_1234567890",
+            base_url="https://api.abuseipdb.com/api/v2",
+            rate_limit=1000,
+        )
         return c
 
     def test_no_api_key_handled(self):
         from src.analyzers.abuseipdb_client import AbuseIPDBClient
         c = AbuseIPDBClient()
-        c.api_key = None
+        c.config = None
         result = c.analyze_ip_reputation("93.184.216.34", "example.com")
         assert isinstance(result, dict)
 
@@ -80,13 +90,13 @@ class TestAbuseIPDBClient:
         mock_resp.json.return_value = abuseipdb_response
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("requests.get", return_value=mock_resp):
+        with patch.object(client.session, "get", return_value=mock_resp):
             result = client.analyze_ip_reputation("93.184.216.34", "example.com")
 
         assert isinstance(result, dict)
 
     def test_network_error_handled(self, client):
-        with patch("requests.get", side_effect=ConnectionError("timeout")):
+        with patch.object(client.session, "get", side_effect=ConnectionError("timeout")):
             result = client.analyze_ip_reputation("1.2.3.4", "example.com")
         assert isinstance(result, dict)
 
@@ -96,7 +106,7 @@ class TestAbuseIPDBClient:
         mock_resp.json.return_value = abuseipdb_response
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("requests.get", return_value=mock_resp):
+        with patch.object(client.session, "get", return_value=mock_resp):
             result = client.analyze_ip_reputation("93.184.216.34", "example.com")
 
         assert "ip_address" in result or "analysis_status" in result
@@ -112,13 +122,17 @@ class TestSecurityTrailsClient:
     def client(self):
         from src.analyzers.securitytrails_client import SecurityTrailsClient
         c = SecurityTrailsClient()
-        c.api_key = "test_key_1234567890"
+        c.config = APIConfig(
+            api_key="test_key_1234567890",
+            base_url="https://api.securitytrails.com/v1",
+            rate_limit=50,
+        )
         return c
 
     def test_no_api_key_returns_demo(self):
         from src.analyzers.securitytrails_client import SecurityTrailsClient
         c = SecurityTrailsClient()
-        c.api_key = None
+        c.config = None
         result = c.analyze_domain_intelligence("example.com")
         assert isinstance(result, dict)
         assert result.get("analysis_status") is not None
