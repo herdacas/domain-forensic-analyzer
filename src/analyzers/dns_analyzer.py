@@ -686,10 +686,13 @@ class DNSAnalyzer:
                 "No common DKIM selector detected during heuristic discovery"
             )
 
-        if dnssec.get("status") == "enabled":
+        dnssec_status = dnssec.get("status")
+        if dnssec_status == "enabled":
             strengths.append("DNSSEC indicators detected")
-        else:
+        elif dnssec_status != "check_failed":
             findings.append("DNSSEC not detected")
+        # check_failed: inconclusive — excluded from both findings and
+        # strengths rather than counted as a negative finding
 
         if zone_transfer.get("status") == "allowed":
             findings.append("Zone transfer allowed")

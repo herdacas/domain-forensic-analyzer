@@ -139,6 +139,37 @@ def test_dns_configuration_assessment_can_be_partially_hardened():
     assert result["dns_configuration_assessment"]["status"] == "partially_hardened"
 
 
+def test_dns_configuration_assessment_excludes_dnssec_check_failed_from_findings():
+    """A DNSSEC query failure must not be counted as a negative finding —
+    only a clean not_detected should produce "DNSSEC not detected"."""
+    analyzer = DNSAnalyzer()
+
+    common_args = (
+        {"status": "configured", "all_mechanism": "hard_fail"},
+        {"status": "configured", "policy": "reject", "reporting_enabled": True},
+        {"status": "selectors_found"},
+    )
+
+    failed_result = analyzer._assess_dns_configuration(
+        *common_args,
+        {"status": "check_failed"},
+        {"status": "not_allowed"},
+        [{"tag": "issue", "value": "letsencrypt.org"}],
+    )
+    not_detected_result = analyzer._assess_dns_configuration(
+        *common_args,
+        {"status": "not_detected"},
+        {"status": "not_allowed"},
+        [{"tag": "issue", "value": "letsencrypt.org"}],
+    )
+
+    findings = failed_result["dns_configuration_assessment"]["findings"]
+    strengths = failed_result["dns_configuration_assessment"]["strengths"]
+    assert "DNSSEC not detected" not in findings
+    assert "DNSSEC indicators detected" not in strengths
+    assert "DNSSEC not detected" in not_detected_result["dns_configuration_assessment"]["findings"]
+
+
 def test_dns_forensics_bundle_builds_expected_records(monkeypatch):
     analyzer = DNSAnalyzer()
 
