@@ -24,7 +24,6 @@ import dns.zone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config.settings import get_settings
-from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
 
 
@@ -49,21 +48,41 @@ class DNSAnalyzer:
             "s1",
             "smtp",
         ]
+        self._reachable_nameservers = self._probe_nameservers()
+
+    def _probe_nameservers(self) -> List[str]:
+        """Return only the DNS nameservers that are actually network-reachable.
+
+        Under VPN with DNS-leak-protection, the physical adapter's DNS servers
+        are silently dropped (no RST). dnspython reads ALL adapters from the
+        Windows registry and tries them sequentially, causing every query to
+        hang for the full per-server timeout before reaching the VPN's DNS.
+        A quick TCP-port-53 probe with a 1 s timeout distinguishes reachable
+        servers (fast TCP-connect or RST) from blocked ones (timeout/drop).
+        """
+        default_ns = dns.resolver.Resolver().nameservers
+        reachable: List[str] = []
+        for ns_ip in default_ns:
+            try:
+                with socket.create_connection((ns_ip, 53), timeout=1.0):
+                    reachable.append(ns_ip)
+            except ConnectionRefusedError:
+                # RST received — IP is network-reachable, UDP DNS may still work
+                reachable.append(ns_ip)
+            except (socket.timeout, OSError):
+                pass  # packet dropped or other network error — skip this server
+        return reachable if reachable else default_ns
 
     def _create_resolver(
         self, nameservers: Optional[List[str]] = None
     ) -> dns.resolver.Resolver:
-        """
-        Erstellt einen Resolver mit konsistenten Timeouts.
-
-        Die DNS-Forensik-Funktionen sollen auf derselben Timeout-Basis laufen wie
-        die restliche Analyse, aber ohne weiteren globalen Prozesszustand.
-        """
         resolver = dns.resolver.Resolver()
-        resolver.timeout = self.dns_timeout
-        resolver.lifetime = self.dns_timeout
+        resolver.timeout = 2  # per-server timeout: fail fast, try next server
+        resolver.lifetime = self.dns_timeout  # total budget across all servers
         if nameservers:
             resolver.nameservers = nameservers
+        elif self._reachable_nameservers:
+            resolver.nameservers = self._reachable_nameservers
         return resolver
 
     def _resolve_dns_records(
@@ -93,7 +112,7 @@ class DNSAnalyzer:
         clean_domain = DomainValidator.clean_domain(domain)
 
         # Das Basisschema bleibt absichtlich klein und stabil.
-        results = {
+        results: Dict[str, Any] = {
             "domain": clean_domain,
             "ipv4": None,
             "ipv6": None,
@@ -225,6 +244,7 @@ class DNSAnalyzer:
                 timeout=self.dns_timeout,
                 encoding="cp850",
                 errors="replace",
+                check=False,
             )
         except subprocess.TimeoutExpired:
             return None
@@ -415,7 +435,7 @@ class DNSAnalyzer:
 
     def _parse_policy_directives(self, record: Optional[str]) -> Dict[str, str]:
         """Parse semicolon-separated policy directives (e.g. DMARC) into a key/value dict."""
-        directives = {}
+        directives: Dict[str, str] = {}
         if not record:
             return directives
 
@@ -438,7 +458,7 @@ class DNSAnalyzer:
         ruf = directives.get("ruf")
         has_reporting = bool(rua or ruf)
 
-        analysis = {
+        analysis: Dict[str, Any] = {
             "status": "missing" if not dmarc_record else "configured",
             "policy": policy or "not_set",
             "subdomain_policy": directives.get("sp") or policy or "not_set",
@@ -559,30 +579,36 @@ class DNSAnalyzer:
         self, domain: str, nameservers: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """Attempt AXFR zone transfer against authoritative nameservers."""
+        axfr_timeout = 3
         tested_nameservers = []
 
-        for nameserver in nameservers[:3]:
-            server_ips = self._resolve_dns_records(nameserver, "A")
-            for server_ip in server_ips[:1]:
-                ns_ip = str(server_ip)
-                tested_nameservers.append(ns_ip)
-                try:
-                    zone = dns.zone.from_xfr(
-                        dns.query.xfr(ns_ip, domain, lifetime=self.dns_timeout)
-                    )
-                    if zone:
-                        record_count = len(zone.nodes.keys())
-                        return {
-                            "zone_transfer": {
-                                "status": "allowed",
-                                "successful_nameserver": nameserver,
-                                "successful_nameserver_ip": ns_ip,
-                                "record_count": record_count,
-                                "tested_nameservers": tested_nameservers,
+        old_socket_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(axfr_timeout)
+        try:
+            for nameserver in nameservers[:3]:
+                server_ips = self._resolve_dns_records(nameserver, "A")
+                for server_ip in server_ips[:1]:
+                    ns_ip = str(server_ip)
+                    tested_nameservers.append(ns_ip)
+                    try:
+                        zone = dns.zone.from_xfr(
+                            dns.query.xfr(ns_ip, domain, lifetime=axfr_timeout)
+                        )
+                        if zone:
+                            record_count = len(zone.nodes.keys())
+                            return {
+                                "zone_transfer": {
+                                    "status": "allowed",
+                                    "successful_nameserver": nameserver,
+                                    "successful_nameserver_ip": ns_ip,
+                                    "record_count": record_count,
+                                    "tested_nameservers": tested_nameservers,
+                                }
                             }
-                        }
-                except Exception:
-                    continue
+                    except Exception:
+                        continue
+        finally:
+            socket.setdefaulttimeout(old_socket_timeout)
 
         return {
             "zone_transfer": {
@@ -704,7 +730,7 @@ class DNSAnalyzer:
     _SPF_MAX_DEPTH = 2
 
     def _resolve_spf_includes_chain(
-        self, spf_record: Optional[str], domain: str
+        self, spf_record: Optional[str], _domain: str
     ) -> Dict[str, Any]:
         """Resolve SPF include/redirect references recursively (max depth = _SPF_MAX_DEPTH)."""
         flat: List[Dict[str, Any]] = []

@@ -227,7 +227,7 @@ class SubdomainScanner:
         sensitive_assets.sort(key=lambda x: risk_order.get(x['risk_level'], 4))
         return sensitive_assets
 
-    def _get_risk_recommendations(self, risk_level: str, subdomain: str) -> List[str]:
+    def _get_risk_recommendations(self, risk_level: str, _subdomain: str) -> List[str]:
         """Return security recommendations for a given risk level."""
         if risk_level == 'critical':
             return [

@@ -5,6 +5,9 @@ omit =
     src/core/cli.py
     */test_*
     */__pycache__/*
+    audit_modules.py
+    run.py
+    validate_export.py
 
 [report]
 exclude_lines =

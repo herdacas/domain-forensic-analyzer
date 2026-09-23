@@ -22,6 +22,7 @@ class APIKeyReader:
         self.service_name = service_name
 
     def get(self) -> Optional[str]:
+        """Return the API key from env var or config file, or None if not found."""
         # 1. Environment variable
         env_val = os.getenv(self.env_var)
         if self._is_real_key(env_val):
@@ -43,10 +44,11 @@ class APIKeyReader:
             if isinstance(service_config, dict)
             else service_config
         )
-        return config_val.strip() if self._is_real_key(config_val) else None
+        return str(config_val).strip() if self._is_real_key(config_val) else None
 
     @classmethod
     def _is_real_key(cls, value: Optional[str]) -> bool:
+        """Return True if value looks like a real key (not a placeholder)."""
         if not value:
             return False
         text = value.strip()

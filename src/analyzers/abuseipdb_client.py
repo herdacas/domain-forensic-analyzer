@@ -81,7 +81,7 @@ class AbuseIPDBClient:
 
     def _extract_threat_categories(self, reports: list) -> Dict[str, int]:
         """Extract and categorize threat patterns"""
-        categories = {}
+        categories: Dict[str, int] = {}
         category_map = {
             3: "Fraud Orders",
             4: "DDoS Attack",
@@ -139,13 +139,12 @@ class AbuseIPDBClient:
                 "level": "HIGH",
                 "reason": f"IP from high-risk geographic region: {country_code}",
             }
-        elif country_code == "Unknown":
+        if country_code == "Unknown":
             return {"level": "MEDIUM", "reason": "Geographic location unknown"}
-        else:
-            return {
-                "level": "LOW",
-                "reason": f"IP from standard geographic region: {country_code}",
-            }
+        return {
+            "level": "LOW",
+            "reason": f"IP from standard geographic region: {country_code}",
+        }
 
     def _get_demo_result(self, ip_address: str, domain: str) -> Dict[str, Any]:
         """Demo result for testing without API key"""

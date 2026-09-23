@@ -1,0 +1,19 @@
+> __Ein terminalbasiertes forensisches Analyse- und Reconnaissance-Tool, das technische Infrastruktur-Informationen einer Domain durch Multi-Source-Intelligence (passive APIs + aktive Netzwerksonden) ermittelt, dokumentiert und bewertet."__
+
+### Kernmerkmale:
+
+1. __Forensisch__: Dokumentiert jeden Schritt mit Zeitstempeln, Session-IDs und OPSEC-Metadaten
+2. __Multi-Source__: Kombiniert 5+ externe Intelligence-Quellen mit eigenen Netzwerkproben
+3. __Nicht-invasiv__: Keine exploit-basierten Angriffe, nur Standard-Protokollabfragen
+4. __Dokumentierend__: Erstellt strukturierte Berichte für weitere Untersuchungen
+5. __Bewertend__: Berechnet Risikoscores basierend auf technischen Indikatoren
+
+### Typische Anwendungsfälle:
+
+- __Security Research__: Schwachstellen in der Infrastruktur identifizieren
+- __Threat Intelligence__: Reputation und Historie einer Domain prüfen
+- __Incident Response__: Technische Details bei Sicherheitsvorfällen sammeln
+- __Compliance Audits__: DNS/SSL-Konfigurationen überprüfen
+- __Asset Discovery__: Versteckte Subdomains und Services finden
+
+
