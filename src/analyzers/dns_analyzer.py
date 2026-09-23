@@ -15,7 +15,7 @@ import socket
 import subprocess
 import sys
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import dns.exception
 import dns.query
@@ -563,15 +563,39 @@ class DNSAnalyzer:
         ]
         return {"caa_records": caa_records}
 
+    def _query_dnssec_type(self, domain: str, record_type: str) -> Tuple[List[Any], bool]:
+        """Query DS/DNSKEY, distinguishing 'no records' from 'query failed'.
+
+        Returns (records, query_failed). query_failed is True only for
+        network/timeout errors — a clean NoAnswer/NXDOMAIN means the record
+        genuinely isn't there, not that the check failed.
+        """
+        try:
+            answer = self._create_resolver().resolve(domain, record_type)
+            return list(answer), False
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+            return [], False
+        except (dns.exception.Timeout, dns.resolver.NoNameservers):
+            return [], True
+        except Exception:
+            return [], True
+
     def _analyze_dnssec(self, domain: str) -> Dict[str, Dict[str, Any]]:
         """Check for DNSSEC presence via DS or DNSKEY records."""
-        ds_records = self._resolve_dns_records(domain, "DS")
-        dnskey_records = self._resolve_dns_records(domain, "DNSKEY")
+        ds_records, ds_failed = self._query_dnssec_type(domain, "DS")
+        dnskey_records, dnskey_failed = self._query_dnssec_type(domain, "DNSKEY")
+
+        if ds_records or dnskey_records:
+            status = "enabled"
+        elif ds_failed or dnskey_failed:
+            status = "check_failed"
+        else:
+            status = "not_detected"
 
         dnssec = {
             "has_ds": bool(ds_records),
             "has_dnskey": bool(dnskey_records),
-            "status": "enabled" if ds_records or dnskey_records else "not_detected",
+            "status": status,
         }
         return {"dnssec": dnssec}
 
@@ -662,10 +686,13 @@ class DNSAnalyzer:
                 "No common DKIM selector detected during heuristic discovery"
             )
 
-        if dnssec.get("status") == "enabled":
+        dnssec_status = dnssec.get("status")
+        if dnssec_status == "enabled":
             strengths.append("DNSSEC indicators detected")
-        else:
+        elif dnssec_status != "check_failed":
             findings.append("DNSSEC not detected")
+        # check_failed: inconclusive — excluded from both findings and
+        # strengths rather than counted as a negative finding
 
         if zone_transfer.get("status") == "allowed":
             findings.append("Zone transfer allowed")

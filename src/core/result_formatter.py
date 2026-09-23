@@ -1580,9 +1580,10 @@ def _render_dns_forensics_section(ctx: Dict[str, Any]) -> None:
         else:
             print(f"├── CAA Policy: {Colors.dim('not configured')}")
 
-        dnssec_status = (
-            "enabled" if dnssec.get("status") == "enabled" else "not detected"
-        )
+        dnssec_status = {
+            "enabled": "enabled",
+            "check_failed": "check failed (network/timeout — inconclusive)",
+        }.get(dnssec.get("status"), "not detected")
         print(f"├── DNSSEC: {Colors.info(dnssec_status)}")
         print(
             f"├── DNS Config Assessment: {Colors.info(_format_dns_config_assessment(dns_config_assessment))}"
