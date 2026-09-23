@@ -971,20 +971,42 @@ Das ist korrektes Verhalten — das Tool macht kein aktives VPN-Fingerprinting.
 
 ---
 
+## What Was Implemented (Session 2026-09-23)
+
+### 49. Phase 4 — Cross-Platform Validation COMPLETE
+
+**File:** `docs/VALIDATION_REPORT.md` (neu)
+
+- Linux-Szenarien A (Direktverbindung) + B (VPN/NL) liefen auf dem Linux-Server, JSON-Reports abgelegt in `docs/examples/scenario_a_linux_direct.json` + `scenario_b_linux_vpn.json`
+- Vergleichsmatrix + Einzelauswertung + Konsistenz-Check aller 4 Szenarien (Linux/Windows × Direct/VPN) gegen `example.com` in `docs/VALIDATION_REPORT.md` ausgefüllt
+- **Ergebnis:** 11/11 Module erfolgreich in allen 4 Szenarien, 0 Fehler — VPN-DNS-Fix aus Session 2026-06-08 bestätigt plattformübergreifend funktionsfähig
+- SSL/WHOIS identisch über alle 4 Szenarien (domain-level, erwartungsgemäß); externe IP + Cloudflare-Anycast-PoP unterscheiden sich korrekt zwischen Direct/VPN
+- Commit `6c66b98` auf `feature/phase-4-validation`, gepusht (`9a00db6..6c66b98`). PR noch **nicht** erstellt (kein `gh` CLI in dieser Umgebung verfügbar) — Compare-Link: `https://github.com/herdacas/domain-forensic-analyzer/compare/main...feature/phase-4-validation`
+
+**Nebenbefund während des Reviews:** `docs/scenario_a.sh` + `docs/scenario_b.sh` waren im Working Tree lokal auf eine ältere Version zurückgefallen (fragiler Inline-`python -c`-Block statt `attach_scenario_metadata.py`-Helper aus Commit `19abcd9`). Mit `git restore` auf den committeten Stand zurückgesetzt — vermutlich stammte die alte Version noch vom Linux-Server-Checkout vor dem Sept-11-Pull.
+
+**Drei nicht-blockierende Folgebefunde aus der Validierung** (Details siehe `docs/VALIDATION_REPORT.md` → Konsistenz-Check):
+- `infrastructure.asn_info` (`asn`, `organization`) ist in allen 4 Szenarien `null` — Extraktionslücke, nicht VPN-spezifisch
+- DNSSEC-Status flackert bei identischer Domain (`example.com`): Szenario A zeigt `not_detected`, B/C/D zeigen `enabled` — vermutlich Timing-/Resolver-Flake, kein Netzwerkpfad-Effekt
+- `network_path.responsive_hops` ist durchgehend `0`, `connectivity_status: unknown` — über alle 4 Szenarien konsistent, generisches Aggregations-Detail
+
+---
+
 ## Next Session To-Do
 
-**Roadmap-Stand: Phase 4 (Teil 2) — Linux-Tests auf Server + Reports verarbeiten**
+**Roadmap-Stand: Phase 4 ABGESCHLOSSEN (Report + Commit), PR-Merge nach main steht noch aus**
 
 Ablauf (nächste Session):
-1. User hat Branch auf Linux-Server gepullt und scenario_a.sh + scenario_b.sh ausgeführt
-2. User gibt 4 JSON-Reports (Linux A+B, Windows C+D) an Agent
-3. Agent füllt `docs/VALIDATION_REPORT.md` mit Vergleichsmatrix
-4. PR `feature/phase-4-validation` → `main` mergen
-5. Phase 5: CONTRIBUTING.md, SECURITY.md, README-Erweiterungen
-6. Phase 6: Final-Check, GitHub Release
+1. PR `feature/phase-4-validation` → `main` öffnen (kein `gh` CLI verfügbar — manuell über GitHub-UI, Compare-Link siehe oben) und mergen
+2. Die drei Nebenbefunde aus §49 (ASN null, DNSSEC-Flake, network_path responsive_hops) als separate Follow-up-Issues anlegen oder bewusst zurückstellen
+3. Unstaged Pylint-Cleanup (13 Dateien: `run.py`, `src/core/cli.py`, `src/core/domain_analyzer.py`, `src/core/result_formatter.py`, 8× `tests/*.py`) sichten und committen oder verwerfen — unklar aus welcher Session, nicht Teil von Phase 4
+4. `VALIDATION_SPEC.md` (untracked, 203 Zeilen) klären: neue Spec für eine autonome Genauigkeits-Validierungs-Harness (Oracle-basiert, Phasen 0–6), in keiner Session dokumentiert, nicht begonnen (`scope.yaml`/`corpus/` fehlen). Mit User klären ob/wann das gestartet werden soll.
+5. Scratch-Dateien klären/aufräumen: `Test-DomainForensic.ps1`, `Test-DomainForensicAnalyzer.ps1`, `template/index.html`, `test_pflicht.txt` — untracked, teils vom 14. Mai, Zweck unklar
+6. Danach Phase 5: CONTRIBUTING.md, SECURITY.md, README-Erweiterungen
+7. Phase 6: Final-Check, GitHub Release
 
 **Offene Phasen laut RELEASE_V1_0_0_ROADMAP.md:**
-- Phase 4: Cross-Platform OPSEC — **IN PROGRESS** (Linux-Tests ausstehend)
+- Phase 4: Cross-Platform OPSEC — **Report + Commit fertig, PR-Merge ausstehend**
 - Phase 5: Dokumentation (CONTRIBUTING.md, SECURITY.md, README-Erweiterung)
 - Phase 6: Finalisierung & Release (Final-Check, GitHub Release)
 
