@@ -207,7 +207,7 @@ No. Every probe is standard reconnaissance (DNS queries, a TLS handshake, an HTT
 Possibly — see the "Active probes" list in [SECURITY.md](SECURITY.md). DNS queries, the TLS handshake, ping/traceroute, and the zone-transfer attempt all originate from your IP and can appear in the target's own logs. The passive API lookups do not.
 
 **Why does GEO & ASN sometimes show empty or `null` fields?**
-Geolocation and ASN data come from `ip-api.com` (free tier, no key). Coverage varies by IP range and CDN provider — some anycast/CDN IPs don't carry meaningful ASN data through that API. This is an upstream data-availability gap, not a bug in the tool.
+Geolocation and ASN data come from `ip-api.com` (free tier, no key). Coverage varies by IP range and CDN provider — some anycast/CDN IPs don't carry meaningful ASN data through that API. ASN fields showing as `null` even when `ip-api.com` did return them was a field-mapping bug in the result aggregator (fixed in a post-1.0 release); update to the latest `main` if you still see this.
 
 **Can I run this against a batch of domains unattended?**
 Yes — `python run.py --list domains.txt`. Each domain gets its own timeout budget (`MODULE_TIMEOUTS` in `config/settings.py`) so one slow/unresponsive domain won't stall the whole batch indefinitely.
