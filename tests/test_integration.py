@@ -223,7 +223,7 @@ class TestDomainAnalyzerIntegration:
         mock_map["dns"] = {**MOCK_DNS_RESULT, "ipv4": None}
 
         with self._patch_all_modules(analyzer, mock_map):
-            result = analyzer.analyze_domain("securecloud4you.com")
+            result = analyzer.analyze_domain("expired-domain.example.com")
 
         assert result is not None
 
