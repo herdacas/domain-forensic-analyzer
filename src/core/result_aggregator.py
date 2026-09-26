@@ -355,7 +355,7 @@ class ResultAggregator:
             return None
 
         # Extract location safely
-        location = cdn_result.get("location", {})
+        location = cdn_result.get("geolocation", {})
         if not isinstance(location, dict):
             location = {
                 "country": cdn_result.get("country", "Unknown"),
