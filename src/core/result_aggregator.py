@@ -368,8 +368,8 @@ class ResultAggregator:
             protection_level=cdn_result.get("protection_level", "Unknown"),
             location=location,
             asn_info={
-                "asn": cdn_result.get("asn"),
-                "organization": cdn_result.get("organization"),
+                "asn": cdn_result.get("asn_info", {}).get("asn"),
+                "organization": cdn_result.get("asn_info", {}).get("organization"),
             },
             confidence=ConfidenceLevel.HIGH,
             source=DataSource.CDN_DETECTION,
