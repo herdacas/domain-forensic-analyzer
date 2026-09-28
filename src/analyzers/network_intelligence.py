@@ -138,6 +138,10 @@ class NetworkIntelligence:
     def _extract_ping_time(self, ping_output: str) -> Optional[str]:
         """Extract average RTT from ping output."""
         for line in ping_output.lower().split('\n'):
+            # Linux/macOS: "rtt min/avg/max/mdev = 0.045/0.052/0.060/0.006 ms"
+            m = re.search(r'min/avg/max\S*\s*=\s*[\d.]+/([\d.]+)/', line)
+            if m:
+                return f"{m.group(1)}ms"
             if 'average' in line or 'mittelwert' in line or 'durchschnitt' in line:
                 m = re.search(r'(\d+(?:\.\d+)?)\s*ms', line)
                 if m:

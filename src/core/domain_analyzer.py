@@ -392,7 +392,7 @@ class DomainAnalyzer:
                     execution_time=execution_time,
                     error_message="Invalid module result",
                 )
-            if result.get("analysis_status") == "failed":
+            if result.get("analysis_status") in ("failed", "fehlgeschlagen"):
                 error_message = str(result.get("error") or "Module reported failure")
                 self.logger.error(
                     f"{module_name} analysis reported failure",

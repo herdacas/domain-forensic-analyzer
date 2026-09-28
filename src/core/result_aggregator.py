@@ -383,21 +383,21 @@ class ResultAggregator:
         if network_result.get("analysis_status") != "abgeschlossen":
             return None
 
-        connectivity = network_result.get("connectivity_test", {})
-        opsec = network_result.get("opsec_assessment", {})
-        traceroute = network_result.get("traceroute_data", {})
+        connectivity = network_result.get("connectivity_test") or {}
+        opsec = network_result.get("opsec_assessment") or {}
+        traceroute = network_result.get("traceroute_data") or {}
+        hop_intel = network_result.get("hop_intelligence") or {}
+        route_class = network_result.get("route_classification") or {}
 
         return StandardizedNetworkPath(
-            total_hops=traceroute.get("total_hops", 0) if traceroute else 0,
-            responsive_hops=traceroute.get("responsive_hops", 0) if traceroute else 0,
-            connectivity_status="reachable" if connectivity.get("ping") else "unknown",
-            opsec_risk_level=opsec.get("risk_level", "unknown") if opsec else "unknown",
-            response_times=(
-                connectivity.get("response_times", {}) if connectivity else {}
+            total_hops=traceroute.get("total_hops", 0),
+            responsive_hops=hop_intel.get("responsive_hops", 0),
+            connectivity_status=(
+                "reachable" if connectivity.get("ping_reachable") else "unknown"
             ),
-            route_type=(
-                traceroute.get("route_type", "unknown") if traceroute else "unknown"
-            ),
+            opsec_risk_level=opsec.get("risk_level", "unknown"),
+            response_times=connectivity.get("response_times", {}),
+            route_type=route_class.get("route_type", "unknown"),
             confidence=ConfidenceLevel.HIGH,
             source=DataSource.NETWORK_INTEL,
         )
@@ -510,7 +510,7 @@ class ResultAggregator:
         errors = []
 
         for module_name, result in module_results.items():
-            if result.get("analysis_status") == "failed":
+            if result.get("analysis_status") in ("failed", "fehlgeschlagen"):
                 errors.append(f"{module_name}: {result.get('error', 'Unknown error')}")
             elif result.get("analysis_status") == "demo_abgeschlossen":
                 warnings.append(

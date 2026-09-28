@@ -96,3 +96,43 @@ def test_wildcard_subdomain_capped_at_informational(aggregator):
     result = aggregator.aggregate_results("example.com", module_results, execution_time=1.0)
     for asset in result.assets:
         assert asset.risk_level in ("informational", "low", "minimal", "critical", "high", "medium")
+
+
+def test_network_path_reads_keys_set_by_network_module(aggregator):
+    # Shape mirrors NetworkIntelligence.analyze_network(): responsive_hops lives
+    # under hop_intelligence, route_type under route_classification, and the
+    # ping flag is ping_reachable.
+    results = {
+        "network": {
+            "analysis_status": "abgeschlossen",
+            "connectivity_test": {
+                "ping_reachable": True,
+                "response_times": {"ping": "12.3ms"},
+            },
+            "traceroute_data": {"status": "success", "total_hops": 9, "hops": []},
+            "hop_intelligence": {"responsive_hops": 7},
+            "route_classification": {"route_type": "backbone_route"},
+            "opsec_assessment": {"risk_level": "medium"},
+        }
+    }
+    path = aggregator.aggregate_results("example.com", results, 1.0).network_path
+    assert path.total_hops == 9
+    assert path.responsive_hops == 7
+    assert path.connectivity_status == "reachable"
+    assert path.route_type == "backbone_route"
+    assert path.opsec_risk_level == "medium"
+    assert path.response_times == {"ping": "12.3ms"}
+
+
+def test_fehlgeschlagen_status_is_reported_as_error(aggregator):
+    results = {
+        "network": {
+            "analysis_status": "fehlgeschlagen",
+            "error": "No IP address available for network analysis",
+        }
+    }
+    unified = aggregator.aggregate_results("example.com", results, 1.0)
+    assert "network" in unified.modules_failed
+    assert unified.errors == [
+        "network: No IP address available for network analysis"
+    ]
