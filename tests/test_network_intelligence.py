@@ -50,7 +50,9 @@ def test_windows_silent_process_has_enforced_timeout(ni):
     process = MagicMock()
     process.communicate.side_effect = [subprocess.TimeoutExpired("tracert", 1), ("", "")]
     process.poll.return_value = 0
-    with patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process):
+    with patch("src.analyzers.network_intelligence.shutil.which",
+               side_effect=lambda name: r"C:\Windows\System32\tracert.exe" if name == "tracert" else None), \
+         patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process):
         result = ni._perform_traceroute("192.0.2.1")
     assert result["status"] == "timeout"
     assert "timeout" in process.communicate.call_args_list[0].kwargs

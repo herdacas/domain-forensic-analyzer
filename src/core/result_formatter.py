@@ -27,6 +27,11 @@ def _display_traceroute_details(
         if traceroute_status == "timeout":
             print(f"├── Status: {Colors.warning('TIMEOUT')}")
             print(f"├── Traceroute: {Colors.dim('incomplete')}")
+        elif traceroute_status == "unavailable":
+            print(f"├── Status: {Colors.warning('UNAVAILABLE')}")
+            print(f"├── Traceroute: {Colors.dim('no path tool installed - other modules unaffected')}")
+            print(f"└── Detail: {Colors.dim(traceroute_data.get('error') or 'path tool missing')}")
+            return
         else:
             print(f"├── Status: {Colors.error('FAILED')}")
             print(f"├── Traceroute: {Colors.error('UNAVAILABLE')}")

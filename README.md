@@ -161,12 +161,15 @@ Windows uses `tracert`; Linux prefers `tracepath` and falls back to `traceroute`
 
 ## Network Dependencies (Linux)
 
+The tool uses `tracepath` or `traceroute` for network path analysis.
+
 | Binary | Used for | Install |
 |--------|----------|---------|
 | `ping` | Latency check | `sudo apt install iputils-ping` |
-| `tracepath` / `traceroute` | Network path (either suffices) | `sudo apt install iputils-tracepath` or `sudo apt install traceroute` |
+| `tracepath` | Network path (preferred) | `sudo apt install iputils-tracepath` |
+| `traceroute` | Network path (fallback) | `sudo apt install traceroute` |
 
-If neither is available the NETWORK PATH module degrades gracefully — all other modules continue normally.
+If neither traceroute tool is available, the NETWORK PATH module gracefully reports unavailable. All other modules continue normally. CI installs all three binaries.
 
 ---
 

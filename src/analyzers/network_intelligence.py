@@ -284,14 +284,45 @@ class NetworkIntelligence:
 
         return result
 
+    _TRACEROUTE_INSTALL_HINT = {
+        True: ('tracert is not installed or not on PATH. It ships with Windows; '
+               'ensure %SystemRoot%\\System32 is on PATH.'),
+        False: ('Neither tracepath nor traceroute is installed. '
+                'Install with: sudo apt install iputils-tracepath traceroute'),
+    }
+
+    def _detect_traceroute_tool(self) -> Optional[str]:
+        """Return the available path tool name, or None when none is installed.
+
+        Windows: tracert. Linux/macOS: tracepath (preferred, no root needed),
+        then traceroute as fallback.
+        """
+        candidates = ('tracert',) if self.is_windows else ('tracepath', 'traceroute')
+        for name in candidates:
+            if shutil.which(name):
+                return name
+        return None
+
     def _perform_traceroute(self, ip_address: str) -> Dict[str, Any]:
-        """Run platform-appropriate traceroute and return hop list."""
+        """Run platform-appropriate traceroute, degrading gracefully if unavailable."""
+        tool = self._detect_traceroute_tool()
+        if tool is None:
+            return {
+                'status': 'unavailable',
+                'error': self._TRACEROUTE_INSTALL_HINT[self.is_windows],
+                'hops': [],
+                'total_hops': 0,
+                'tool': None,
+            }
+        executable = shutil.which(tool) or tool
+
         timeout = (
             self.traceroute_timeout_international
             if self._is_likely_international_route(ip_address)
             else self.traceroute_timeout_regional
         )
         metadata = {
+            'tool': tool,
             'command_timeout_seconds': timeout,
             'probe_timeout_ms': self.traceroute_probe_timeout_ms,
             'max_hops': self.max_traceroute_hops,
@@ -300,7 +331,7 @@ class NetworkIntelligence:
         process = None
         try:
             if self.is_windows:
-                cmd = ['tracert', '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
+                cmd = [executable, '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                     encoding=self.encoding, errors='replace',
@@ -322,13 +353,9 @@ class NetworkIntelligence:
                 return {'status': 'failed', 'error': 'No route found', **metadata}
 
             else:
-                # Prefer tracepath, then use the widely packaged traceroute.
-                tool = shutil.which('tracepath') or shutil.which('traceroute')
-                if not tool:
-                    return {'status': 'unavailable', 'error': 'Neither tracepath nor traceroute is installed', **metadata}
-                use_tracepath = os.path.basename(tool) == 'tracepath'
-                cmd = ([tool, '-n', '-m', str(self.max_traceroute_hops), ip_address]
-                       if use_tracepath else [tool, '-n', '-m', str(self.max_traceroute_hops),
+                use_tracepath = tool == 'tracepath'
+                cmd = ([executable, '-n', '-m', str(self.max_traceroute_hops), ip_address]
+                       if use_tracepath else [executable, '-n', '-m', str(self.max_traceroute_hops),
                                               '-q', '1', '-w', '2', ip_address])
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -369,9 +396,9 @@ class NetworkIntelligence:
                 return {'status': 'timeout' if timed_out else 'failed', 'error': 'No route found', **metadata}
 
         except FileNotFoundError:
-            tool = 'tracert' if self.is_windows else 'tracepath'
-            install = '' if self.is_windows else ' - run: sudo apt install iputils-tracepath'
-            return {'status': 'error', 'error': f'{tool} not found{install}', **metadata}
+            # Tool vanished between detection and execution.
+            return {'status': 'unavailable', 'error': self._TRACEROUTE_INSTALL_HINT[self.is_windows],
+                    'hops': [], 'total_hops': 0, **metadata}
         except Exception as error:
             return {'status': 'error', 'error': str(error), **metadata}
         finally:
