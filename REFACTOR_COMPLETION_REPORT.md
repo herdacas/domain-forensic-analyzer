@@ -69,11 +69,25 @@ All automated tests passed. Python 3.12.3 from the project `.venv`; pylint 4.1.1
 | `timeout 60 python run.py example.com` | 0 | 35 s |
 | `get_settings()` load | 0 | loaded |
 
+### Live batch run with API keys (Linux)
+
+`python run.py --list` with `example.com` and `example.org`, using the real `config/api_keys.json` copied into the worktree for the run and removed afterwards.
+
+| Check | Result |
+|---|---|
+| Exit code, duration | 0, 88 s for both domains |
+| Modules per domain | 11 successful, 0 skipped, 0 failed, 0 demo |
+| `intelligence_sources` | all 11 descriptive values |
+| Files | 2 JSON, 2 raw TXT with intact UTF-8 box drawing, 1 batch JSON with 2/2 completed |
+| Network | `tracepath`, status `partial`, 6 of 10 hops responsive, `connectivity_status` `reachable` |
+| DNSSEC | `inconclusive` with warning; DS and DNSKEY queries fail on this server's resolver |
+
+### Single-domain smoke run (Linux, no API keys)
+
 The smoke scan wrote both `reports/0005_example.com.json` and `reports/raw/0005_example.com.txt`. The raw file holds the full report. Eight modules completed. SecurityTrails, AbuseIPDB and VirusTotal were skipped because the worktree has no API key file. Connectivity was `reachable` with 6 of 10 hops responsive. DNSSEC was `inconclusive` because both DS and DNSKEY queries failed on this server's resolver, the same environmental result the earlier run recorded.
 
 ## Not Verified
-- No Windows run and no VPN run; Windows paths are covered by mocked tests only.
-- No credentialed API run; the three API clients were tested with mocks.
+- No Windows run and no VPN run; Windows paths are covered by mocked tests only. The handoff to the Windows machine is described in `auftragwindows.md` (local, git-ignored).
 - GitHub Actions has not run on these commits because they are not pushed.
 
 ## Final Status

@@ -252,3 +252,7 @@ api_*.json
 credentials.json
 # Local agent brief — never committed
 auftrag.md
+auftragwindows.md
+auftragergebnis.md
+.windows-checkpoint.txt
+*.bundle
