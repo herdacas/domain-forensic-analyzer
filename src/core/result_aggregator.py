@@ -30,10 +30,10 @@ class DataSource(Enum):
     SECURITYTRAILS = "securitytrails"
     WHOIS = "whois"
     DNS_HISTORY = "dns_history"
-    SSL = "ssl"
-    ABUSEIPDB = "abuseipdb"
-    VIRUSTOTAL = "virustotal"
-    IP_HISTORY = "ip_history"
+    SSL_ANALYSIS = "ssl_analysis"
+    ABUSEIPDB_REPUTATION = "abuseipdb_reputation"
+    VIRUSTOTAL_REPUTATION = "virustotal_reputation"
+    IP_HISTORY = "ip_history_analysis"
     AGGREGATED = "aggregated"
 
 
@@ -176,18 +176,10 @@ class ResultAggregator:
     """Aggregate and standardize results from all core modules into a UnifiedResult."""
 
     def __init__(self):
+        # Mirrors DomainAnalyzer.module_execution_order (11 modules).
         self.supported_modules = [
-            "dns",
-            "whois",
-            "dns_history",
-            "cdn",
-            "subdomain",
-            "network",
-            "securitytrails",
-            "ssl",
-            "abuseipdb",
-            "virustotal",
-            "ip_history",
+            "dns", "whois", "dns_history", "cdn", "network", "subdomain",
+            "ssl", "securitytrails", "abuseipdb", "virustotal", "ip_history",
         ]
 
     def aggregate_results(
@@ -501,31 +493,34 @@ class ResultAggregator:
 
         return {"level": level, "factors": factors, "score": round(score, 1)}
 
+    _SOURCE_MAP = {
+        "dns": DataSource.DNS_ANALYSIS,
+        "whois": DataSource.WHOIS,
+        "dns_history": DataSource.DNS_HISTORY,
+        "cdn": DataSource.CDN_DETECTION,
+        "network": DataSource.NETWORK_INTEL,
+        "subdomain": DataSource.SUBDOMAIN_SCAN,
+        "ssl": DataSource.SSL_ANALYSIS,
+        "securitytrails": DataSource.SECURITYTRAILS,
+        "abuseipdb": DataSource.ABUSEIPDB_REPUTATION,
+        "virustotal": DataSource.VIRUSTOTAL_REPUTATION,
+        "ip_history": DataSource.IP_HISTORY,
+    }
+
     def _identify_intelligence_sources(
         self, module_results: Dict[str, Any]
     ) -> List[DataSource]:
-        """Return list of data sources used in successful module results."""
-        sources = []
+        """Return the data sources of completed live module results.
 
-        for module_name, result in module_results.items():
-            if result.get("analysis_status") == "abgeschlossen":
-                source_map = {
-                    "ssl": DataSource.SSL,
-                    "abuseipdb": DataSource.ABUSEIPDB,
-                    "virustotal": DataSource.VIRUSTOTAL,
-                    "ip_history": DataSource.IP_HISTORY,
-                    "dns": DataSource.DNS_ANALYSIS,
-                    "cdn": DataSource.CDN_DETECTION,
-                    "subdomain": DataSource.SUBDOMAIN_SCAN,
-                    "network": DataSource.NETWORK_INTEL,
-                    "securitytrails": DataSource.SECURITYTRAILS,
-                    "whois": DataSource.WHOIS,
-                    "dns_history": DataSource.DNS_HISTORY,
-                }
-                if module_name in source_map:
-                    sources.append(source_map[module_name])
-
-        return sources
+        Demo results ("demo_abgeschlossen") are deliberately excluded: they are
+        synthetic and must not appear as live provenance (see modules_demo).
+        """
+        return [
+            self._SOURCE_MAP[module_name]
+            for module_name, result in module_results.items()
+            if module_name in self._SOURCE_MAP
+            and result.get("analysis_status") == "abgeschlossen"
+        ]
 
     def _calculate_data_freshness(
         self, module_results: Dict[str, Any]
