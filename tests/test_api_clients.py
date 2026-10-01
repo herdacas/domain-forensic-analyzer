@@ -6,6 +6,30 @@ from unittest.mock import patch, MagicMock
 from src.config.api_config import APIConfig
 
 
+@pytest.fixture
+def runtime_api_config(tmp_path, monkeypatch):
+    """Return a per-service APIConfig factory built by the real runtime loader.
+
+    Uses SecureAPIManager (the same path the clients and Settings use) with a
+    throw-away key file, so base_url/rate_limit come from production defaults
+    and the developer's real keys are never picked up by unit tests.
+    """
+    import json
+    from src.config.api_config import SecureAPIManager
+    for name in ("VIRUSTOTAL", "ABUSEIPDB", "WHOISXML", "SECURITYTRAILS"):
+        monkeypatch.delenv(f"{name}_API_KEY", raising=False)
+    (tmp_path / "config").mkdir()
+    config_file = tmp_path / "config/api_keys.json"
+    config_file.write_text(json.dumps({
+        service: "test_key_1234567890"
+        for service in ("virustotal", "abuseipdb", "securitytrails", "whoisxml")
+    }))
+    manager = SecureAPIManager.__new__(SecureAPIManager)
+    manager.project_root, manager.config_file, manager.api_configs = tmp_path, config_file, {}
+    manager._load_configurations()
+    return manager.get_api_config
+
+
 @pytest.mark.parametrize("entry", ["real_file_key_123456789", {"api_key": "real_file_key_123456789"}])
 def test_shared_api_key_contract(tmp_path, monkeypatch, entry):
     import json
@@ -94,14 +118,11 @@ def test_missing_api_key_never_returns_fabricated_intelligence(service):
 class TestVirusTotalClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.virustotal_client import VirusTotalClient
         c = VirusTotalClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://www.virustotal.com/api/v3",
-            rate_limit=1000,
-        )
+        c.config = runtime_api_config("virustotal")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_returns_demo_mode(self):
@@ -148,14 +169,11 @@ class TestVirusTotalClient:
 class TestAbuseIPDBClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.abuseipdb_client import AbuseIPDBClient
         c = AbuseIPDBClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://api.abuseipdb.com/api/v2",
-            rate_limit=1000,
-        )
+        c.config = runtime_api_config("abuseipdb")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_handled(self):
@@ -200,14 +218,11 @@ class TestAbuseIPDBClient:
 class TestSecurityTrailsClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.securitytrails_client import SecurityTrailsClient
         c = SecurityTrailsClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://api.securitytrails.com/v1",
-            rate_limit=50,
-        )
+        c.config = runtime_api_config("securitytrails")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_returns_demo(self):

@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from src.config.api_config import _DEFAULTS as _API_DEFAULTS
 from src.config.api_config import SecureAPIManager
 
 MODULE_TIMEOUTS: Dict[str, int] = {
@@ -39,21 +40,25 @@ class ScanSettings:
 
 @dataclass
 class APISettings:
-    """Runtime API availability snapshot from SecureAPIManager."""
+    """Read-only snapshot of the per-service runtime API configuration.
+
+    There is exactly one API configuration model: SecureAPIManager
+    (src.config.api_config) loads one APIConfig(api_key, base_url,
+    rate_limit) per service, and the API clients consume it directly.
+    Settings mirrors those values here as <service>_api_key and
+    <service>_base_url; defaults come from the same _DEFAULTS table.
+    """
 
     securitytrails_api_key: Optional[str] = None
     virustotal_api_key: Optional[str] = None
     abuseipdb_api_key: Optional[str] = None
     whoisxml_api_key: Optional[str] = None
-    
-    # API-Endpunkte
-    securitytrails_base_url: str = "https://api.securitytrails.com/v1"
-    virustotal_base_url: str = "https://www.virustotal.com/api/v3"
-    ip_geolocation_url: str = "http://ip-api.com/json"
 
-# Preserve the original import name for callers; per-service APIConfig lives
-# in src.config.api_config and contains api_key/base_url/rate_limit.
-APIConfig = APISettings
+    securitytrails_base_url: str = _API_DEFAULTS["securitytrails"][0]
+    virustotal_base_url: str = _API_DEFAULTS["virustotal"][0]
+    abuseipdb_base_url: str = _API_DEFAULTS["abuseipdb"][0]
+    whoisxml_base_url: str = _API_DEFAULTS["whoisxml"][0]
+    ip_geolocation_url: str = "http://ip-api.com/json"
 
 @dataclass
 class OutputSettings:
