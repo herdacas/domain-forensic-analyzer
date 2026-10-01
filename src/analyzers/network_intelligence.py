@@ -417,6 +417,7 @@ class NetworkIntelligence:
         responsive = [h for h in hops if h.get('status') == 'responsive']
         unresponsive = [h for h in hops if h.get('status') != 'responsive']
         return {
+            'responsive_hops': len(responsive),
             'last_responsive_hop': responsive[-1]['hop'] if responsive else None,
             'first_unresponsive_hop': unresponsive[0]['hop'] if unresponsive else None,
         }

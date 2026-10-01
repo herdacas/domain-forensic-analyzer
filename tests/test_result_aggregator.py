@@ -109,15 +109,17 @@ def test_skipped_sources_are_not_claimed(aggregator):
     assert result.confidence_metrics["virustotal"].value == "unknown"
 
 
-@pytest.mark.parametrize("key", ["ping_reachable", "http_accessible", "https_accessible"])
-def test_network_uses_actual_connectivity_fields(aggregator, key):
+@pytest.mark.parametrize("key,expected", [("ping_reachable", "reachable"),
+                                          ("http_accessible", "http_accessible"),
+                                          ("https_accessible", "http_accessible")])
+def test_network_uses_actual_connectivity_fields(aggregator, key, expected):
     path = aggregator.aggregate_results("example.com", {"network": {
         "analysis_status": "abgeschlossen", "connectivity_test": {key: True},
         "traceroute_data": {"total_hops": 2, "hops": [
             {"status": "responsive"}, {"status": "timeout"}]},
         "route_classification": {"route_type": "backbone_route"},
     }}, 0).network_path
-    assert path.connectivity_status == "reachable"
+    assert path.connectivity_status == expected
     assert path.responsive_hops == 1
     assert path.route_type == "backbone_route"
 

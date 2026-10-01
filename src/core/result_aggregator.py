@@ -395,36 +395,64 @@ class ResultAggregator:
             source=DataSource.CDN_DETECTION,
         )
 
+    @staticmethod
+    def _classify_connectivity(connectivity: Dict[str, Any]) -> str:
+        """Map emitted connectivity fields to a status without inventing evidence.
+
+        reachable        -> ping answered
+        http_accessible  -> ping silent/filtered, but HTTP or HTTPS answered
+        unreachable      -> every probe ran and explicitly reported False
+        unknown          -> probe fields missing or not boolean (no evidence)
+        """
+        probes = ("ping_reachable", "http_accessible", "https_accessible")
+        if connectivity.get("ping_reachable") is True:
+            return "reachable"
+        if connectivity.get("http_accessible") is True or connectivity.get("https_accessible") is True:
+            return "http_accessible"
+        if all(connectivity.get(key) is False for key in probes):
+            return "unreachable"
+        return "unknown"
+
     def _aggregate_network_intelligence(
         self, module_results: Dict[str, Any]
     ) -> Optional[StandardizedNetworkPath]:
-        """Aggregate network intelligence from network module result."""
+        """Aggregate network intelligence from network module result.
+
+        Reads the fields network_intelligence actually emits:
+        connectivity_test.{ping_reachable,http_accessible,https_accessible},
+        traceroute_data.{total_hops,hops[],responsive_hops} and
+        route_classification.route_type.
+        """
         network_result = module_results.get("network", {})
         if network_result.get("analysis_status") != "abgeschlossen":
             return None
 
-        connectivity = network_result.get("connectivity_test", {})
-        opsec = network_result.get("opsec_assessment", {})
-        traceroute = network_result.get("traceroute_data", {})
-        reachable = any(connectivity.get(key) is True for key in (
-            "ping_reachable", "http_accessible", "https_accessible"
-        ))
-        responsive_hops = sum(
-            hop.get("status") == "responsive" for hop in traceroute.get("hops", [])
+        connectivity = network_result.get("connectivity_test") or {}
+        opsec = network_result.get("opsec_assessment") or {}
+        traceroute = network_result.get("traceroute_data") or {}
+        connectivity_status = self._classify_connectivity(connectivity)
+
+        hops = traceroute.get("hops") or []
+        if hops:
+            responsive_hops = sum(hop.get("status") == "responsive" for hop in hops)
+        else:
+            responsive_hops = int(traceroute.get("responsive_hops") or 0)
+
+        route_type = (
+            (network_result.get("route_classification") or {}).get("route_type")
+            or traceroute.get("route_type")
+            or "unknown"
         )
 
         return StandardizedNetworkPath(
-            total_hops=traceroute.get("total_hops", 0) if traceroute else 0,
+            total_hops=traceroute.get("total_hops", len(hops)),
             responsive_hops=responsive_hops,
-            connectivity_status="reachable" if reachable else "unknown",
-            opsec_risk_level=opsec.get("risk_level", "unknown") if opsec else "unknown",
-            response_times=(
-                connectivity.get("response_times", {}) if connectivity else {}
-            ),
-            route_type=(
-                network_result.get("route_classification", {}).get("route_type", "unknown")
-            ),
-            confidence=ConfidenceLevel.MEDIUM if reachable else ConfidenceLevel.UNKNOWN,
+            connectivity_status=connectivity_status,
+            opsec_risk_level=opsec.get("risk_level", "unknown"),
+            response_times=connectivity.get("response_times", {}),
+            route_type=route_type,
+            confidence=(ConfidenceLevel.UNKNOWN if connectivity_status == "unknown"
+                        else ConfidenceLevel.MEDIUM),
             source=DataSource.NETWORK_INTEL,
         )
 
