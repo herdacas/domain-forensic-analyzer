@@ -87,6 +87,10 @@ def run_list_mode(file_path: str) -> None:
             display_forensic_summary(result)
             overall_risk, _, _ = _compute_risk_summary(result)
             elapsed = time.monotonic() - t0
+            exporter.export(
+                domain=domain, result=result, forensic_metadata=forensic_metadata,
+                scan_duration=elapsed,
+            )
             print(f"\nForensic session {forensic_metadata['session_id']} complete.")
             summary_rows.append((domain, "COMPLETE", int(elapsed), overall_risk))
             batch_records.append(

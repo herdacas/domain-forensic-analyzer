@@ -39,7 +39,8 @@ class SecurityTrailsClient:
             Structured intelligence data
         """
         if not self.config:
-            return self._get_demo_result(domain)
+            return {"analysis_status": "skipped", "api_status": "no_key",
+                    "domain": domain, "reason": "SecurityTrails API key not configured"}
 
         try:
             domain_info = self._get_domain_info(domain)

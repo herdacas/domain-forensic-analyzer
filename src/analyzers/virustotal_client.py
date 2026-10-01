@@ -32,7 +32,8 @@ class VirusTotalClient:
             Structured threat intelligence
         """
         if not self.config:
-            return self._get_demo_result(domain)
+            return {"analysis_status": "skipped", "api_status": "no_key",
+                    "domain": domain, "reason": "VirusTotal API key not configured"}
 
         try:
             # Domain Analysis Endpoint

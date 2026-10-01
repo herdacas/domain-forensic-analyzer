@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from src.config.api_config import SecureAPIManager
+
 MODULE_TIMEOUTS: Dict[str, int] = {
     'dns':            30,
     'whois':          30,
@@ -36,17 +38,22 @@ class ScanSettings:
     request_delay: float = 0.1
 
 @dataclass
-class APIConfig:
-    """External API keys and base URLs."""
+class APISettings:
+    """Runtime API availability snapshot from SecureAPIManager."""
 
     securitytrails_api_key: Optional[str] = None
     virustotal_api_key: Optional[str] = None
-    shodan_api_key: Optional[str] = None
+    abuseipdb_api_key: Optional[str] = None
+    whoisxml_api_key: Optional[str] = None
     
     # API-Endpunkte
     securitytrails_base_url: str = "https://api.securitytrails.com/v1"
-    virustotal_base_url: str = "https://www.virustotal.com/vtapi/v2"
+    virustotal_base_url: str = "https://www.virustotal.com/api/v3"
     ip_geolocation_url: str = "http://ip-api.com/json"
+
+# Preserve the original import name for callers; per-service APIConfig lives
+# in src.config.api_config and contains api_key/base_url/rate_limit.
+APIConfig = APISettings
 
 @dataclass
 class OutputSettings:
@@ -66,16 +73,19 @@ class Settings:
 
     def __init__(self):
         self.scan_settings = ScanSettings()
-        self.api_config = APIConfig()
+        self.api_config = APISettings()
         self.output_settings = OutputSettings()
         self._load_from_environment()
         self._validate_configuration()
     
     def _load_from_environment(self) -> None:
         """Load configuration overrides from environment variables."""
-        self.api_config.securitytrails_api_key = os.getenv('SECURITYTRAILS_API_KEY')
-        self.api_config.virustotal_api_key = os.getenv('VIRUSTOTAL_API_KEY')
-        self.api_config.shodan_api_key = os.getenv('SHODAN_API_KEY')
+        manager = SecureAPIManager()
+        for service in ('securitytrails', 'virustotal', 'abuseipdb', 'whoisxml'):
+            config = manager.get_api_config(service)
+            setattr(self.api_config, f'{service}_api_key', config.api_key if config else None)
+            if config and hasattr(self.api_config, f'{service}_base_url'):
+                setattr(self.api_config, f'{service}_base_url', config.base_url)
 
         try:
             self.scan_settings.dns_timeout = int(os.getenv('DNS_TIMEOUT', str(self.scan_settings.dns_timeout)))
@@ -126,7 +136,8 @@ class Settings:
         return {
             'securitytrails': self.has_securitytrails_api(),
             'virustotal': self.has_virustotal_api(),
-            'shodan': bool(self.api_config.shodan_api_key),
+            'abuseipdb': bool(self.api_config.abuseipdb_api_key),
+            'whoisxml': bool(self.api_config.whoisxml_api_key),
             'ip_geolocation': True,  # free, no key required
         }
 
@@ -140,8 +151,10 @@ class Settings:
         if self.has_virustotal_api():
             features.extend(['Reputation Analysis', 'Malware Detection'])
         
-        if self.api_config.shodan_api_key:
-            features.append('Shodan Integration')
+        if self.api_config.abuseipdb_api_key:
+            features.append('IP Reputation')
+        if self.api_config.whoisxml_api_key:
+            features.append('WHOIS Enrichment')
         
         return features
     

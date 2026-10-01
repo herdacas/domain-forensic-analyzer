@@ -3,10 +3,11 @@ Secure API Configuration Loader
 """
 
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
+
+from src.utils.api_key_reader import APIKeyReader
 
 _ENV_VAR_MAP = {
     "securitytrails": "SECURITYTRAILS_API_KEY",
@@ -32,11 +33,7 @@ class APIConfig:
     rate_limit: int
 
     def is_valid(self) -> bool:
-        return bool(
-            self.api_key
-            and len(self.api_key) > 10
-            and not self.api_key.upper().startswith("YOUR_")
-        )
+        return APIKeyReader._is_real_key(self.api_key)
 
 
 class SecureAPIManager:
@@ -54,12 +51,15 @@ class SecureAPIManager:
 
     def _load_configurations(self) -> None:
         """Load API keys from file and environment variables (env takes priority)."""
+        self.api_configs.clear()
         # 1. Start from file (if it exists)
         file_keys: Dict[str, Dict] = {}
         try:
             if self.config_file.exists():
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     file_keys = json.load(f)
+                if not isinstance(file_keys, dict):
+                    file_keys = {}
             else:
                 self._create_config_template()
         except Exception as error:
@@ -72,13 +72,19 @@ class SecureAPIManager:
 
             # Support both flat format {"service": "key"} and nested {"service": {"api_key": "key"}}
             if isinstance(file_entry, str):
-                file_key, base_url, rate_limit = file_entry, default_url, default_rate
-            else:
-                file_key = file_entry.get("api_key", "")
+                base_url, rate_limit = default_url, default_rate
+            elif isinstance(file_entry, dict):
                 base_url = file_entry.get("base_url", default_url)
                 rate_limit = file_entry.get("rate_limit", default_rate)
+            else:
+                base_url, rate_limit = default_url, default_rate
 
-            api_key = os.getenv(env_var) or file_key
+            reader = APIKeyReader(env_var, service, project_root=self.project_root)
+            api_key = reader.get()
+            if not isinstance(base_url, str) or not base_url.startswith('https://'):
+                base_url = default_url
+            if not isinstance(rate_limit, int) or isinstance(rate_limit, bool) or rate_limit <= 0:
+                rate_limit = default_rate
 
             if api_key:
                 self.api_configs[service] = APIConfig(

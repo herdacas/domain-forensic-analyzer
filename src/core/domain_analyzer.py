@@ -211,7 +211,11 @@ class DomainAnalyzer:
             self.execution_metrics[module_name] = execution_result
             self.current_analysis["results"][module_name] = execution_result.result
 
-            if execution_result.success:
+            status = execution_result.result.get("analysis_status")
+            if status in {"skipped", "quota_exceeded", "demo_abgeschlossen"}:
+                status_icon = "DEMO" if status == "demo_abgeschlossen" else "SKIPPED"
+                timing = f"({execution_result.execution_time:.1f}s)"
+            elif execution_result.success:
                 status_icon = "COMPLETE"
                 timing = f"({execution_result.execution_time:.1f}s)"
             elif execution_result.timeout_occurred:
@@ -250,10 +254,10 @@ class DomainAnalyzer:
     ) -> Tuple[int, int, int, int, int, int]:
         """Return (successful, failed, timeout, skipped, api_success, api_total)."""
         results = self.current_analysis["results"]
-        skipped = sum(1 for m in modules_to_run if results.get(m, {}).get("skipped"))
-        successful = (
-            len([m for m in self.execution_metrics.values() if m.success]) - skipped
-        )
+        skipped = sum(1 for m in modules_to_run if results.get(m, {}).get("analysis_status")
+                      in {"skipped", "quota_exceeded", "demo_abgeschlossen"})
+        successful = sum(1 for m in modules_to_run
+                         if results.get(m, {}).get("analysis_status") == "abgeschlossen")
         failed = len(
             [
                 m
@@ -271,6 +275,7 @@ class DomainAnalyzer:
                 m
                 for m in api_modules
                 if m in self.execution_metrics and self.execution_metrics[m].success
+                and results.get(m, {}).get("analysis_status") == "abgeschlossen"
             ]
         )
 
@@ -392,7 +397,7 @@ class DomainAnalyzer:
                     execution_time=execution_time,
                     error_message="Invalid module result",
                 )
-            if result.get("analysis_status") == "failed":
+            if result.get("analysis_status") in {"failed", "fehlgeschlagen", "error", "timeout"}:
                 error_message = str(result.get("error") or "Module reported failure")
                 self.logger.error(
                     f"{module_name} analysis reported failure",
@@ -602,5 +607,4 @@ class DomainAnalyzer:
             base_result["fallback_data"] = fallback_data[module_name]
 
         return base_result
-
 

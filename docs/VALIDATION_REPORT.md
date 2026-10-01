@@ -10,6 +10,19 @@
 
 Target-Domain in allen 4 Läufen: `example.com`
 
+## Nachtrag: v1.0 Production Polish (2026-10-01)
+
+Die folgenden Phase-4-Tabellen sind historische Momentaufnahmen und werden nicht rückwirkend verändert. Phase 4 wurde bereits über PR #3 gemerged; die damalige Merge-Empfehlung am Ende ist historisch.
+
+- ASN- und Geolocation-Mappings wurden bereits vor diesem Arbeitsbranch korrigiert. Fehlende ASN-Daten bleiben nun explizit unbekannt und reduzieren die Infrastruktur-Vertrauensstufe.
+- `connectivity_status` liest jetzt `ping_reachable`/`http_accessible`/`https_accessible`; antwortende Hops werden aus den Hop-Daten gezählt. Der Linux-Live-Lauf lieferte `reachable` und sechs antwortende Hops.
+- Linux erkennt zuerst `tracepath`, dann `traceroute`; fehlende Werkzeuge und partielle Routen werden ausdrücklich gemeldet. Ein weiterer Live-Lauf lieferte eine partielle Route mit erreichbarem Ping/HTTPS und einer unbestimmten OPSEC-Einschätzung.
+- DNSSEC-Abfragefehler werden als `check_failed` gemeldet und sind kein Beleg für fehlende Absicherung. Der aktuelle Live-Check war wegen fehlgeschlagener DS/DNSKEY-Abfragen unbestimmt. DNSSEC-Record-Präsenz ist keine kryptographische Validierung.
+- Übersprungene/quotenbegrenzte APIs sind keine erfolgreich gewonnenen Daten. Die alten Angaben „11/11 erfolgreich“ bestätigen nicht die tatsächliche API-Abdeckung.
+- JSON ist das reguläre Exportformat; Rohtext-Export ist ausschließlich eine explizite Debug-Funktion. Alte Konsolenmitschnitte bleiben historische Artefakte.
+
+Aktuelle Prüfdetails und verbleibende Grenzen: [PRODUCTION_POLISH_REPORT.md](PRODUCTION_POLISH_REPORT.md). Windows-Verhalten wird hier durch Mock-Tests geprüft; die historischen Windows/VPN-Szenarien wurden für diesen Patch nicht erneut live ausgeführt.
+
 ---
 
 ## Vergleichsmatrix

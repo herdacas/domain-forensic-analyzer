@@ -596,6 +596,9 @@ class DNSAnalyzer:
             "has_ds": bool(ds_records),
             "has_dnskey": bool(dnskey_records),
             "status": status,
+            "ds_query_failed": ds_failed,
+            "dnskey_query_failed": dnskey_failed,
+            "validation": "not_performed",
         }
         return {"dnssec": dnssec}
 

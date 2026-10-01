@@ -4,18 +4,30 @@ All notable changes to Domain Forensic Analyzer are documented here.
 
 ---
 
+## [Unreleased] — v1.0 production polish
+
+- Track all 11 module sources and per-module confidence; distinguish skipped, demo and failed results.
+- Missing API keys skip live intelligence clients instead of returning fabricated demonstration findings.
+- Share domain risk assessment between JSON and terminal output, with module-to-factor provenance.
+- Read emitted connectivity fields, hop responses and route classification correctly; preserve unknown states.
+- Detect Linux tracepath/traceroute, retain partial timeout results, and enforce silent Windows tracert deadlines.
+- Make missing ASN and inconclusive DNSSEC/path checks explicit; DNSSEC presence does not imply signature validation.
+- Unify API key loading, placeholder fallback and defensive config parsing; remove unsupported integrations from templates.
+- Clarify JSON-only production exports, report export failures, and restore per-domain batch exports.
+- Document variable coverage and heuristic limits; enable CI on refactor branches.
+
 ## [1.0.0] — 2026-06-04
 
-First production release.
+First v1.0 release of the operational reconnaissance pipeline, with heuristic findings and the limitations below.
 
 ### Highlights
 
 - **11-module forensic pipeline** running in sequence: DNS, WHOIS, DNS History, CDN/GEO, Network Path, Subdomain, SSL/TLS, SecurityTrails, AbuseIPDB, VirusTotal, IP & Domain History
 - **Historical analysis mode** — inactive or expired domains fall back to passive-source reconstruction automatically
 - **Cross-platform** — Windows (PowerShell) and Linux; tracert/tracepath auto-detected
-- **Zero-config start** — active probes + free APIs cover ~70% of the report without any API keys
+- **Zero-config start** — active probes + free APIs provide baseline coverage without API keys; depth varies by source availability
 - **Batch mode** — `python run.py --list domains.txt` with per-domain JSON export and a consolidated batch report
-- **Structured exports** — `reports/<id>_<domain>.json` (structured) and `reports/raw/<id>_<domain>.txt` (raw console)
+- **Structured exports** — `reports/<id>_<domain>.json`; raw console export is a developer-only debug facility, disabled in the CLI.
 
 ### New in this release (vs. earlier internal builds)
 

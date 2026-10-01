@@ -5,7 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-70%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
 [![Pylint](https://img.shields.io/badge/pylint-9.41%2F10-brightgreen)](https://pylint.readthedocs.io)
 
-A terminal-based OSINT tool that gives you a complete intelligence picture of any domain in one run — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Designed for security analysts, incident responders, and researchers who need actionable data without juggling 10 different tools.
+A terminal-based OSINT tool for broad domain reconnaissance — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Coverage depends on resolvers, installed tools, provider availability, and API credentials. Designed for security analysts, incident responders, and researchers; findings require analyst interpretation.
 
 See [SECURITY.md](SECURITY.md) for the OPSEC threat model (what this tool exposes to a scanned target), [CONTRIBUTING.md](CONTRIBUTING.md) if you want to work on it, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and the report lifecycle.
 
@@ -13,7 +13,7 @@ See [SECURITY.md](SECURITY.md) for the OPSEC threat model (what this tool expose
 
 ## What you get
 
-A single structured report covering everything relevant to a domain investigation:
+A single structured report combining the available evidence for a domain investigation:
 
 - **Who registered it** — registrar, creation date, expiry, registrant disclosure or privacy proxy detection, registry policy flags (DENIC, SIDN, and others that redact by policy)
 - **Where it lives** — IP, ASN, hosting provider, CDN/WAF detection (Cloudflare, Akamai, Fastly, OVH, Hetzner, and more), geographic risk assessment
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 python run.py example.com
 ```
 
-No API keys required to start. Active probes and free APIs cover roughly 70% of the full report out of the box.
+No API keys required to start. Active probes and free APIs provide baseline coverage; unavailable sources and inconclusive checks are reported explicitly.
 
 ---
 
@@ -73,7 +73,7 @@ python3 run.py --list domains.txt
 - Internationalized domains are converted to punycode (`münchen.de` → `xn--mnchen-3ya.de`)
 - IP addresses and file paths are rejected with a clear error
 
-Reports are written automatically to `reports/` after each scan — no flags needed.
+JSON reports are written automatically to the project-root `reports/` after each scan — no flags needed. Batch mode also writes a consolidated report under `reports/batch/`. Raw console capture is available only through the developer debug API, not the normal CLI. Export failures are reported to stderr.
 
 ---
 
@@ -100,6 +100,8 @@ export SECURITYTRAILS_API_KEY="your_key"
   "securitytrails": { "api_key": "YOUR_KEY" }
 }
 ```
+
+The project-root `.env` is also loaded without overwriting process environment variables. Valid environment keys take priority over the JSON file; empty values and template placeholders fall back to JSON. Both flat (`"virustotal": "key"`) and nested entries are supported. Shodan and Censys are not integrated modules.
 
 | Source | Key | Free tier |
 |--------|-----|-----------|
@@ -142,14 +144,14 @@ EXECUTION         — module timing, API coverage, log reference
 | Linux (Ubuntu) | 3.10 – 3.12 | ✅ Validated — CI + manual cross-platform scenarios (direct + VPN) |
 | macOS | 3.10 – 3.12 | ⚠️ Should work (no OS-specific code paths beyond the Windows/Linux traceroute split) but not covered by CI or manual validation — report issues if you hit one |
 
-Windows uses `tracert`; Linux uses `tracepath` (auto-detected). Neither being installed degrades the NETWORK PATH block gracefully instead of failing the scan. See [`docs/VALIDATION_REPORT.md`](docs/VALIDATION_REPORT.md) for the full cross-platform validation results (4 scenarios: Windows/Linux × direct connection/VPN).
+Windows uses `tracert`; Linux prefers `tracepath` and falls back to `traceroute` (auto-detected). Missing path tools degrade the NETWORK PATH block gracefully instead of failing the scan. See [`docs/VALIDATION_REPORT.md`](docs/VALIDATION_REPORT.md) for the historical cross-platform validation results (4 scenarios: Windows/Linux × direct connection/VPN).
 
 ## Network Dependencies (Linux)
 
 | Binary | Used for | Install |
 |--------|----------|---------|
 | `ping` | Latency check | `sudo apt install iputils-ping` |
-| `traceroute` / `tracepath` | Network path | `sudo apt install traceroute` |
+| `tracepath` / `traceroute` | Network path (either suffices) | `sudo apt install iputils-tracepath` or `sudo apt install traceroute` |
 
 If neither is available the NETWORK PATH module degrades gracefully — all other modules continue normally.
 
@@ -189,7 +191,7 @@ These are the structured `reports/<id>_<domain>.json` exports the tool writes au
 | `UnicodeEncodeError: 'charmap' codec can't encode characters` | Legacy Windows console (cp1252) rendering `├──` box-drawing characters | Fixed as of the UTF-8 console reconfiguration in `run.py` — if you still see this, make sure you're running `run.py` directly (not importing `domain_analyzer` in a script without the same startup) |
 | Module marked `FAILED` immediately after starting a VPN | DNS query sent to a nameserver blocked by the VPN's routing (commonly seen with ProtonVPN, which blocks port 53 to the physical adapter's DNS) | Already handled — `DNSAnalyzer` probes each candidate nameserver's TCP port 53 reachability before querying and skips unreachable ones. If it still happens, the VPN may be blocking *all* resolvers; check `nslookup` works manually first |
 | `DNS History: UNAVAILABLE` or a `NameError` in `dns_history_analyzer.py` | Missing `import json` (fixed in a past release) or a source returning malformed data | Update to the latest `main` — this was a known bug fixed pre-1.0 |
-| A module reports "no API key" even though one is set in `config/api_keys.json` | A placeholder value in `.env` (e.g. `VIRUSTOTAL_API_KEY=your_key_here`) is overriding it via `load_dotenv()` | Remove or fill in the placeholder line in `.env` — env vars take priority over the JSON config |
+| A module reports "no API key" even though one is set in `config/api_keys.json` | Invalid JSON, a placeholder key, or a different project checkout | Check the project-root config file and key; placeholders in `.env` fall back to JSON |
 | `192.168.0.1` or similar gets scanned instead of rejected | You're on an older build — IP-address rejection was added in a later 1.0.x-track fix | Update to the latest `main` |
 | Traceroute/ping section shows "not available" | `traceroute`/`tracepath`/`ping` binary not installed (Linux) or blocked by a firewall | `sudo apt install iputils-ping traceroute` — the rest of the report is unaffected either way |
 | `crt.sh` certificate history missing | crt.sh is a shared community service and occasionally rate-limits or times out | The tool retries automatically, then falls back to CertSpotter. If both fail, `Certificate History` shows `not available (all sources failed)` — this is upstream flakiness, not a bug |
@@ -198,7 +200,7 @@ These are the structured `reports/<id>_<domain>.json` exports the tool writes au
 ## FAQ
 
 **Do I need API keys to use this?**
-No. Active probes and free APIs (ip-api.com, crt.sh, CertSpotter, RobTex, HackerTarget, Mnemonic PDNS) cover roughly 70% of the report with zero configuration. API keys unlock deeper WHOIS, reputation, and historical DNS data.
+No. Active probes and free APIs (ip-api.com, crt.sh, CertSpotter, RobTex, HackerTarget, Mnemonic PDNS) provide baseline coverage with zero configuration. Coverage varies; API keys unlock deeper WHOIS, reputation, and historical DNS data.
 
 **Does this tool actively exploit or attack the target?**
 No. Every probe is standard reconnaissance (DNS queries, a TLS handshake, an HTTP request, ping/traceroute, a zone-transfer *attempt*). It does not brute-force, exploit, or send any malicious payloads. See [SECURITY.md](SECURITY.md) for exactly what's active vs. passive.
@@ -224,3 +226,6 @@ Almost certainly, since there's no macOS-specific code path missing, but it hasn
 - Subdomain discovery is DNS-pattern based; wildcard DNS degrades results to candidate-only mode.
 - Certificate Transparency shows issuance history, not authoritative DNS. Wildcard-only certs (`*.domain.com`) produce no subdomain entries by design.
 - The risk model is heuristic — treat it as a starting point for investigation, not a definitive verdict.
+- JSON and terminal reports use the same domain risk assessment. The numeric score uses severity anchors (medium ≥5, high ≥8) and asset counts; it is not a calibrated probability. `module_risk_factors` records the contributing module. Network OPSEC risk assesses analyst exposure separately from target-domain risk.
+- `modules_successful` means a completed live module, not validated correctness of every field. `modules_skipped` includes missing-key and quota states; demo output is tracked in `modules_demo` and excluded from live provenance and risk scoring. Confidence values describe heuristic coverage, not statistical certainty.
+- DNSSEC `enabled` means DS/DNSKEY indicators were found, not that signatures or the trust chain were validated. Failed queries are inconclusive. Missing ASN values remain null with a warning; partial traceroutes do not establish anonymity or target unreachability.

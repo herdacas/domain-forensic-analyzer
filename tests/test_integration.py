@@ -60,7 +60,7 @@ MOCK_SSL_RESULT = {
 
 MOCK_NETWORK_RESULT = {
     "analysis_status": "abgeschlossen",
-    "connectivity_test": {"status": "reachable", "latency_ms": 20},
+    "connectivity_test": {"ping_reachable": True, "response_times": {"ping": "20ms"}},
     "traceroute_data": {"status": "success", "total_hops": 8, "hops": []},
     "http_behavior": {
         "http_status": "301",
@@ -244,6 +244,21 @@ class TestDomainAnalyzerIntegration:
             result = analyzer._get_fallback_result(module, "error", "test error")
             assert isinstance(result, dict)
             assert result["analysis_status"] == "failed"
+
+    def test_skipped_and_failed_states_match_workflow_summary(self, analyzer, capsys):
+        mock_map = _make_module_mock_map()
+        mock_map["virustotal"] = {"analysis_status": "skipped"}
+        mock_map["abuseipdb"] = {"analysis_status": "quota_exceeded"}
+        mock_map["ssl"] = {"analysis_status": "fehlgeschlagen", "error": "failed TLS"}
+        with self._patch_all_modules(analyzer, mock_map):
+            result = analyzer.analyze_domain("example.com")
+        output = capsys.readouterr().out
+        assert "8/11 successful" in output
+        assert "2 skipped" in output
+        assert "1 failed" in output
+        assert "SKIPPED" in output
+        assert len(result.modules_successful) == 8
+        assert result.modules_failed == ["ssl"]
 
 
 # ---------------------------------------------------------------------------

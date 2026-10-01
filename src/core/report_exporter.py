@@ -196,8 +196,8 @@ class ReportExporter:
     ) -> None:
         """Persist JSON for one scan. Raw TXT is written only when debug=True.
 
-        Never raises — any serialisation or I/O failure is silently discarded
-        so the export can never interrupt or affect the scan.
+        Never raises — serialisation or I/O failures are reported to stderr
+        without interrupting the scan.
         """
         try:
             self._ensure_dirs()
@@ -236,8 +236,8 @@ class ReportExporter:
                 encoding="utf-8",
             )
 
-        except Exception:
-            pass
+        except Exception as error:
+            print(f"Report export failed: {error}", file=sys.stderr)
 
     def export_batch(
         self,
@@ -259,7 +259,7 @@ class ReportExporter:
                 "result": UnifiedResult | None,
             }
 
-        Never raises — any I/O or serialisation failure is silently discarded.
+        Never raises — I/O or serialisation failures are reported to stderr.
         """
         try:
             self._ensure_batch_dir()
@@ -334,5 +334,5 @@ class ReportExporter:
                 encoding="utf-8",
             )
 
-        except Exception:
-            pass
+        except Exception as error:
+            print(f"Batch report export failed: {error}", file=sys.stderr)
