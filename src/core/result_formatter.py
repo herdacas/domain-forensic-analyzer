@@ -1466,7 +1466,7 @@ def _render_dns_forensics_section(ctx: Dict[str, Any]) -> None:
 
         dnssec_status = {
             "enabled": "indicators detected (signature validation not performed)",
-            "check_failed": "check failed (network/timeout — inconclusive)",
+            "inconclusive": "inconclusive (DS/DNSKEY query failed - status may vary across DNS servers)",
         }.get(dnssec.get("status"), "not detected")
         print(f"├── DNSSEC: {Colors.info(dnssec_status)}")
         print(

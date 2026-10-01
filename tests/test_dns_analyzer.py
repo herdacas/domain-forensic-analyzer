@@ -139,7 +139,7 @@ def test_dns_configuration_assessment_can_be_partially_hardened():
     assert result["dns_configuration_assessment"]["status"] == "partially_hardened"
 
 
-def test_dns_configuration_assessment_excludes_dnssec_check_failed_from_findings():
+def test_dns_configuration_assessment_excludes_dnssec_inconclusive_from_findings():
     """A DNSSEC query failure must not be counted as a negative finding —
     only a clean not_detected should produce "DNSSEC not detected"."""
     analyzer = DNSAnalyzer()
@@ -152,7 +152,7 @@ def test_dns_configuration_assessment_excludes_dnssec_check_failed_from_findings
 
     failed_result = analyzer._assess_dns_configuration(
         *common_args,
-        {"status": "check_failed"},
+        {"status": "inconclusive"},
         {"status": "not_allowed"},
         [{"tag": "issue", "value": "letsencrypt.org"}],
     )
@@ -276,7 +276,7 @@ def test_dnssec_not_detected_on_clean_no_answer(monkeypatch):
     assert result["dnssec"]["has_dnskey"] is False
 
 
-def test_dnssec_check_failed_on_timeout(monkeypatch):
+def test_dnssec_inconclusive_on_timeout(monkeypatch):
     import dns.exception
     from unittest.mock import MagicMock
     analyzer = DNSAnalyzer()
@@ -286,10 +286,10 @@ def test_dnssec_check_failed_on_timeout(monkeypatch):
     monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
 
     result = analyzer._analyze_dnssec("example.com")
-    assert result["dnssec"]["status"] == "check_failed"
+    assert result["dnssec"]["status"] == "inconclusive"
 
 
-def test_dnssec_check_failed_on_no_nameservers(monkeypatch):
+def test_dnssec_inconclusive_on_no_nameservers(monkeypatch):
     import dns.resolver
     from unittest.mock import MagicMock
     analyzer = DNSAnalyzer()
@@ -299,10 +299,10 @@ def test_dnssec_check_failed_on_no_nameservers(monkeypatch):
     monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
 
     result = analyzer._analyze_dnssec("example.com")
-    assert result["dnssec"]["status"] == "check_failed"
+    assert result["dnssec"]["status"] == "inconclusive"
 
 
-def test_dnssec_check_failed_when_only_one_query_errors(monkeypatch):
+def test_dnssec_inconclusive_when_only_one_query_errors(monkeypatch):
     """DS cleanly absent, DNSKEY query times out — result must stay
     inconclusive rather than silently reporting not_detected."""
     import dns.exception
@@ -320,7 +320,7 @@ def test_dnssec_check_failed_when_only_one_query_errors(monkeypatch):
     monkeypatch.setattr(analyzer, "_create_resolver", lambda: fake_resolver)
 
     result = analyzer._analyze_dnssec("example.com")
-    assert result["dnssec"]["status"] == "check_failed"
+    assert result["dnssec"]["status"] == "inconclusive"
 
 
 def test_dnssec_enabled_even_if_other_query_errors(monkeypatch):

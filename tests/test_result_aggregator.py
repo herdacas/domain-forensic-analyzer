@@ -136,7 +136,7 @@ def test_network_without_positive_evidence_is_unknown(aggregator, connectivity):
 
 def test_unavailable_data_is_explicit_and_not_successful(aggregator):
     result = aggregator.aggregate_results("example.com", {
-        "dns": {"analysis_status": "abgeschlossen", "dnssec": {"status": "check_failed"}},
+        "dns": {"analysis_status": "abgeschlossen", "dnssec": {"status": "inconclusive"}},
         "cdn": {"analysis_status": "abgeschlossen", "asn_info": None},
         "network": {"analysis_status": "abgeschlossen", "traceroute_data": {"status": "unavailable"}},
         "virustotal": {"analysis_status": "skipped"},
@@ -149,7 +149,7 @@ def test_unavailable_data_is_explicit_and_not_successful(aggregator):
     assert result.modules_demo == ["securitytrails"]
     assert result.modules_failed == ["ssl"]
     assert result.infrastructure.confidence.value == "unknown"
-    assert result.infrastructure.asn_info["asn"] is None
+    assert result.infrastructure.asn_info["asn"] == "unavailable"
     assert result.confidence_metrics["dns"].value == "low"
     assert "securitytrails" not in result.data_freshness
     assert any("DNSSEC" in warning for warning in result.warnings)

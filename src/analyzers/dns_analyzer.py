@@ -581,14 +581,19 @@ class DNSAnalyzer:
             return [], True
 
     def _analyze_dnssec(self, domain: str) -> Dict[str, Dict[str, Any]]:
-        """Check for DNSSEC presence via DS or DNSKEY records."""
+        """Check for DNSSEC presence via DS or DNSKEY records.
+
+        status: "enabled" (DS or DNSKEY found), "not_detected" (both queries
+        answered cleanly without records) or "inconclusive" (a query failed
+        with a timeout/no reachable nameserver, so absence is not proven).
+        """
         ds_records, ds_failed = self._query_dnssec_type(domain, "DS")
         dnskey_records, dnskey_failed = self._query_dnssec_type(domain, "DNSKEY")
 
         if ds_records or dnskey_records:
             status = "enabled"
         elif ds_failed or dnskey_failed:
-            status = "check_failed"
+            status = "inconclusive"
         else:
             status = "not_detected"
 
@@ -596,6 +601,7 @@ class DNSAnalyzer:
             "has_ds": bool(ds_records),
             "has_dnskey": bool(dnskey_records),
             "status": status,
+            "note": "Status may vary across DNS servers" if status == "inconclusive" else "",
             "ds_query_failed": ds_failed,
             "dnskey_query_failed": dnskey_failed,
             "validation": "not_performed",
@@ -692,9 +698,9 @@ class DNSAnalyzer:
         dnssec_status = dnssec.get("status")
         if dnssec_status == "enabled":
             strengths.append("DNSSEC indicators detected")
-        elif dnssec_status != "check_failed":
+        elif dnssec_status != "inconclusive":
             findings.append("DNSSEC not detected")
-        # check_failed: inconclusive — excluded from both findings and
+        # inconclusive: a query failed — excluded from both findings and
         # strengths rather than counted as a negative finding
 
         if zone_transfer.get("status") == "allowed":

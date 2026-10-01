@@ -387,9 +387,10 @@ class ResultAggregator:
             provider_type=cdn_result.get("infrastructure_type", "Unknown"),
             protection_level=cdn_result.get("protection_level", "Unknown"),
             location=location,
+            # Explicit sentinel instead of null: ip-api.com can omit ASN data.
             asn_info={
-                "asn": asn_info.get("asn"),
-                "organization": asn_info.get("organization"),
+                "asn": asn_info.get("asn") or "unavailable",
+                "organization": asn_info.get("organization") or "unavailable",
             },
             confidence=ConfidenceLevel.MEDIUM if asn_info.get("asn") else ConfidenceLevel.UNKNOWN,
             source=DataSource.CDN_DETECTION,
@@ -580,7 +581,7 @@ class ResultAggregator:
             elif result.get("analysis_status") in {"skipped", "quota_exceeded"}:
                 warnings.append(f"{module_name}: {result['analysis_status']} - no complete live result")
 
-        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "check_failed":
+        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "inconclusive":
             warnings.append("dns: DNSSEC check inconclusive")
         cdn = module_results.get("cdn", {})
         asn = cdn.get("asn_info")
@@ -626,7 +627,7 @@ class ResultAggregator:
                 else ConfidenceLevel.LOW if status == "demo_abgeschlossen"
                 else ConfidenceLevel.UNKNOWN
             )
-        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "check_failed":
+        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "inconclusive":
             metrics["dns"] = ConfidenceLevel.LOW
         cdn = module_results.get("cdn", {})
         asn = cdn.get("asn_info")
