@@ -4,10 +4,40 @@
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org)
 [![Coverage](https://img.shields.io/badge/coverage-70%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
 [![Pylint](https://img.shields.io/badge/pylint-9.41%2F10-brightgreen)](https://pylint.readthedocs.io)
+[![Status: Production](https://img.shields.io/badge/status-production%201.0-blue)](#)
 
-A terminal-based OSINT tool for broad domain reconnaissance — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Coverage depends on resolvers, installed tools, provider availability, and API credentials. Designed for security analysts, incident responders, and researchers; findings require analyst interpretation.
+A terminal-based OSINT tool for comprehensive domain reconnaissance and forensic investigation.
+Operationally stable, with known limitations. See [Known Limitations](#known-limitations) section below.
+
+It provides broad domain forensic intelligence — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Coverage depends on resolvers, installed tools, provider availability, and API credentials. Designed for security analysts, incident responders, and researchers; findings require analyst interpretation.
 
 See [SECURITY.md](SECURITY.md) for the OPSEC threat model (what this tool exposes to a scanned target), [CONTRIBUTING.md](CONTRIBUTING.md) if you want to work on it, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and the report lifecycle.
+
+---
+
+## When to Use This Tool
+
+**Good fit:**
+- Broad initial reconnaissance of a domain
+- OSINT research with transparent logging
+- Forensic analysis of domain configuration
+- Historical DNS change tracking
+- Infrastructure and hosting provider assessment
+
+**Not a fit:**
+- Vulnerability scanning (use dedicated scanners)
+- Deep subdomain enumeration (use specialized tools like subfinder)
+- Social engineering assessment
+- Real-time threat detection (use SOCs or IDS)
+
+## Coverage
+
+The tool covers 11 areas of domain reconnaissance:
+- **Active Probes:** DNS, TLS, HTTP/S, ping, traceroute, zone transfer, subdomain queries
+- **Passive APIs:** VirusTotal, AbuseIPDB, SecurityTrails, RobTex, Mnemonic, crt.sh, CertSpotter
+- **Local Analysis:** WHOIS, certificate inspection, DNSSEC, SPF/DMARC/DKIM
+
+~70% of the report is available without API keys. API keys unlock historical depth and reputation scores.
 
 ---
 
@@ -241,7 +271,7 @@ Almost certainly, since there's no macOS-specific code path missing, but it hasn
 - SecurityTrails and VirusTotal history depth depends on account tier and provider PDNS coverage.
 - Subdomain discovery is DNS-pattern based; wildcard DNS degrades results to candidate-only mode.
 - Certificate Transparency shows issuance history, not authoritative DNS. Wildcard-only certs (`*.domain.com`) produce no subdomain entries by design.
-- The risk model is heuristic — treat it as a starting point for investigation, not a definitive verdict.
+- The risk model is heuristic — treat it as a starting point for investigation, not as a conclusive judgement.
 - JSON and terminal reports use the same domain risk assessment. The numeric score uses severity anchors (medium ≥5, high ≥8) and asset counts; it is not a calibrated probability. `module_risk_factors` records the contributing module. Network OPSEC risk assesses analyst exposure separately from target-domain risk.
 - `modules_successful` means a completed live module, not validated correctness of every field. `modules_skipped` includes missing-key and quota states; demo output is tracked in `modules_demo` and excluded from live provenance and risk scoring. Confidence values describe heuristic coverage, not statistical certainty.
 - DNSSEC `enabled` means DS/DNSKEY indicators were found, not that signatures or the trust chain were validated. Failed queries report `inconclusive`. Missing ASN values are reported as `unavailable` with a warning; partial traceroutes do not establish anonymity or target unreachability. Details: [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).

@@ -15,19 +15,18 @@ All notable changes to Domain Forensic Analyzer are documented here.
 - Unify API key loading, placeholder fallback and defensive config parsing; remove unsupported integrations from templates.
 - Raw console capture is a standard output again: CLI and batch runs write `reports/raw/<id>_<domain>.txt` next to the JSON report (`ReportExporter(debug=False)` for JSON only). Export failures are reported on stderr; per-domain batch exports are restored.
 - Document variable coverage and heuristic limits; enable CI on refactor branches.
+- README: production status badge, "When to Use This Tool" and "Coverage" sections, and a link to `docs/KNOWN_LIMITATIONS.md`; v1.0.0 notes restructured into Capabilities and Known Limitations.
 
 ## [1.0.0] — 2026-06-04
 
-First v1.0 release of the operational reconnaissance pipeline, with heuristic findings and the limitations below.
+First production release. Operationally stable and feature-complete, with known limitations.
 
-### Highlights
-
-- **11-module forensic pipeline** running in sequence: DNS, WHOIS, DNS History, CDN/GEO, Network Path, Subdomain, SSL/TLS, SecurityTrails, AbuseIPDB, VirusTotal, IP & Domain History
-- **Historical analysis mode** — inactive or expired domains fall back to passive-source reconstruction automatically
-- **Cross-platform** — Windows (PowerShell) and Linux; tracert/tracepath auto-detected
-- **Zero-config start** — active probes + free APIs provide baseline coverage without API keys; depth varies by source availability
-- **Batch mode** — `python run.py --list domains.txt` with per-domain JSON export and a consolidated batch report
-- **Structured exports** — `reports/<id>_<domain>.json` plus raw console capture in `reports/raw/<id>_<domain>.txt`.
+### Capabilities
+- 11-module forensic analysis pipeline (DNS, WHOIS, TLS, network, threat intel, historical data)
+- ~70% coverage without API keys; full historical depth with optional API access
+- Cross-platform support (Windows, Linux; macOS untested)
+- Batch processing and structured JSON export
+- Heuristic risk scoring and OPSEC assessment
 
 ### New in this release (vs. earlier internal builds)
 
@@ -47,12 +46,16 @@ First v1.0 release of the operational reconnaissance pipeline, with heuristic fi
 - GitHub Actions CI: Python 3.10–3.12 × Ubuntu / Windows
 
 ### Known Limitations
+- ASN/geolocation coverage limited by free GeoIP provider
+- Subdomain discovery is DNS-pattern based, not exhaustive
+- Risk scoring is heuristic; use as a guide, not a definitive verdict
+- DNSSEC status may vary across DNS servers (inconclusive in edge cases)
+- Traceroute results depend on target network configuration
+- WHOIS registrant fields are redacted for several ccTLDs by registry policy — shown explicitly in the report
+- SecurityTrails and VirusTotal history depth depends on account tier
+- Certificate Transparency wildcard-only certs (`*.domain.com`) produce no subdomain entries by design
 
-- WHOIS registrant fields are redacted for several ccTLDs by registry policy — shown explicitly in the report.
-- SecurityTrails and VirusTotal history depth depends on account tier.
-- Subdomain discovery is DNS-pattern based; wildcard DNS degrades to candidate-only mode.
-- Certificate Transparency wildcard-only certs (`*.domain.com`) produce no subdomain entries by design.
-- The risk model is heuristic — use it to guide investigation, not as a definitive verdict.
+See docs/KNOWN_LIMITATIONS.md for details.
 
 ---
 
