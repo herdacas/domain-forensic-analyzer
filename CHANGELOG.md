@@ -13,7 +13,7 @@ All notable changes to Domain Forensic Analyzer are documented here.
 - Detect Linux tracepath/traceroute, retain partial timeout results, and enforce silent Windows tracert deadlines.
 - Make missing ASN and inconclusive DNSSEC/path checks explicit; DNSSEC presence does not imply signature validation.
 - Unify API key loading, placeholder fallback and defensive config parsing; remove unsupported integrations from templates.
-- Clarify JSON-only production exports, report export failures, and restore per-domain batch exports.
+- Raw console capture is a standard output again: CLI and batch runs write `reports/raw/<id>_<domain>.txt` next to the JSON report (`ReportExporter(debug=False)` for JSON only). Export failures are reported on stderr; per-domain batch exports are restored.
 - Document variable coverage and heuristic limits; enable CI on refactor branches.
 
 ## [1.0.0] — 2026-06-04
@@ -27,7 +27,7 @@ First v1.0 release of the operational reconnaissance pipeline, with heuristic fi
 - **Cross-platform** — Windows (PowerShell) and Linux; tracert/tracepath auto-detected
 - **Zero-config start** — active probes + free APIs provide baseline coverage without API keys; depth varies by source availability
 - **Batch mode** — `python run.py --list domains.txt` with per-domain JSON export and a consolidated batch report
-- **Structured exports** — `reports/<id>_<domain>.json`; raw console export is a developer-only debug facility, disabled in the CLI.
+- **Structured exports** — `reports/<id>_<domain>.json` plus raw console capture in `reports/raw/<id>_<domain>.txt`.
 
 ### New in this release (vs. earlier internal builds)
 

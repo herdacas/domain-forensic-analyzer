@@ -2,7 +2,7 @@
 
 ## Overview
 
-Domain Forensic Analyzer runs 11 analyzer modules in a fixed sequence against a target domain, aggregates their output into a single result object, and renders a structured terminal report. Every scan exports a JSON report automatically. Raw console capture is a developer-only facility requiring `capture_console()` and `ReportExporter(debug=True)`; normal CLI runs do not write raw text.
+Domain Forensic Analyzer runs 11 analyzer modules in a fixed sequence against a target domain, aggregates their output into a single result object, and renders a structured terminal report. Every scan exports a JSON report and a raw console capture automatically: `cli.main()` and batch mode wrap the run in `capture_console()`, and `ReportExporter` (default `debug=True`) writes the captured text next to the JSON.
 
 ```
 run.py  ─┬─▶ src/core/cli.py            entry point: parses domain, drives the scan, prints summary
@@ -63,10 +63,14 @@ Dependency direction is one-way: `stdout_router` has no local dependencies; `dom
 ## Report lifecycle
 
 1. `cli.main()` collects the domain (CLI arg or interactive prompt), normalizes it (`DomainValidator.preprocess_domain()` — apex-stripping, punycode, reserved-TLD/IP/file-path rejection).
-2. `DomainAnalyzer.analyze_domain()` runs the 11 modules in order with per-thread stdout isolation. No raw console capture is enabled in production.
+2. `DomainAnalyzer.analyze_domain()` runs the 11 modules in order with per-thread stdout isolation. The header, analysis and summary run inside `report_exporter.capture_console()`, which tees visible output into a buffer (muted worker-thread output is never captured).
 3. `result_aggregator.create_result_aggregator()` merges the 11 module dicts into a `UnifiedResult`, computing `overall_risk_level`, `risk_factors`, and standardized asset lists.
 4. `result_formatter.display_forensic_summary()` renders the terminal report block-by-block (see the report block order in `README.md`). Domains with no current DNS resolution but historical A-records short-circuit into `_display_historical_blocks()` — a reduced report that skips blocks requiring live connectivity.
-5. `report_exporter.ReportExporter.export()` writes `reports/<id>_<domain>.json` (the full `UnifiedResult` plus analyst/session metadata). Batch mode (`--list`) additionally writes one consolidated `reports/batch/BATCH_<id>_<listname>.json`. Paths are relative to the project root. Export failures are reported to stderr without interrupting analysis.
+5. `report_exporter.ReportExporter.export()` writes:
+   - `reports/<id>_<domain>.json` (structured result + metadata: the full `UnifiedResult` plus analyst/session metadata)
+   - `reports/raw/<id>_<domain>.txt` (captured console output for audit; skipped with `ReportExporter(debug=False)`)
+
+   Batch mode (`--list`) writes both files per domain and one consolidated `reports/batch/BATCH_<id>_<listname>.json`. Paths are relative to the project root. Export failures are reported to stderr without interrupting analysis.
 
 ## Where to look for common changes
 

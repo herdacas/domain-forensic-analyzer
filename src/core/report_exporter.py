@@ -1,10 +1,10 @@
-"""Export forensic scan results to JSON.
+"""Export forensic scan results to JSON plus a raw console capture.
 
 Scan IDs auto-increment (0001, 0002, …) based on existing files in reports/.
-JSON is the sole production output format.
-
-capture_console() and the debug=True path on ReportExporter are available
-for local debugging only and must not be enabled in normal execution.
+Every scan writes a structured JSON report. The CLI and batch mode also
+wrap the run in capture_console() and write the captured terminal output
+to reports/raw/ as an audit trail (ReportExporter(debug=True), the default).
+Pass debug=False to write JSON only.
 """
 
 import io
@@ -147,28 +147,24 @@ def capture_console() -> Generator[io.StringIO, None, None]:
 
 
 class ReportExporter:
-    """Write per-scan JSON reports under reports/.
+    """Write per-scan JSON reports and raw console captures under reports/.
 
-    JSON is the single production output format. Raw console capture is
-    available only when debug=True and must not be used in normal execution.
+    ``debug`` (default True) controls the raw console capture. When it is
+    True and the caller passes ``raw_console_output``, the captured terminal
+    output is written next to the JSON report. ``debug=False`` writes JSON only.
 
-    Directory layout (production)::
+    Directory layout::
 
         reports/
-            0001_example.com.json       <- single-domain scan
+            0001_example.com.json       <- structured result + metadata
+            raw/
+                0001_example.com.txt    <- captured console output (ANSI included)
             batch/
                 BATCH_0001_domains.json <- one file per --list run
-
-    Directory layout (debug only)::
-
-        reports/
-            0001_example.com.json
-            raw/
-                0001_example.com.txt
     """
 
     def __init__(
-        self, project_root: Optional[Path] = None, debug: bool = False
+        self, project_root: Optional[Path] = None, debug: bool = True
     ) -> None:
         if project_root is None:
             project_root = Path(__file__).parent.parent.parent
@@ -194,7 +190,7 @@ class ReportExporter:
         scan_duration: float,
         raw_console_output: Optional[str] = None,
     ) -> None:
-        """Persist JSON for one scan. Raw TXT is written only when debug=True.
+        """Persist JSON for one scan, plus raw TXT when debug and output exist.
 
         Never raises — serialisation or I/O failures are reported to stderr
         without interrupting the scan.
@@ -205,7 +201,7 @@ class ReportExporter:
             safe_domain = _sanitize_filename(domain)
             base = f"{scan_id}_{safe_domain}"
 
-            # Raw console capture — debug only, never written in production
+            # Raw console capture (audit trail) — on by default, off with debug=False
             if self.debug and raw_console_output:
                 (self.raw_dir / f"{base}.txt").write_text(
                     raw_console_output, encoding="utf-8", errors="replace"

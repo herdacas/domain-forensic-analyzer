@@ -49,7 +49,7 @@ def run_list_mode(file_path: str) -> None:
     from src.core.result_formatter import (_compute_risk_summary,
                                            display_forensic_header,
                                            display_forensic_summary)
-    from src.core.report_exporter import ReportExporter
+    from src.core.report_exporter import ReportExporter, capture_console
 
     domains = _parse_domain_list(file_path)
     if not domains:
@@ -82,14 +82,15 @@ def run_list_mode(file_path: str) -> None:
         result = None
 
         try:
-            forensic_metadata = display_forensic_header(domain, domain_start)
-            result = analyzer.analyze_domain(domain)
-            display_forensic_summary(result)
+            with capture_console() as console_buffer:
+                forensic_metadata = display_forensic_header(domain, domain_start)
+                result = analyzer.analyze_domain(domain)
+                display_forensic_summary(result)
             overall_risk, _, _ = _compute_risk_summary(result)
             elapsed = time.monotonic() - t0
             exporter.export(
                 domain=domain, result=result, forensic_metadata=forensic_metadata,
-                scan_duration=elapsed,
+                scan_duration=elapsed, raw_console_output=console_buffer.getvalue(),
             )
             print(f"\nForensic session {forensic_metadata['session_id']} complete.")
             summary_rows.append((domain, "COMPLETE", int(elapsed), overall_risk))

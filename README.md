@@ -73,7 +73,20 @@ python3 run.py --list domains.txt
 - Internationalized domains are converted to punycode (`münchen.de` → `xn--mnchen-3ya.de`)
 - IP addresses and file paths are rejected with a clear error
 
-JSON reports are written automatically to the project-root `reports/` after each scan — no flags needed. Batch mode also writes a consolidated report under `reports/batch/`. Raw console capture is available only through the developer debug API, not the normal CLI. Export failures are reported to stderr.
+---
+
+## Report Output
+
+Every scan produces structured JSON export to `reports/<id>_<domain>.json`.
+Additionally, raw console output is captured to `reports/raw/<id>_<domain>.txt` for audit trail and debugging.
+
+Reports are written automatically—no flags needed.
+
+- Batch mode (`--list`) writes the same per-domain JSON and raw files, plus one consolidated `reports/batch/BATCH_<id>_<listname>.json`.
+- The raw capture is the exact terminal output, ANSI color codes included.
+- `reports/` is git-ignored and contains registrant data and analyst metadata (your external IP). Treat it as sensitive working data.
+- Programmatic callers can use `ReportExporter(debug=False)` to write JSON only.
+- Export failures are reported to stderr and never interrupt the scan.
 
 ---
 
