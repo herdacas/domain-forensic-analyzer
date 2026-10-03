@@ -7,6 +7,7 @@ Usage:
 """
 
 import io
+import os
 import sys
 import time
 from datetime import datetime
@@ -156,6 +157,12 @@ def run_list_mode(file_path: str) -> None:
 
 
 def main():
+    # Use the installed project dependencies even without activating .venv.
+    project_env = Path(__file__).resolve().parent / ".venv"
+    env_python = project_env / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if env_python.is_file() and Path(sys.prefix).resolve() != project_env.resolve():
+        os.execv(str(env_python), [str(env_python), str(Path(__file__).resolve()), *sys.argv[1:]])
+
     from src.core.cli import main as single_main
 
     args = sys.argv[1:]

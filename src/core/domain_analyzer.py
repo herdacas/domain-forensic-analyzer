@@ -98,7 +98,21 @@ class DomainAnalyzer:
             import logging
 
             logging.basicConfig(level=logging.INFO)
-            self.logger = logging.getLogger("DomainAnalyzer")
+            class ContextLogger(logging.LoggerAdapter):
+                """Accept structured context with the standard logging backend."""
+
+                def process(self, msg, kwargs):
+                    standard_keys = {"exc_info", "stack_info", "stacklevel", "extra"}
+                    context = {
+                        key: kwargs.pop(key)
+                        for key in list(kwargs)
+                        if key not in standard_keys
+                    }
+                    if context:
+                        msg = f"{msg} | {context}"
+                    return msg, kwargs
+
+            self.logger = ContextLogger(logging.getLogger("DomainAnalyzer"), {})
 
     def _initialize_system(self) -> None:
         if not CORE_MODULES_AVAILABLE:
