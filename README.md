@@ -120,6 +120,89 @@ Reports are written automatically—no flags needed.
 
 ---
 
+## Running Through a VPN
+
+The active probes (DNS, ping, traceroute, HTTP/S, TLS handshake, zone-transfer attempt) come from your IP address. Running the scan through a VPN means the target sees the VPN exit address instead of yours. The passive API lookups never expose your IP either way.
+
+| Setup | Best for | What goes through the VPN |
+|---|---|---|
+| **A: VPN app on your machine** | Windows, Linux desktop, laptop | All traffic of that machine |
+| **B: Linux network namespace** | A server you manage over SSH | Only the analyzer. SSH and every other service keep their normal route |
+
+### Option A: VPN app (Windows, Linux desktop)
+
+1. Connect your VPN client (for example Proton VPN).
+2. Run the scan as usual: `python run.py example.com`.
+3. Check the report header (see [Checking that the VPN is used](#checking-that-the-vpn-is-used)).
+
+Nothing else to configure. Many VPN clients block DNS to your router's resolver while connected. The DNS module handles that: it tests each configured resolver on TCP port 53 first and only queries the reachable ones.
+
+### Option B: Linux server, VPN for the analyzer only
+
+Turning on a system-wide VPN on a remote server replaces its default route and can cut your own SSH session. Instead, the WireGuard tunnel lives in a separate Linux network namespace, and only the analyzer is started inside it. The host's routing table is never touched.
+
+**Tech stack**
+
+| Component | Role |
+|---|---|
+| WireGuard (kernel module + `wireguard-tools`) | The VPN tunnel. Any provider that offers WireGuard config files works; validated with Proton VPN |
+| `iproute2` (`ip netns`) | The network namespace that holds the tunnel |
+| `/etc/netns/<name>/resolv.conf` | DNS server used inside the namespace (the VPN's resolver, e.g. `10.2.0.1` for Proton) |
+| `nftables` (optional) | Rule that only allows DNS to the VPN resolver, so no DNS query can leak past the tunnel |
+| `sudo` | `ip netns exec` needs root; the scan itself runs as your normal user again |
+
+<details>
+<summary><b>One-time setup</b> (root; take address, DNS and file name from the <code>[Interface]</code> section of your WireGuard config)</summary>
+
+```bash
+sudo apt install wireguard-tools iproute2
+sudo ip netns add vpn
+sudo ip link add wg0 type wireguard        # created on the host, so the tunnel's own UDP traffic uses the normal uplink
+sudo ip link set wg0 netns vpn             # then moved into the namespace
+sudo bash -c 'wg-quick strip /etc/wireguard/proton.conf | ip netns exec vpn wg setconf wg0 /dev/stdin'
+sudo ip -n vpn addr add 10.2.0.2/32 dev wg0          # [Interface] Address
+sudo ip -n vpn link set lo up
+sudo ip -n vpn link set wg0 up
+sudo ip -n vpn route add default dev wg0
+sudo mkdir -p /etc/netns/vpn
+echo "nameserver 10.2.0.1" | sudo tee /etc/netns/vpn/resolv.conf   # [Interface] DNS
+```
+
+The namespace is gone after a reboot. To keep it permanently, put these commands into a systemd oneshot service.
+</details>
+
+**Optional check before scanning.** It should show a recent handshake, an IP that is not your server's, and the VPN resolver:
+
+```bash
+sudo ip netns exec vpn sh -c 'wg show wg0 latest-handshakes; curl -s https://api.ipify.org; echo; cat /etc/resolv.conf'
+```
+
+**Run a scan through the tunnel:**
+
+```bash
+sudo ip netns exec vpn sudo -u "$USER" /path/to/domain-forensic-analyzer/.venv/bin/python /path/to/domain-forensic-analyzer/run.py example.com
+```
+
+`ip netns exec vpn` moves only this one process into the tunnel. `sudo -u "$USER"` drops root again, so the files in `reports/` and `logs/` belong to you. Batch mode works the same way with `--list domains.txt`.
+
+### Checking that the VPN is used
+
+The header printed at the start of every scan (and the `analyst` block of the JSON report) shows it right away:
+
+| Field | Without VPN | Through the VPN |
+|---|---|---|
+| `External IP` | your own public IP | the VPN exit IP |
+| `Local IP` | your LAN address (e.g. `192.168.x.x`) or, on a server, its public IP | the tunnel address (e.g. `10.2.0.2`) |
+
+`External IP` is the field to trust. Two other fields are less reliable:
+
+- `Network Topology` and `Attribution Risk` only tell whether your machine sits behind NAT. A home PC behind a router already shows "NAT Protected" and LOW without any VPN. Only on a server with a public IP do they change from "Direct Connection" / MEDIUM to "NAT Protected" / LOW when the VPN is used.
+- `VPN/Proxy Signals` will often still say "No known provider signatures observed". That check only matches keywords in reverse DNS names, and many providers (Proton included) don't use such names.
+
+These differences are expected and not errors: a CDN-hosted target may resolve to a different edge IP, the traceroute is usually shorter, and DNSSEC is checked through whichever resolver is active. A resolver that does not answer DS/DNSKEY queries gives `inconclusive`, never "not enabled".
+
+---
+
 ## API Keys (optional)
 
 Add keys to unlock historical DNS, reputation data, and deeper WHOIS intelligence.
@@ -207,7 +290,7 @@ If neither traceroute tool is available, the NETWORK PATH module gracefully repo
 
 - Active probes (DNS resolution, SSL/TLS handshake, HTTP/S, ping, traceroute, subdomain DNS) are visible to the target host.
 - Passive APIs (VirusTotal, AbuseIPDB, SecurityTrails, RobTex, Mnemonic, crt.sh) do not expose your IP to the target.
-- For low-footprint investigations, route traffic through a VPN at OS level before running.
+- For low-footprint investigations, run the scan through a VPN. See [Running Through a VPN](#running-through-a-vpn).
 - VPN/proxy detection in the OPSEC block is rDNS keyword matching — it will not catch every VPN provider (see [SECURITY.md](SECURITY.md) for details). Don't treat "not detected" as proof no VPN is active.
 - Do not commit `config/api_keys.json` or `.env` files.
 
@@ -236,6 +319,8 @@ These are the structured `reports/<id>_<domain>.json` exports the tool writes au
 |---|---|---|
 | `UnicodeEncodeError: 'charmap' codec can't encode characters` | Legacy Windows console (cp1252) rendering `├──` box-drawing characters | Fixed as of the UTF-8 console reconfiguration in `run.py` — if you still see this, make sure you're running `run.py` directly (not importing `domain_analyzer` in a script without the same startup) |
 | Module marked `FAILED` immediately after starting a VPN | DNS query sent to a nameserver blocked by the VPN's routing (commonly seen with ProtonVPN, which blocks port 53 to the physical adapter's DNS) | Already handled — `DNSAnalyzer` probes each candidate nameserver's TCP port 53 reachability before querying and skips unreachable ones. If it still happens, the VPN may be blocking *all* resolvers; check `nslookup` works manually first |
+| Inside a network namespace: DNS module fails, `Temporary failure in name resolution` | `/etc/netns/<name>/resolv.conf` is missing, so the namespace has no usable resolver | Create it with the VPN's DNS server (see [Option B](#option-b-linux-server-vpn-for-the-analyzer-only)) |
+| Inside a network namespace: ping shows not reachable, everything else works | Started from a systemd service with `NoNewPrivileges`, which ignores ping's `cap_net_raw` capability | Allow unprivileged ICMP in the namespace: `sudo ip netns exec vpn sysctl -w net.ipv4.ping_group_range="0 2147483647"` |
 | `DNS History: UNAVAILABLE` or a `NameError` in `dns_history_analyzer.py` | Missing `import json` (fixed in a past release) or a source returning malformed data | Update to the latest `main` — this was a known bug fixed pre-1.0 |
 | A module reports "no API key" even though one is set in `config/api_keys.json` | Invalid JSON, a placeholder key, or a different project checkout | Check the project-root config file and key; placeholders in `.env` fall back to JSON |
 | `192.168.0.1` or similar gets scanned instead of rejected | You're on an older build — IP-address rejection was added in a later 1.0.x-track fix | Update to the latest `main` |
