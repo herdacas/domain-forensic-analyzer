@@ -28,12 +28,16 @@ Domain Forensic Analyzer mixes **active probes** (the target's infrastructure se
 
 VirusTotal, AbuseIPDB, WhoisXML, SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS, crt.sh, CertSpotter, ip-api.com. These query third-party databases, not the target's own infrastructure.
 
-The tool reports this split explicitly in the **OPSEC Assessment** block of every scan (`Active Probes` / `Passive Sources` sub-lists), and computes an `Attribution Risk` / `Stealth Level` from it. `Stealth Level` has a floor of `MEDIUM`, never `LOW` — active probes always run, so a scan is never fully passive, and the tool doesn't claim otherwise.
+The tool reports this split explicitly in the **OPSEC Assessment** block of every scan (`Active Probes` / `Passive Sources` sub-lists). `Attribution Risk` is `LOW` only when a VPN signal is present and `MEDIUM` otherwise. Being behind NAT does not lower it, because the target still sees the public IP of your router. `Stealth Level` has a floor of `MEDIUM`, never `LOW` — active probes always run, so a scan is never fully passive, and the tool doesn't claim otherwise.
 
 ### Reducing your footprint
 
-- Route the whole scan through a VPN at the **OS level** before starting — the tool has no built-in proxy support, so anything less than an OS-level route (env vars, `requests` proxy config, etc.) will not cover the raw-socket probes (ping, traceroute, zone transfer).
-- VPN/proxy detection in the OPSEC block is **rDNS keyword matching only** (looks for known provider strings — `nordvpn`, `protonvpn`, etc. — in the reverse DNS of your own external IP). Providers that route through third-party infrastructure without provider-branded hostnames (e.g. ProtonVPN via Datapacket/M247) will **not** be detected — this is a known, accepted limitation, not a bug. Don't rely on the tool's own OPSEC block to confirm your VPN is active; verify independently (`curl https://ipinfo.io`) before scanning.
+- Route the scan through a VPN at the **routing level** before starting: either a VPN app for the whole machine, or on Linux a network namespace that tunnels only the analyzer (see [Running Through a VPN](README.md#running-through-a-vpn)). The tool has no built-in proxy support, so anything less than a routing-level tunnel (env vars, `requests` proxy config, etc.) will not cover the raw-socket probes (ping, traceroute, zone transfer).
+- VPN detection in the OPSEC block uses two signals:
+  - **Tunnel interface (Linux only):** the kernel is asked which interface carries internet traffic (`ip route get`, no packet is sent). A WireGuard, tun or PPP device, or a typical VPN interface name (`wg*`, `tun*`, `proton*`, …), counts as a VPN. This works for any provider, including the namespace setup.
+  - **rDNS keyword match (all platforms):** known provider strings (`nordvpn`, `protonvpn`, etc.) in the reverse DNS of your external IP. Providers that route through third-party infrastructure without provider-branded hostnames (e.g. ProtonVPN via Datapacket/M247) are **not** caught by this signal.
+
+  On Windows and macOS only the rDNS signal is available, so a Proton connection there still shows "No known provider signatures observed". Don't rely on the OPSEC block alone to confirm your VPN is active; check that `External IP` in the scan header is the VPN exit address.
 - Expired/inactive domains automatically fall back to **historical analysis mode**, which skips all active probes (no current IP to probe) and relies entirely on passive sources.
 
 ---

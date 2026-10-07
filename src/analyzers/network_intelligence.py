@@ -138,6 +138,10 @@ class NetworkIntelligence:
     def _extract_ping_time(self, ping_output: str) -> Optional[str]:
         """Extract average RTT from ping output."""
         for line in ping_output.lower().split('\n'):
+            # Linux/macOS: "rtt min/avg/max/mdev = 0.045/0.052/0.060/0.006 ms"
+            m = re.search(r'min/avg/max\S*\s*=\s*[\d.]+/([\d.]+)/', line)
+            if m:
+                return f"{m.group(1)}ms"
             if 'average' in line or 'mittelwert' in line or 'durchschnitt' in line:
                 m = re.search(r'(\d+(?:\.\d+)?)\s*ms', line)
                 if m:
@@ -145,25 +149,21 @@ class NetworkIntelligence:
         return None
 
     def _test_http_connectivity(self, domain: str) -> Dict[str, Any]:
-        """Test basic HTTP/S reachability (used for connectivity_test dict)."""
+        """Test basic HTTP/S reachability (used for connectivity_test dict).
+
+        Both schemes are probed independently, so ``http_accessible`` reports
+        port 80 even when HTTPS works. ``_test_http_behavior`` requests
+        ``http://`` anyway, so this adds no new kind of probe for the target.
+        """
         connectivity = {'http_accessible': False, 'https_accessible': False}
 
-        try:
-            req = urllib.request.Request(f"https://{domain}")
-            req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
-            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
-                if response.status == 200:
-                    connectivity['https_accessible'] = True
-        except Exception:
-            pass
-
-        if not connectivity['https_accessible']:
+        for scheme, key in (('https', 'https_accessible'), ('http', 'http_accessible')):
             try:
-                req = urllib.request.Request(f"http://{domain}")
+                req = urllib.request.Request(f"{scheme}://{domain}")
                 req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
                 with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
                     if response.status == 200:
-                        connectivity['http_accessible'] = True
+                        connectivity[key] = True
             except Exception:
                 pass
 

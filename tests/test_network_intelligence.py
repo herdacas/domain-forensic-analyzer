@@ -102,6 +102,53 @@ class TestExtractPingTime:
         result = ni._extract_ping_time(output)
         assert result == "7.5ms"
 
+    def test_linux_rtt_summary_parsed(self, ni):
+        output = (
+            "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\n"
+            "rtt min/avg/max/mdev = 11.204/12.345/13.901/1.100 ms"
+        )
+        assert ni._extract_ping_time(output) == "12.345ms"
+
+    def test_macos_round_trip_summary_parsed(self, ni):
+        output = "round-trip min/avg/max/stddev = 8.1/9.2/10.3/0.9 ms"
+        assert ni._extract_ping_time(output) == "9.2ms"
+
+
+# ---------------------------------------------------------------------------
+# _test_http_connectivity
+# ---------------------------------------------------------------------------
+
+def _url_response(status):
+    response = MagicMock(status=status)
+    response.__enter__ = MagicMock(return_value=response)
+    response.__exit__ = MagicMock(return_value=False)
+    return response
+
+
+class TestHttpConnectivity:
+
+    def test_http_probed_even_when_https_works(self, ni):
+        with patch("urllib.request.urlopen", return_value=_url_response(200)) as urlopen:
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": True, "https_accessible": True}
+        probed = [call.args[0].full_url for call in urlopen.call_args_list]
+        assert probed == ["https://example.com", "http://example.com"]
+
+    def test_http_only_site(self, ni):
+        def fake_urlopen(req, timeout):
+            if req.full_url.startswith("https://"):
+                raise OSError("TLS handshake failed")
+            return _url_response(200)
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": True, "https_accessible": False}
+
+    def test_nothing_reachable(self, ni):
+        with patch("urllib.request.urlopen", side_effect=OSError("refused")):
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": False, "https_accessible": False}
+
 
 # ---------------------------------------------------------------------------
 # _is_likely_international_route

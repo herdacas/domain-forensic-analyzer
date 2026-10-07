@@ -2158,11 +2158,14 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"├── Stealth Level: {stealth_color(opsec_assessment['stealth_level'])} {Colors.dim('(aggregated external signals)')}")
 
     if opsec_assessment["behind_nat"]:
-        print(f"├── Network Topology: {Colors.success('NAT Protected')}")
+        print(f"├── Network Topology: {Colors.info('Behind NAT')} {Colors.dim('(target still sees the public IP)')}")
     else:
         print(f"├── Network Topology: {Colors.warning('Direct Connection')}")
 
-    if opsec_assessment["potential_vpn"]:
+    tunnel_interface = opsec_assessment.get("tunnel_interface")
+    if tunnel_interface:
+        print(f"├── VPN/Proxy Signals: {Colors.success('VPN tunnel detected')} {Colors.dim(f'(internet route via {tunnel_interface})')}")
+    elif opsec_assessment["potential_vpn"]:
         print(f"├── VPN/Proxy Signals: {Colors.success('VPN provider detected')} {Colors.dim('(rDNS match)')}")
     else:
         print(f"├── VPN/Proxy Signals: {Colors.dim('No known provider signatures observed')}")
