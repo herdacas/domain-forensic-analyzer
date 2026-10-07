@@ -157,3 +157,20 @@ Nach dem Merge von `refactor/v1.0-production-polish` und dieses Berichts nach `m
 
 - **F-1 ist in `main` behoben.**
 - **Korrektur zu Scan 2 und 3:** Das SecurityTrails-Kontingent (Free-Tier) war ab Scan 2 erschöpft (`analysis_status: quota_exceeded`). Der alte `main` zählte das Modul trotzdem als erfolgreich. Richtig wäre für Scan 2 und 3 also „10/11, SecurityTrails ohne Daten“. Der neue `main` weist das korrekt als übersprungen aus und schreibt es in `warnings`. Am Ergebnis der VPN-Prüfung ändert das nichts, SecurityTrails ist eine passive Quelle.
+
+---
+
+## Abschluss — Stand v1.1.0
+
+Die offenen Befunde dieses Berichts sind in Release `v1.1.0` (`f650a1c`) behoben. Die Abschnitte oben geben den Stand zum jeweiligen Prüfzeitpunkt wieder.
+
+| # | Befund | Behoben in | Verifiziert |
+|---|---|---|---|
+| F-1 | `network_path.responsive_hops` / `connectivity_status` falsch aggregiert | `e606ffb` (v1.0 production polish) | Scan 4: `responsive_hops: 6`, `reachable` |
+| F-2 | `http_accessible` blieb bei HTTPS-Seiten `false` | `db6b69b` | Scan 5 + 6: `http_accessible: true` |
+| F-4 | `attribution_risk` hing nur an NAT | `6fe8545` (neues VPN-Signal: Tunnel-Interface unter Linux) | Scan 5 (direkt): MEDIUM, `vpn_signal: null`; Scan 6 (Namespace `dfa-vpn`): LOW, `vpn_signal: "tunnel_interface"`, Interface `dfawg0` |
+| — | Ping-Zeit fehlte unter Linux | `6d6daeb` | Scan 5: `0.745ms`, Scan 6: `22.535ms` |
+
+Weiterhin bekannt und dokumentiert (`docs/KNOWN_LIMITATIONS.md`):
+- Unter Windows/macOS erkennt die VPN-Prüfung nur Anbieter mit eindeutigem Reverse-DNS. Proton bleibt dort unerkannt.
+- SecurityTrails braucht bis zu 10 Anfragen pro Scan. Das Free-Tier reicht damit für etwa 5 Scans im Monat.
