@@ -16,6 +16,8 @@ All notable changes to Domain Forensic Analyzer are documented here.
 - Raw console capture is a standard output again: CLI and batch runs write `reports/raw/<id>_<domain>.txt` next to the JSON report (`ReportExporter(debug=False)` for JSON only). Export failures are reported on stderr; per-domain batch exports are restored.
 - Document variable coverage and heuristic limits; enable CI on refactor branches.
 - README: production status badge, "When to Use This Tool" and "Coverage" sections, and a link to `docs/KNOWN_LIMITATIONS.md`; v1.0.0 notes restructured into Capabilities and Known Limitations.
+- README: new section "Running Through a VPN". Covers a VPN app vs. a Linux network namespace that tunnels only the analyzer (WireGuard, `ip netns`, per-namespace `resolv.conf`, optional nftables DNS guard), setup, the run command, and how to confirm the VPN is used. Adds two namespace troubleshooting rows.
+- `docs/REVALIDATION_2026-10-07.md`: re-validation of the Phase 4 fixes with `example.com`, direct and through a Proton WireGuard namespace, plus a control scan after this release line was merged into `main`.
 
 ## [1.0.0] — 2026-06-04
 
