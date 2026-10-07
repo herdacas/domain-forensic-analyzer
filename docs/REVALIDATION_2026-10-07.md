@@ -100,9 +100,36 @@ Alle Änderungen aus `feature/phase-4-validation` sind im aktuellen `main` wirks
 
 ---
 
+## Scan 3 — Linux, VPN an (Wiederholung von Scan 2)
+
+Vom Benutzer manuell gestartet, mit demselben Befehl wie Scan 2. Report: `reports/0015_example.com.json`.
+
+| Feld | Scan 1 (VPN aus) | Scan 2 (VPN an) | Scan 3 (VPN an) |
+|---|---|---|---|
+| Dauer | 50,8 s | 49,8 s | 58,8 s |
+| Module ok / failed / errors / warnings | 11 / 0 / 0 / 0 | 11 / 0 / 0 / 0 | 11 / 0 / 0 / 0 |
+| Externe IP | Server-IP | VPN-Exit | VPN-Exit (identisch mit Scan 2) |
+| Lokale IP | öffentliche Server-IP | `10.2.0.2` (Tunnel) | `10.2.0.2` (Tunnel) |
+| `behind_nat` / Attribution Risk | false / MEDIUM | true / LOW | true / LOW |
+| `potential_vpn` | false | false | false |
+| A-Record | `172.66.147.243` | `104.20.23.154` | `104.20.23.154` |
+| DNS-Modul | < 1 s | < 1 s | 0,6 s |
+| DNSSEC / AXFR | check_failed / not_allowed | enabled / not_allowed | enabled / not_allowed |
+| ASN | AS13335 | AS13335 | AS13335 |
+| Traceroute (Hops / letzter Antwort-Hop) | 10 / 7 | 5 / 2 | 5 / 2 |
+| `network_path` responsive_hops / connectivity | 0 / unknown | 0 / unknown | 0 / unknown |
+| Risk | minimal | minimal | minimal |
+
+Scan 3 reproduziert Scan 2 in allen Kennzahlen. Die 9 s Mehrlaufzeit fallen vollständig auf `dns_history` (19,4 s statt 11,7 s). Dieses Modul fragt nur passive Drittquellen ab, die Schwankung hat also nichts mit dem VPN zu tun.
+
+**F-4 (niedrig) — Attribution Risk spiegelt nur NAT wider.**
+[`src/core/metadata.py:88`](../src/core/metadata.py) setzt `attribution_risk = "LOW" if behind_nat else "MEDIUM"`. Ein Heim-PC hinter einem Router bekommt dadurch auch ohne VPN LOW (vgl. Phase-4-Szenario C: Windows direkt → `behind_nat: true`, LOW). Der Wert unterscheidet „VPN an/aus“ nur auf Servern mit öffentlicher IP. In der README dokumentiert, Code unverändert.
+
+---
+
 ## Gesamtfazit
 
-Beide Scans sind erfolgreich (2 × 11/11, keine Fehler, keine Timeouts). Alle Änderungen aus `feature/phase-4-validation` wirken im aktuellen `main`, mit und ohne VPN. Drei der vier Follow-ups aus Phase 4 sind in `main` behoben (ASN, Location, DNSSEC-Einstufung).
+Alle drei Scans sind erfolgreich (3 × 11/11, keine Fehler, keine Timeouts), der VPN-Lauf ist reproduzierbar. Alle Änderungen aus `feature/phase-4-validation` wirken im aktuellen `main`, mit und ohne VPN. Drei der vier Follow-ups aus Phase 4 sind in `main` behoben (ASN, Location, DNSSEC-Einstufung).
 
 Offen bleiben:
 
@@ -110,6 +137,7 @@ Offen bleiben:
 |---|---|---|---|
 | F-1 | `network_path.responsive_hops` / `connectivity_status` falsch aggregiert | mittel | Fix liegt auf `refactor/v1.0-production-polish`, kommt mit dessen Merge nach `main` |
 | F-2 | `http_accessible` irreführend, wenn HTTPS erreichbar ist | niedrig | eigenes Ticket |
+| F-4 | `attribution_risk` hängt nur an NAT, nicht am VPN | niedrig | in README erklärt; Logik ggf. in eigenem Ticket |
 | — | VPN-Erkennung erkennt Proton nicht | bekannt | dokumentierte Limitierung |
 
 Der lokale Branch `feature/phase-4-validation` kann gelöscht werden.
