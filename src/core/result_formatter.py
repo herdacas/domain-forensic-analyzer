@@ -6,130 +6,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.metadata import assess_opsec_risk, get_external_ip, get_local_ip, get_system_metadata
 from src.core.result_aggregator import UnifiedResult
+from src.core.risk_assessment import assess_domain_risk as _compute_risk_summary
 from src.utils.colors import Colors
 
-
-def _compute_risk_summary(result: UnifiedResult) -> Tuple[str, List[str], str]:
-    """Compute a concise overall risk summary for display."""
-    vt_result = result.results.get("virustotal", {})
-    abuse_result = result.results.get("abuseipdb", {})
-    subdomain_result = result.results.get("subdomain", {})
-    whois_result = result.results.get("whois", {})
-    ssl_result = result.results.get("ssl", {})
-    network_result = result.results.get("network", {})
-    http_behavior = network_result.get("http_behavior", {})
-    risk_factors = []
-    overall_risk = "LOW"
-
-    # Domain age check
-    creation_raw = whois_result.get("creation_date") or whois_result.get("createdDate")
-    if creation_raw:
-        try:
-            date_str = str(creation_raw)[:10]
-            created_dt = datetime.strptime(date_str, "%Y-%m-%d")
-            age_days = (
-                datetime.now(timezone.utc).replace(tzinfo=None) - created_dt
-            ).days
-            if age_days < 30:
-                risk_factors.append(f"Newly registered domain ({age_days} days old)")
-                overall_risk = "HIGH"
-            elif age_days < 90:
-                risk_factors.append(f"Recently registered domain ({age_days} days old)")
-                if overall_risk == "LOW":
-                    overall_risk = "MEDIUM"
-        except (ValueError, TypeError):
-            pass
-
-    wildcard_detected = bool(
-        subdomain_result.get("wildcard_detected")
-        or subdomain_result.get("dns_configuration", {}).get("wildcard_detected", False)
-    )
-
-    if not wildcard_detected:
-        if result.sensitive_assets_found >= 20:
-            risk_factors.append(
-                f"Excessive attack surface ({result.sensitive_assets_found} sensitive assets)"
-            )
-            overall_risk = "HIGH"
-        elif result.sensitive_assets_found >= 10:
-            risk_factors.append(
-                f"Large attack surface ({result.sensitive_assets_found} sensitive assets)"
-            )
-            overall_risk = "MEDIUM"
-
-    malicious_detections = vt_result.get("threat_analysis", {}).get(
-        "malicious_detections", 0
-    )
-    if malicious_detections >= 3:
-        risk_factors.append(
-            f"Domain flagged as malicious by {malicious_detections} security vendors"
-        )
-        overall_risk = "HIGH"
-    elif malicious_detections > 0:
-        risk_factors.append(
-            f"Limited malicious detections at VirusTotal ({malicious_detections} vendors)"
-        )
-        if overall_risk == "LOW":
-            overall_risk = "MEDIUM"
-
-    abuse_confidence = abuse_result.get("abuse_confidence", 0)
-    if abuse_confidence > 50:
-        risk_factors.append(f"High IP abuse confidence ({abuse_confidence}%)")
-        if overall_risk != "CRITICAL":
-            overall_risk = "HIGH"
-    elif abuse_confidence > 25:
-        risk_factors.append(f"Moderate IP abuse reports ({abuse_confidence}%)")
-        if overall_risk == "LOW":
-            overall_risk = "MEDIUM"
-
-    # SSL/TLS certificate risk checks
-    if ssl_result.get("available"):
-        days_to_expiry = ssl_result.get("days_to_expiry")
-        if days_to_expiry is not None:
-            if days_to_expiry < 0:
-                risk_factors.append(
-                    f"Certificate expired {abs(days_to_expiry)} days ago"
-                )
-                if overall_risk not in ("CRITICAL", "HIGH"):
-                    overall_risk = "HIGH"
-            elif days_to_expiry < 14:
-                risk_factors.append(f"Certificate expiring in {days_to_expiry} days")
-                if overall_risk not in ("CRITICAL", "HIGH"):
-                    overall_risk = "HIGH"
-            elif days_to_expiry < 30:
-                risk_factors.append("Certificate expiring soon")
-                if overall_risk == "LOW":
-                    overall_risk = "MEDIUM"
-        if ssl_result.get("self_signed"):
-            risk_factors.append("Self-signed certificate detected")
-            if overall_risk == "LOW":
-                overall_risk = "MEDIUM"
-        tls_ver = ssl_result.get("tls_version", "")
-        if tls_ver in ("TLSv1", "TLSv1.1", "SSLv3", "SSLv2"):
-            risk_factors.append(f"TLS 1.3 not supported ({tls_ver} in use)")
-
-    # HTTP/S behavior risk checks
-    if http_behavior:
-        https_reachable = http_behavior.get("https_status") is not None
-        if (
-            https_reachable
-            and not http_behavior.get("has_redirect")
-            and http_behavior.get("http_status") is not None
-        ):
-            risk_factors.append("HTTP served without redirect to HTTPS")
-        if https_reachable and not http_behavior.get("hsts"):
-            risk_factors.append("HSTS not configured")
-
-    if overall_risk == "CRITICAL":
-        recommendation = "LIKELY MALICIOUS - Multiple high-confidence indicators"
-    elif overall_risk == "HIGH":
-        recommendation = "ELEVATED RISK - Further validation recommended"
-    elif overall_risk == "MEDIUM":
-        recommendation = "REVIEW REQUIRED - Mixed or limited risk signals"
-    else:
-        recommendation = "NO MALICIOUS INDICATORS - Low risk profile"
-
-    return overall_risk, risk_factors, recommendation
 
 
 def _display_traceroute_details(
@@ -148,6 +27,11 @@ def _display_traceroute_details(
         if traceroute_status == "timeout":
             print(f"├── Status: {Colors.warning('TIMEOUT')}")
             print(f"├── Traceroute: {Colors.dim('incomplete')}")
+        elif traceroute_status == "unavailable":
+            print(f"├── Status: {Colors.warning('UNAVAILABLE')}")
+            print(f"├── Traceroute: {Colors.dim('no path tool installed - other modules unaffected')}")
+            print(f"└── Detail: {Colors.dim(traceroute_data.get('error') or 'path tool missing')}")
+            return
         else:
             print(f"├── Status: {Colors.error('FAILED')}")
             print(f"├── Traceroute: {Colors.error('UNAVAILABLE')}")
@@ -1581,8 +1465,8 @@ def _render_dns_forensics_section(ctx: Dict[str, Any]) -> None:
             print(f"├── CAA Policy: {Colors.dim('not configured')}")
 
         dnssec_status = {
-            "enabled": "enabled",
-            "check_failed": "check failed (network/timeout — inconclusive)",
+            "enabled": "indicators detected (signature validation not performed)",
+            "inconclusive": "inconclusive (DS/DNSKEY query failed - status may vary across DNS servers)",
         }.get(dnssec.get("status"), "not detected")
         print(f"├── DNSSEC: {Colors.info(dnssec_status)}")
         print(

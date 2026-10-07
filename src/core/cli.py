@@ -53,7 +53,7 @@ def get_domain_input() -> str:
 
 def main():
     """Main program entry point with forensic metadata collection"""
-    from src.core.report_exporter import ReportExporter
+    from src.core.report_exporter import ReportExporter, capture_console
 
     analysis_start_time = datetime.now()
     exporter = ReportExporter()
@@ -63,25 +63,27 @@ def main():
     try:
         domain = get_domain_input()
 
-        forensic_metadata = display_forensic_header(domain, analysis_start_time)
+        # Everything printed for this scan is teed into the raw report.
+        with capture_console() as console_buffer:
+            forensic_metadata = display_forensic_header(domain, analysis_start_time)
 
-        analyzer = DomainAnalyzer()
+            analyzer = DomainAnalyzer()
 
-        if hasattr(analyzer, "logger"):
-            analyzer.logger.info(
-                "Forensic session started",
-                session_id=forensic_metadata["session_id"],
-                external_ip=forensic_metadata["external_ip"],
-                target_domain=domain,
-                opsec_risk=forensic_metadata["opsec_assessment"]["attribution_risk"],
-            )
+            if hasattr(analyzer, "logger"):
+                analyzer.logger.info(
+                    "Forensic session started",
+                    session_id=forensic_metadata["session_id"],
+                    external_ip=forensic_metadata["external_ip"],
+                    target_domain=domain,
+                    opsec_risk=forensic_metadata["opsec_assessment"]["attribution_risk"],
+                )
 
-        result = analyzer.analyze_domain(domain)
+            result = analyzer.analyze_domain(domain)
 
-        display_forensic_summary(result)
+            display_forensic_summary(result)
 
-        print(f"\nForensic session {forensic_metadata['session_id']} complete.")
-        print(f"Check logs for detailed technical information and audit trail.")
+            print(f"\nForensic session {forensic_metadata['session_id']} complete.")
+            print("Check logs for detailed technical information and audit trail.")
 
         if result is not None:
             exporter.export(
@@ -89,6 +91,7 @@ def main():
                 result=result,
                 forensic_metadata=forensic_metadata,
                 scan_duration=(datetime.now() - analysis_start_time).total_seconds(),
+                raw_console_output=console_buffer.getvalue(),
             )
 
     except KeyboardInterrupt:

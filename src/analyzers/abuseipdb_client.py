@@ -37,7 +37,9 @@ class AbuseIPDBClient:
             Structured reputation analysis
         """
         if not self.config:
-            return self._get_demo_result(ip_address, domain)
+            return {"analysis_status": "skipped", "api_status": "no_key",
+                    "ip_address": ip_address, "associated_domain": domain,
+                    "reason": "AbuseIPDB API key not configured"}
 
         try:
             # AbuseIPDB Check Endpoint

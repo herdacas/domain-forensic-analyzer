@@ -5,9 +5,9 @@ Network Intelligence Module for Domain Forensic Analyzer.
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
-import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -284,14 +284,45 @@ class NetworkIntelligence:
 
         return result
 
+    _TRACEROUTE_INSTALL_HINT = {
+        True: ('tracert is not installed or not on PATH. It ships with Windows; '
+               'ensure %SystemRoot%\\System32 is on PATH.'),
+        False: ('Neither tracepath nor traceroute is installed. '
+                'Install with: sudo apt install iputils-tracepath traceroute'),
+    }
+
+    def _detect_traceroute_tool(self) -> Optional[str]:
+        """Return the available path tool name, or None when none is installed.
+
+        Windows: tracert. Linux/macOS: tracepath (preferred, no root needed),
+        then traceroute as fallback.
+        """
+        candidates = ('tracert',) if self.is_windows else ('tracepath', 'traceroute')
+        for name in candidates:
+            if shutil.which(name):
+                return name
+        return None
+
     def _perform_traceroute(self, ip_address: str) -> Dict[str, Any]:
-        """Run platform-appropriate traceroute and return hop list."""
+        """Run platform-appropriate traceroute, degrading gracefully if unavailable."""
+        tool = self._detect_traceroute_tool()
+        if tool is None:
+            return {
+                'status': 'unavailable',
+                'error': self._TRACEROUTE_INSTALL_HINT[self.is_windows],
+                'hops': [],
+                'total_hops': 0,
+                'tool': None,
+            }
+        executable = shutil.which(tool) or tool
+
         timeout = (
             self.traceroute_timeout_international
             if self._is_likely_international_route(ip_address)
             else self.traceroute_timeout_regional
         )
         metadata = {
+            'tool': tool,
             'command_timeout_seconds': timeout,
             'probe_timeout_ms': self.traceroute_probe_timeout_ms,
             'max_hops': self.max_traceroute_hops,
@@ -300,68 +331,45 @@ class NetworkIntelligence:
         process = None
         try:
             if self.is_windows:
-                cmd = ['tracert', '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
+                cmd = [executable, '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                     encoding=self.encoding, errors='replace',
                 )
 
-                output_lines: List[str] = []
-                start_time = time.monotonic()
-                consecutive_no_response_hops = 0
-
-                while True:
-                    if time.monotonic() - start_time > timeout:
-                        return self._stop_traceroute_process(
-                            process, output_lines, metadata,
-                            f'Traceroute command timed out after {timeout}s',
-                        )
-
-                    line = process.stdout.readline() if process.stdout else ''
-                    if line:
-                        output_lines.append(line)
-                        hop_info = self._parse_traceroute_line(line.strip())
-                        if hop_info:
-                            if hop_info.get('status') == 'responsive':
-                                consecutive_no_response_hops = 0
-                            else:
-                                consecutive_no_response_hops += 1
-                                if consecutive_no_response_hops >= self.max_consecutive_no_response_hops:
-                                    return self._stop_traceroute_process(
-                                        process, output_lines, metadata,
-                                        f'Traceroute stopped after {self.max_consecutive_no_response_hops} consecutive no-response hops',
-                                    )
-                        continue
-
-                    if process.poll() is not None:
-                        break
-
-                    time.sleep(0.05)
-
-                remaining_stdout, _ = process.communicate(timeout=2)
-                if remaining_stdout:
-                    output_lines.append(remaining_stdout)
-
-                full_output = ''.join(output_lines)
+                # communicate enforces the deadline even when tracert emits no
+                # newline; blocking readline previously bypassed the timeout.
+                try:
+                    full_output, _ = process.communicate(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    return self._stop_traceroute_process(
+                        process, [], metadata, f'Traceroute command timed out after {timeout}s')
                 if process.returncode == 0 or full_output:
                     hops = self._parse_traceroute_output(full_output)
                     metadata.update(self._summarize_traceroute_progress(hops))
-                    return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
+                    reached_target = any(hop.get('ip') == ip_address for hop in hops)
+                    status = 'success' if reached_target else 'partial' if hops else 'failed'
+                    return {'status': status, 'hops': hops, 'total_hops': len(hops), **metadata}
                 return {'status': 'failed', 'error': 'No route found', **metadata}
 
             else:
-                # Linux: use tracepath (pre-installed on most distributions)
-                cmd = ['tracepath', '-m', str(self.max_traceroute_hops), ip_address]
+                use_tracepath = tool == 'tracepath'
+                cmd = ([executable, '-n', '-m', str(self.max_traceroute_hops), ip_address]
+                       if use_tracepath else [executable, '-n', '-m', str(self.max_traceroute_hops),
+                                              '-q', '1', '-w', '2', ip_address])
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, encoding='utf-8', errors='replace',
                 )
+                timed_out = False
                 try:
                     stdout, _ = process.communicate(timeout=timeout)
                 except subprocess.TimeoutExpired:
+                    timed_out = True
                     process.kill()
                     stdout, _ = process.communicate()
-                hops = self._parse_tracepath_output(stdout)
+                hops = (self._parse_tracepath_output(stdout) if use_tracepath
+                        else self._parse_traceroute_output(stdout))
                 trimmed, consecutive, stopped_early = [], 0, False
                 for hop in hops:
                     trimmed.append(hop)
@@ -375,19 +383,22 @@ class NetworkIntelligence:
                 hops = trimmed
                 if hops:
                     metadata.update(self._summarize_traceroute_progress(hops))
-                    if stopped_early:
+                    if stopped_early or timed_out:
                         return {
                             'status': 'partial',
-                            'error': f'Traceroute stopped after {self.max_consecutive_no_response_hops} consecutive no-response hops',
+                            'error': ('Traceroute command timed out' if timed_out else
+                                      f'Traceroute stopped after {self.max_consecutive_no_response_hops} consecutive no-response hops'),
                             'hops': hops, 'total_hops': len(hops), **metadata,
                         }
-                    return {'status': 'success', 'hops': hops, 'total_hops': len(hops), **metadata}
-                return {'status': 'failed', 'error': 'No route found', **metadata}
+                    reached_target = any(hop.get('ip') == ip_address for hop in hops)
+                    return {'status': 'success' if reached_target else 'partial',
+                            'hops': hops, 'total_hops': len(hops), **metadata}
+                return {'status': 'timeout' if timed_out else 'failed', 'error': 'No route found', **metadata}
 
         except FileNotFoundError:
-            tool = 'tracert' if self.is_windows else 'tracepath'
-            install = '' if self.is_windows else ' - run: sudo apt install iputils-tracepath'
-            return {'status': 'error', 'error': f'{tool} not found{install}', **metadata}
+            # Tool vanished between detection and execution.
+            return {'status': 'unavailable', 'error': self._TRACEROUTE_INSTALL_HINT[self.is_windows],
+                    'hops': [], 'total_hops': 0, **metadata}
         except Exception as error:
             return {'status': 'error', 'error': str(error), **metadata}
         finally:
@@ -408,10 +419,10 @@ class NetworkIntelligence:
             hop_num = int(m.group(1))
             if hop_num in seen:
                 continue
-            seen.add(hop_num)
             rest = m.group(2).strip()
             if '[LOCALHOST]' in rest or rest.startswith('pmtu'):
                 continue
+            seen.add(hop_num)
             if 'no reply' in rest:
                 hops.append({'hop': hop_num, 'status': 'timeout', 'ip': None, 'hostname': None, 'latencies': []})
             else:
@@ -433,6 +444,7 @@ class NetworkIntelligence:
         responsive = [h for h in hops if h.get('status') == 'responsive']
         unresponsive = [h for h in hops if h.get('status') != 'responsive']
         return {
+            'responsive_hops': len(responsive),
             'last_responsive_hop': responsive[-1]['hop'] if responsive else None,
             'first_unresponsive_hop': unresponsive[0]['hop'] if unresponsive else None,
         }
@@ -643,6 +655,10 @@ class NetworkIntelligence:
             'intelligence_availability': 'medium',
         }
 
+        if not any(h.get('status') == 'responsive' for h in enhanced_path):
+            return {**classification, 'route_type': 'unknown', 'privacy_level': 'unknown',
+                    'intelligence_availability': 'inconclusive'}
+
         if consumer_hops:
             classification['route_type'] = 'consumer_isp_route'
         elif backbone_hops:
@@ -657,7 +673,7 @@ class NetworkIntelligence:
         elif len(consumer_hops) == 1:
             classification['privacy_level'] = 'medium'
         else:
-            classification['privacy_level'] = 'good'
+            classification['privacy_level'] = 'unknown'
 
         return classification
 
@@ -670,6 +686,13 @@ class NetworkIntelligence:
             'analyst_attribution_risk': 'low',
             'intelligence_exposure': 'low',
         }
+
+        if not any(h.get('is_consumer_isp') or h.get('is_national_isp')
+                   or h.get('is_international_backbone') for h in enhanced_path):
+            return {**assessment, 'risk_level': 'inconclusive',
+                    'analyst_attribution_risk': 'inconclusive',
+                    'intelligence_exposure': 'inconclusive',
+                    'recommendations': ['Insufficient provider evidence to assess route attribution risk']}
 
         consumer_hops = [h for h in enhanced_path if h['is_consumer_isp']]
         national_hops = [h for h in enhanced_path if h['is_national_isp']]
@@ -706,7 +729,7 @@ class NetworkIntelligence:
             assessment['analyst_attribution_risk'] = 'low'
 
         if assessment['risk_level'] == 'low':
-            assessment['recommendations'].append('Current route provides good anonymity for standard analysis')
+            assessment['recommendations'].append('No additional route risk identified; this does not establish anonymity')
 
         return assessment
 

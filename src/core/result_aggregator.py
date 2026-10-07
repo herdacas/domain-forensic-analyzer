@@ -3,10 +3,12 @@ Result Aggregator for Domain Forensic Analyzer.
 """
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+from src.core.risk_assessment import assess_domain_risk
 
 
 class ConfidenceLevel(Enum):
@@ -28,6 +30,10 @@ class DataSource(Enum):
     SECURITYTRAILS = "securitytrails"
     WHOIS = "whois"
     DNS_HISTORY = "dns_history"
+    SSL_ANALYSIS = "ssl_analysis"
+    ABUSEIPDB_REPUTATION = "abuseipdb_reputation"
+    VIRUSTOTAL_REPUTATION = "virustotal_reputation"
+    IP_HISTORY = "ip_history_analysis"
     AGGREGATED = "aggregated"
 
 
@@ -126,6 +132,9 @@ class UnifiedResult:
 
     # Compatibility fallback for legacy summary function
     results: Dict[str, Any]
+    modules_skipped: List[str] = field(default_factory=list)
+    modules_demo: List[str] = field(default_factory=list)
+    module_risk_factors: Dict[str, List[str]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON export"""
@@ -167,14 +176,10 @@ class ResultAggregator:
     """Aggregate and standardize results from all core modules into a UnifiedResult."""
 
     def __init__(self):
+        # Mirrors DomainAnalyzer.module_execution_order (11 modules).
         self.supported_modules = [
-            "dns",
-            "whois",
-            "dns_history",
-            "cdn",
-            "subdomain",
-            "network",
-            "securitytrails",
+            "dns", "whois", "dns_history", "cdn", "network", "subdomain",
+            "ssl", "securitytrails", "abuseipdb", "virustotal", "ip_history",
         ]
 
     def aggregate_results(
@@ -183,19 +188,19 @@ class ResultAggregator:
         """Aggregate all module results into a single UnifiedResult."""
         # Basic tracking
         modules_executed = list(module_results.keys())
-        _ok_statuses = {
-            "abgeschlossen",
-            "demo_abgeschlossen",
-            "quota_exceeded",
-            "skipped",
-        }
+        _ok_statuses = {"abgeschlossen"}
+        modules_skipped = [name for name, result in module_results.items()
+                           if result.get("analysis_status") in {"skipped", "quota_exceeded"}]
+        modules_demo = [name for name, result in module_results.items()
+                        if result.get("analysis_status") == "demo_abgeschlossen"]
         modules_successful = [
             name
             for name, result in module_results.items()
             if result.get("analysis_status") in _ok_statuses
         ]
         modules_failed = [
-            name for name in modules_executed if name not in modules_successful
+            name for name in modules_executed
+            if name not in modules_successful + modules_skipped + modules_demo
         ]
 
         # Standardize assets from all modules - FIXED WITH ROBUST EXTRACTION
@@ -227,7 +232,7 @@ class ResultAggregator:
             module_results, all_assets
         )
 
-        return UnifiedResult(
+        result = UnifiedResult(
             domain=domain,
             analysis_timestamp=datetime.now().isoformat(),
             total_execution_time=execution_time,
@@ -254,7 +259,19 @@ class ResultAggregator:
             warnings=warnings,
             errors=errors,
             results=module_results,  # Fallback compatibility
+            modules_skipped=modules_skipped,
+            modules_demo=modules_demo,
         )
+        level, factors, _ = assess_domain_risk(result)
+        result.overall_risk_level = level.lower()
+        result.risk_factors = factors
+        severity_floor = {"UNKNOWN": 0.0, "LOW": 0.0, "MEDIUM": 5.0,
+                          "HIGH": 8.0, "CRITICAL": 10.0}[level]
+        result.risk_score = max(result.risk_score, severity_floor)
+        for factor in factors:
+            module, _, description = factor.partition(": ")
+            result.module_risk_factors.setdefault(module, []).append(description)
+        return result
 
     @staticmethod
     def _build_risk_lookup(sensitive_assets: list) -> Dict[str, str]:
@@ -361,44 +378,82 @@ class ResultAggregator:
                 "country": cdn_result.get("country", "Unknown"),
                 "city": cdn_result.get("city", "Unknown"),
             }
+        asn_info = cdn_result.get("asn_info") or {}
+        if not isinstance(asn_info, dict):
+            asn_info = {}
 
         return StandardizedInfrastructure(
             provider_name=cdn_result.get("provider_name", "Unknown"),
             provider_type=cdn_result.get("infrastructure_type", "Unknown"),
             protection_level=cdn_result.get("protection_level", "Unknown"),
             location=location,
+            # Explicit sentinel instead of null: ip-api.com can omit ASN data.
             asn_info={
-                "asn": cdn_result.get("asn_info", {}).get("asn"),
-                "organization": cdn_result.get("asn_info", {}).get("organization"),
+                "asn": asn_info.get("asn") or "unavailable",
+                "organization": asn_info.get("organization") or "unavailable",
             },
-            confidence=ConfidenceLevel.HIGH,
+            confidence=ConfidenceLevel.MEDIUM if asn_info.get("asn") else ConfidenceLevel.UNKNOWN,
             source=DataSource.CDN_DETECTION,
         )
+
+    @staticmethod
+    def _classify_connectivity(connectivity: Dict[str, Any]) -> str:
+        """Map emitted connectivity fields to a status without inventing evidence.
+
+        reachable        -> ping answered
+        http_accessible  -> ping silent/filtered, but HTTP or HTTPS answered
+        unreachable      -> every probe ran and explicitly reported False
+        unknown          -> probe fields missing or not boolean (no evidence)
+        """
+        probes = ("ping_reachable", "http_accessible", "https_accessible")
+        if connectivity.get("ping_reachable") is True:
+            return "reachable"
+        if connectivity.get("http_accessible") is True or connectivity.get("https_accessible") is True:
+            return "http_accessible"
+        if all(connectivity.get(key) is False for key in probes):
+            return "unreachable"
+        return "unknown"
 
     def _aggregate_network_intelligence(
         self, module_results: Dict[str, Any]
     ) -> Optional[StandardizedNetworkPath]:
-        """Aggregate network intelligence from network module result."""
+        """Aggregate network intelligence from network module result.
+
+        Reads the fields network_intelligence actually emits:
+        connectivity_test.{ping_reachable,http_accessible,https_accessible},
+        traceroute_data.{total_hops,hops[],responsive_hops} and
+        route_classification.route_type.
+        """
         network_result = module_results.get("network", {})
         if network_result.get("analysis_status") != "abgeschlossen":
             return None
 
-        connectivity = network_result.get("connectivity_test", {})
-        opsec = network_result.get("opsec_assessment", {})
-        traceroute = network_result.get("traceroute_data", {})
+        connectivity = network_result.get("connectivity_test") or {}
+        opsec = network_result.get("opsec_assessment") or {}
+        traceroute = network_result.get("traceroute_data") or {}
+        connectivity_status = self._classify_connectivity(connectivity)
+
+        hops = traceroute.get("hops") or []
+        if hops:
+            responsive_hops = sum(hop.get("status") == "responsive" for hop in hops)
+        else:
+            responsive_hops = int(traceroute.get("responsive_hops") or 0)
+
+        route_type = (
+            (network_result.get("route_classification") or {}).get("route_type")
+            or traceroute.get("route_type")
+            or "unknown"
+        )
 
         return StandardizedNetworkPath(
-            total_hops=traceroute.get("total_hops", 0) if traceroute else 0,
-            responsive_hops=traceroute.get("responsive_hops", 0) if traceroute else 0,
-            connectivity_status="reachable" if connectivity.get("ping") else "unknown",
-            opsec_risk_level=opsec.get("risk_level", "unknown") if opsec else "unknown",
-            response_times=(
-                connectivity.get("response_times", {}) if connectivity else {}
-            ),
-            route_type=(
-                traceroute.get("route_type", "unknown") if traceroute else "unknown"
-            ),
-            confidence=ConfidenceLevel.HIGH,
+            total_hops=traceroute.get("total_hops", len(hops)),
+            responsive_hops=responsive_hops,
+            connectivity_status=connectivity_status,
+            opsec_risk_level=opsec.get("risk_level", "unknown"),
+            response_times=connectivity.get("response_times", {}),
+            route_type=route_type,
+            confidence=(ConfidenceLevel.UNKNOWN if connectivity_status == "unknown"
+                        else ConfidenceLevel.MEDIUM),
             source=DataSource.NETWORK_INTEL,
         )
 
@@ -467,27 +522,34 @@ class ResultAggregator:
 
         return {"level": level, "factors": factors, "score": round(score, 1)}
 
+    _SOURCE_MAP = {
+        "dns": DataSource.DNS_ANALYSIS,
+        "whois": DataSource.WHOIS,
+        "dns_history": DataSource.DNS_HISTORY,
+        "cdn": DataSource.CDN_DETECTION,
+        "network": DataSource.NETWORK_INTEL,
+        "subdomain": DataSource.SUBDOMAIN_SCAN,
+        "ssl": DataSource.SSL_ANALYSIS,
+        "securitytrails": DataSource.SECURITYTRAILS,
+        "abuseipdb": DataSource.ABUSEIPDB_REPUTATION,
+        "virustotal": DataSource.VIRUSTOTAL_REPUTATION,
+        "ip_history": DataSource.IP_HISTORY,
+    }
+
     def _identify_intelligence_sources(
         self, module_results: Dict[str, Any]
     ) -> List[DataSource]:
-        """Return list of data sources used in successful module results."""
-        sources = []
+        """Return the data sources of completed live module results.
 
-        for module_name, result in module_results.items():
-            if result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-                source_map = {
-                    "dns": DataSource.DNS_ANALYSIS,
-                    "cdn": DataSource.CDN_DETECTION,
-                    "subdomain": DataSource.SUBDOMAIN_SCAN,
-                    "network": DataSource.NETWORK_INTEL,
-                    "securitytrails": DataSource.SECURITYTRAILS,
-                    "whois": DataSource.WHOIS,
-                    "dns_history": DataSource.DNS_HISTORY,
-                }
-                if module_name in source_map:
-                    sources.append(source_map[module_name])
-
-        return sources
+        Demo results ("demo_abgeschlossen") are deliberately excluded: they are
+        synthetic and must not appear as live provenance (see modules_demo).
+        """
+        return [
+            self._SOURCE_MAP[module_name]
+            for module_name, result in module_results.items()
+            if module_name in self._SOURCE_MAP
+            and result.get("analysis_status") == "abgeschlossen"
+        ]
 
     def _calculate_data_freshness(
         self, module_results: Dict[str, Any]
@@ -497,8 +559,8 @@ class ResultAggregator:
         current_time = datetime.now().isoformat()
 
         for module_name, result in module_results.items():
-            if result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
-                freshness[module_name] = current_time
+            if result.get("analysis_status") == "abgeschlossen":
+                freshness[module_name] = result.get("timestamp") or current_time
 
         return freshness
 
@@ -510,12 +572,26 @@ class ResultAggregator:
         errors = []
 
         for module_name, result in module_results.items():
-            if result.get("analysis_status") == "failed":
+            if result.get("analysis_status") in {"failed", "fehlgeschlagen", "error", "timeout"}:
                 errors.append(f"{module_name}: {result.get('error', 'Unknown error')}")
             elif result.get("analysis_status") == "demo_abgeschlossen":
                 warnings.append(
                     f"{module_name}: Running in demo mode - consider configuring API key"
                 )
+            elif result.get("analysis_status") in {"skipped", "quota_exceeded"}:
+                warnings.append(f"{module_name}: {result['analysis_status']} - no complete live result")
+
+        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "inconclusive":
+            warnings.append("dns: DNSSEC check inconclusive")
+        cdn = module_results.get("cdn", {})
+        asn = cdn.get("asn_info")
+        if cdn.get("analysis_status") == "abgeschlossen" and (not isinstance(asn, dict) or not asn.get("asn")):
+            warnings.append("cdn: ASN unavailable - infrastructure confidence is limited")
+        network = module_results.get("network", {})
+        if network.get("analysis_status") == "abgeschlossen":
+            route_status = network.get("traceroute_data", {}).get("status")
+            if route_status != "success":
+                warnings.append(f"network: path {route_status or 'unknown'} - route assessment inconclusive")
 
         return warnings, errors
 
@@ -535,12 +611,36 @@ class ResultAggregator:
         )
         total_modules = len(module_results)
 
-        if successful_modules == total_modules:
+        if not total_modules:
+            metrics["overall"] = ConfidenceLevel.UNKNOWN
+        elif successful_modules == total_modules:
             metrics["overall"] = ConfidenceLevel.HIGH
         elif successful_modules >= total_modules * 0.6:
             metrics["overall"] = ConfidenceLevel.MEDIUM
         else:
             metrics["overall"] = ConfidenceLevel.LOW
+
+        for name, result in module_results.items():
+            status = result.get("analysis_status")
+            metrics[name] = (
+                ConfidenceLevel.MEDIUM if status == "abgeschlossen"
+                else ConfidenceLevel.LOW if status == "demo_abgeschlossen"
+                else ConfidenceLevel.UNKNOWN
+            )
+        if module_results.get("dns", {}).get("dnssec", {}).get("status") == "inconclusive":
+            metrics["dns"] = ConfidenceLevel.LOW
+        cdn = module_results.get("cdn", {})
+        asn = cdn.get("asn_info")
+        if cdn and (not isinstance(asn, dict) or not asn.get("asn")):
+            metrics["cdn"] = ConfidenceLevel.UNKNOWN
+        network = module_results.get("network", {})
+        if network and network.get("opsec_assessment", {}).get("risk_level") in (None, "unknown", "inconclusive"):
+            metrics["network"] = ConfidenceLevel.UNKNOWN
+        if metrics["overall"] == ConfidenceLevel.HIGH and any(
+            value in (ConfidenceLevel.LOW, ConfidenceLevel.UNKNOWN)
+            for name, value in metrics.items() if name != "overall"
+        ):
+            metrics["overall"] = ConfidenceLevel.MEDIUM
 
         # Asset discovery confidence
         if len(assets) > 0:

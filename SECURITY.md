@@ -47,7 +47,10 @@ The tool reports this split explicitly in the **OPSEC Assessment** block of ever
 
 ## Data handling
 
-- Every scan writes a JSON report to `reports/` and a raw console capture to `reports/raw/` by default — both are git-ignored. These contain the full scan output, including any WHOIS/registrant data returned by upstream sources. Treat `reports/` as sensitive working data, not something to share or commit.
+- Every scan writes a JSON report to `reports/` and raw console capture to `reports/raw/` by default.
+- Both are git-ignored.
+- These contain the full scan output, including WHOIS/registrant data and HTTP responses. The JSON report also records analyst metadata (your external and local IP, system details). Treat `reports/` as sensitive working data, not something to share or commit.
+- The raw export provides an audit trail of exactly what was printed during analysis.
 - The tool makes outbound requests to third-party APIs (listed above) with the target domain/IP as a parameter. Read each provider's own privacy policy if that matters for your engagement.
 
 ## Known security-relevant limitations

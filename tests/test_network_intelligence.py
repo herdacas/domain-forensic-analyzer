@@ -10,6 +10,72 @@ def ni():
     return NetworkIntelligence()
 
 
+@pytest.mark.parametrize("tool", ["tracepath", "traceroute", None])
+def test_linux_path_tool_detection(ni, tool):
+    ni.is_windows = False
+    process = MagicMock()
+    process.communicate.return_value = (
+        "1:  192.0.2.1  2.0ms\n" if tool == "tracepath"
+        else "1  192.0.2.1  2.0 ms\n", "")
+    process.poll.return_value = 0
+    with patch("src.analyzers.network_intelligence.shutil.which",
+               side_effect=lambda name: f"/usr/bin/{name}" if name == tool else None), \
+         patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process) as popen:
+        result = ni._perform_traceroute("192.0.2.1")
+    if tool is None:
+        assert result["status"] == "unavailable"
+        popen.assert_not_called()
+    else:
+        assert popen.call_args.args[0][0] == f"/usr/bin/{tool}"
+        assert result["hops"][0]["status"] == "responsive"
+
+
+def test_linux_timeout_preserves_partial_hops(ni):
+    import subprocess
+    ni.is_windows = False
+    process = MagicMock()
+    process.communicate.side_effect = [subprocess.TimeoutExpired("tracepath", 1),
+                                       ("1:  192.0.2.1  2.0ms\n", "")]
+    process.poll.return_value = 0
+    with patch("src.analyzers.network_intelligence.shutil.which", return_value="/usr/bin/tracepath"), \
+         patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process):
+        result = ni._perform_traceroute("192.0.2.1")
+    assert result["status"] == "partial"
+    assert len(result["hops"]) == 1
+
+
+def test_windows_silent_process_has_enforced_timeout(ni):
+    import subprocess
+    ni.is_windows = True
+    process = MagicMock()
+    process.communicate.side_effect = [subprocess.TimeoutExpired("tracert", 1), ("", "")]
+    process.poll.return_value = 0
+    with patch("src.analyzers.network_intelligence.shutil.which",
+               side_effect=lambda name: r"C:\Windows\System32\tracert.exe" if name == "tracert" else None), \
+         patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process):
+        result = ni._perform_traceroute("192.0.2.1")
+    assert result["status"] == "timeout"
+    assert "timeout" in process.communicate.call_args_list[0].kwargs
+    process.terminate.assert_called_once()
+
+
+def test_route_without_destination_is_partial(ni):
+    ni.is_windows = False
+    process = MagicMock()
+    process.communicate.return_value = ("1: 192.0.2.1 2.0ms\n", "")
+    process.poll.return_value = 0
+    with patch("src.analyzers.network_intelligence.shutil.which", return_value="/usr/bin/tracepath"), \
+         patch("src.analyzers.network_intelligence.subprocess.Popen", return_value=process):
+        result = ni._perform_traceroute("192.0.2.2")
+    assert result["status"] == "partial"
+
+
+def test_tracepath_localhost_header_does_not_hide_real_hop(ni):
+    hops = ni._parse_tracepath_output("1: [LOCALHOST] pmtu 1500\n1: 192.0.2.1 2.0ms\n")
+    assert len(hops) == 1
+    assert hops[0]["ip"] == "192.0.2.1"
+
+
 # ---------------------------------------------------------------------------
 # _extract_ping_time
 # ---------------------------------------------------------------------------
@@ -324,9 +390,9 @@ class TestClassifyRoute:
             "is_international_backbone": is_backbone,
         }
 
-    def test_empty_path_is_standard_route(self, ni):
+    def test_empty_path_is_unknown_route(self, ni):
         result = ni._classify_route([], {})
-        assert result["route_type"] == "standard_route"
+        assert result["route_type"] == "unknown"
 
     def test_consumer_isp_route_detected(self, ni):
         hops = [self._hop(is_consumer=True)]
@@ -338,9 +404,13 @@ class TestClassifyRoute:
         result = ni._classify_route(hops, {})
         assert result["route_type"] == "backbone_route"
 
-    def test_privacy_level_good_with_no_consumer(self, ni):
+    def test_privacy_level_unknown_without_path(self, ni):
         result = ni._classify_route([], {})
-        assert result["privacy_level"] == "good"
+        assert result["privacy_level"] == "unknown"
+
+    def test_unclassified_path_does_not_establish_privacy(self, ni):
+        result = ni._classify_route([self._hop()], {})
+        assert result["privacy_level"] == "unknown"
 
     def test_privacy_level_medium_with_one_consumer(self, ni):
         hops = [self._hop(is_consumer=True)]
@@ -366,9 +436,9 @@ class TestAssessOpsecRisks:
             "is_international_backbone": is_backbone,
         }
 
-    def test_empty_path_low_risk(self, ni):
+    def test_empty_path_inconclusive(self, ni):
         result = ni._assess_enhanced_opsec_risks([], {}, {})
-        assert result["risk_level"] == "low"
+        assert result["risk_level"] == "inconclusive"
 
     def test_consumer_isp_raises_risk(self, ni):
         hops = [self._hop(is_consumer=True)]
@@ -387,7 +457,7 @@ class TestAssessOpsecRisks:
 
     def test_many_providers_medium_exposure(self, ni):
         hop_intelligence = {"intelligence_summary": {"providers_identified": 4}}
-        result = ni._assess_enhanced_opsec_risks([], hop_intelligence, {})
+        result = ni._assess_enhanced_opsec_risks([self._hop(is_backbone=True)], hop_intelligence, {})
         assert result["intelligence_exposure"] == "medium"
 
 

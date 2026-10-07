@@ -6,6 +6,111 @@ from unittest.mock import patch, MagicMock
 from src.config.api_config import APIConfig
 
 
+@pytest.fixture
+def runtime_api_config(tmp_path, monkeypatch):
+    """Return a per-service APIConfig factory built by the real runtime loader.
+
+    Uses SecureAPIManager (the same path the clients and Settings use) with a
+    throw-away key file, so base_url/rate_limit come from production defaults
+    and the developer's real keys are never picked up by unit tests.
+    """
+    import json
+    from src.config.api_config import SecureAPIManager
+    for name in ("VIRUSTOTAL", "ABUSEIPDB", "WHOISXML", "SECURITYTRAILS"):
+        monkeypatch.delenv(f"{name}_API_KEY", raising=False)
+    (tmp_path / "config").mkdir()
+    config_file = tmp_path / "config/api_keys.json"
+    config_file.write_text(json.dumps({
+        service: "test_key_1234567890"
+        for service in ("virustotal", "abuseipdb", "securitytrails", "whoisxml")
+    }))
+    manager = SecureAPIManager.__new__(SecureAPIManager)
+    manager.project_root, manager.config_file, manager.api_configs = tmp_path, config_file, {}
+    manager._load_configurations()
+    return manager.get_api_config
+
+
+@pytest.mark.parametrize("entry", ["real_file_key_123456789", {"api_key": "real_file_key_123456789"}])
+def test_shared_api_key_contract(tmp_path, monkeypatch, entry):
+    import json
+    from src.config.api_config import SecureAPIManager
+    from src.utils.api_key_reader import APIKeyReader
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/api_keys.json").write_text(json.dumps({"virustotal": entry}))
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "your_virustotal_key_here")
+    manager = SecureAPIManager.__new__(SecureAPIManager)
+    manager.project_root = tmp_path
+    manager.config_file = tmp_path / "config/api_keys.json"
+    manager.api_configs = {}
+    manager._load_configurations()
+    assert manager.get_api_config("virustotal").api_key == "real_file_key_123456789"
+    assert APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal", tmp_path).get() == "real_file_key_123456789"
+    monkeypatch.setenv("VIRUSTOTAL_API_KEY", "real_environment_key_123456789")
+    manager._load_configurations()
+    assert manager.get_api_config("virustotal").api_key == "real_environment_key_123456789"
+
+
+@pytest.mark.parametrize("payload", [[], {"virustotal": None}, {"virustotal": 42},
+                                     {"virustotal": {"api_key": 42}}])
+def test_malformed_api_config_is_unavailable(tmp_path, monkeypatch, payload):
+    import json
+    from src.config.api_config import SecureAPIManager
+    (tmp_path / "config").mkdir()
+    config_file = tmp_path / "config/api_keys.json"
+    config_file.write_text(json.dumps(payload))
+    for name in ("VIRUSTOTAL", "ABUSEIPDB", "WHOISXML", "SECURITYTRAILS"):
+        monkeypatch.delenv(f"{name}_API_KEY", raising=False)
+    manager = SecureAPIManager.__new__(SecureAPIManager)
+    manager.project_root, manager.config_file, manager.api_configs = tmp_path, config_file, {}
+    manager._load_configurations()
+    assert manager.get_available_services() == []
+
+
+def test_dotenv_does_not_override_process_environment(tmp_path):
+    import os
+    from src.utils.api_key_reader import APIKeyReader
+    (tmp_path / ".env").write_text("VIRUSTOTAL_API_KEY=real_dotenv_key_123456789\n")
+    with patch.dict(os.environ, {}, clear=True):
+        reader = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal", tmp_path)
+        assert reader.get() == "real_dotenv_key_123456789"
+        os.environ["VIRUSTOTAL_API_KEY"] = "real_process_key_123456789"
+        assert reader.get() == "real_process_key_123456789"
+
+
+def test_settings_reports_runtime_api_contract(tmp_path, monkeypatch):
+    import config.settings as settings_module
+    manager = MagicMock()
+    configs = {"abuseipdb": APIConfig("real_abuse_key_123456789", "https://api.abuseipdb.com/api/v2", 1000),
+               "virustotal": APIConfig("real_vt_key_123456789", "https://www.virustotal.com/api/v3", 1000)}
+    manager.get_api_config.side_effect = configs.get
+    monkeypatch.setattr(settings_module, "SecureAPIManager", lambda: manager)
+    monkeypatch.setenv("OUTPUT_DIRECTORY", str(tmp_path / "reports"))
+    settings = settings_module.Settings()
+    assert settings.get_api_status()["abuseipdb"] is True
+    assert settings.get_api_status()["securitytrails"] is False
+    assert "shodan" not in settings.get_api_status()
+    assert settings.api_config.virustotal_base_url.endswith("/api/v3")
+
+
+@pytest.mark.parametrize("service", ["virustotal", "abuseipdb", "securitytrails"])
+def test_missing_api_key_never_returns_fabricated_intelligence(service):
+    from src.analyzers.virustotal_client import VirusTotalClient
+    from src.analyzers.abuseipdb_client import AbuseIPDBClient
+    from src.analyzers.securitytrails_client import SecurityTrailsClient
+    clients = {"virustotal": VirusTotalClient, "abuseipdb": AbuseIPDBClient,
+               "securitytrails": SecurityTrailsClient}
+    client = clients[service]()
+    client.config = None
+    if service == "abuseipdb":
+        result = client.analyze_ip_reputation("192.0.2.1", "example.com")
+    elif service == "virustotal":
+        result = client.analyze_domain_reputation("example.com")
+    else:
+        result = client.analyze_domain_intelligence("example.com")
+    assert result["analysis_status"] == "skipped"
+    assert not {"abuse_confidence", "threat_analysis", "domain_details"}.intersection(result)
+
+
 # ---------------------------------------------------------------------------
 # VirusTotal client
 # ---------------------------------------------------------------------------
@@ -13,14 +118,11 @@ from src.config.api_config import APIConfig
 class TestVirusTotalClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.virustotal_client import VirusTotalClient
         c = VirusTotalClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://www.virustotal.com/api/v3",
-            rate_limit=1000,
-        )
+        c.config = runtime_api_config("virustotal")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_returns_demo_mode(self):
@@ -67,14 +169,11 @@ class TestVirusTotalClient:
 class TestAbuseIPDBClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.abuseipdb_client import AbuseIPDBClient
         c = AbuseIPDBClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://api.abuseipdb.com/api/v2",
-            rate_limit=1000,
-        )
+        c.config = runtime_api_config("abuseipdb")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_handled(self):
@@ -119,14 +218,11 @@ class TestAbuseIPDBClient:
 class TestSecurityTrailsClient:
 
     @pytest.fixture
-    def client(self):
+    def client(self, runtime_api_config):
         from src.analyzers.securitytrails_client import SecurityTrailsClient
         c = SecurityTrailsClient()
-        c.config = APIConfig(
-            api_key="test_key_1234567890",
-            base_url="https://api.securitytrails.com/v1",
-            rate_limit=50,
-        )
+        c.config = runtime_api_config("securitytrails")
+        assert c.config is not None and c.config.api_key == "test_key_1234567890"
         return c
 
     def test_no_api_key_returns_demo(self):
