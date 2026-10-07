@@ -17,6 +17,10 @@ All notable changes to Domain Forensic Analyzer are documented here.
 - Document variable coverage and heuristic limits; enable CI on refactor branches.
 - README: production status badge, "When to Use This Tool" and "Coverage" sections, and a link to `docs/KNOWN_LIMITATIONS.md`; v1.0.0 notes restructured into Capabilities and Known Limitations.
 - README: new section "Running Through a VPN". Covers a VPN app vs. a Linux network namespace that tunnels only the analyzer (WireGuard, `ip netns`, per-namespace `resolv.conf`, optional nftables DNS guard), setup, the run command, and how to confirm the VPN is used. Adds two namespace troubleshooting rows.
+- OPSEC: `Attribution Risk` is `LOW` only with a VPN signal; NAT alone no longer lowers it. New Linux VPN signal: the interface carrying internet traffic is a WireGuard/tun/PPP device or has a typical VPN name (`ip route get`, no packet sent), which also detects Proton and the namespace setup. JSON `analyst.opsec` gains `vpn_signal` and `tunnel_interface`. `behind_nat` now only counts real private ranges. Console shows "Behind NAT" instead of "NAT Protected".
+- Network: `connectivity_test.http_accessible` is probed independently of HTTPS (it stayed `false` for every HTTPS site before).
+- Network: ping RTT is parsed on Linux/macOS (`rtt min/avg/max` summary), not only on Windows.
+- Docs: `SECURITY.md` and `docs/KNOWN_LIMITATIONS.md` describe the two VPN signals and the SecurityTrails quota (up to 10 requests per scan).
 - `docs/REVALIDATION_2026-10-07.md`: re-validation of the Phase 4 fixes with `example.com`, direct and through a Proton WireGuard namespace, plus a control scan after this release line was merged into `main`.
 
 ## [1.0.0] — 2026-06-04

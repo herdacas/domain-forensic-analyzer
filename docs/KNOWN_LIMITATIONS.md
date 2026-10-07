@@ -21,3 +21,14 @@
 - DNS-pattern-based discovery is not exhaustive.
 - Wildcard DNS can cause false positives or incomplete results.
 - Status: Supplementary only; use active reconnaissance for critical assessment.
+
+## VPN Detection (OPSEC block)
+- Linux: a VPN is recognised when the interface that carries internet traffic is a WireGuard, tun or PPP device, or has a typical VPN name (`ip route get`, no packet sent). Works for any provider.
+- Windows/macOS: only the rDNS keyword match on your external IP is available. Providers without branded reverse DNS (e.g. Proton) show "No known provider signatures observed" even while connected.
+- `Attribution Risk` is `LOW` only with a VPN signal. NAT alone does not lower it.
+- Status: Check `External IP` in the scan header to confirm the VPN exit address; the JSON report records the signal as `analyst.opsec.vpn_signal`.
+
+## SecurityTrails Quota
+- One scan uses up to 10 SecurityTrails requests: 4 from the SecurityTrails module (domain info, A and MX history, subdomains) and 6 from DNS history (A, AAAA, MX, NS, TXT, CNAME history).
+- The free tier (50 requests/month) is therefore used up after roughly 5 scans.
+- Status: When the quota is exhausted the module is reported as skipped (`quota_exceeded`) with a warning; all other modules continue.
