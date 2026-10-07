@@ -141,3 +141,19 @@ Offen bleiben:
 | — | VPN-Erkennung erkennt Proton nicht | bekannt | dokumentierte Limitierung |
 
 Der lokale Branch `feature/phase-4-validation` kann gelöscht werden.
+
+---
+
+## Nachtrag — Kontroll-Scan nach dem Merge (Scan 4)
+
+Nach dem Merge von `refactor/v1.0-production-polish` und dieses Berichts nach `main` (`189e5e9`): `example.com`, Linux, VPN aus. Report `reports/0016_example.com.json`, Exit-Code 0, 43,7 s, 382 Tests grün.
+
+| Feld | Scan 1 (alter `main`) | Scan 4 (neuer `main`) |
+|---|---|---|
+| `network_path.responsive_hops` | 0 | 6 |
+| `network_path.connectivity_status` | unknown | reachable |
+| Module | 11/11 | 10/11, 1 übersprungen (SecurityTrails), 0 failed |
+| `warnings` | leer | SecurityTrails-Kontingent, DNSSEC inconclusive, Pfad partiell |
+
+- **F-1 ist in `main` behoben.**
+- **Korrektur zu Scan 2 und 3:** Das SecurityTrails-Kontingent (Free-Tier) war ab Scan 2 erschöpft (`analysis_status: quota_exceeded`). Der alte `main` zählte das Modul trotzdem als erfolgreich. Richtig wäre für Scan 2 und 3 also „10/11, SecurityTrails ohne Daten“. Der neue `main` weist das korrekt als übersprungen aus und schreibt es in `warnings`. Am Ergebnis der VPN-Prüfung ändert das nichts, SecurityTrails ist eine passive Quelle.
