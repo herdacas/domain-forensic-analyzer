@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/herdacas/domain-forensic-analyzer/actions/workflows/test.yml/badge.svg)](https://github.com/herdacas/domain-forensic-analyzer/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org)
-[![Coverage](https://img.shields.io/badge/coverage-70%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
+[![Coverage](https://img.shields.io/badge/coverage-74%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
 [![Pylint](https://img.shields.io/badge/pylint-9.41%2F10-brightgreen)](https://pylint.readthedocs.io)
 [![Status: Production](https://img.shields.io/badge/status-production%201.0-blue)](#)
 
@@ -193,11 +193,14 @@ The header printed at the start of every scan (and the `analyst` block of the JS
 |---|---|---|
 | `External IP` | your own public IP | the VPN exit IP |
 | `Local IP` | your LAN address (e.g. `192.168.x.x`) or, on a server, its public IP | the tunnel address (e.g. `10.2.0.2`) |
+| `VPN/Proxy Signals` (Linux) | No known provider signatures observed | VPN tunnel detected (internet route via `wg0`) |
+| `Attribution Risk` | MEDIUM | LOW, as soon as a VPN signal is present |
 
-`External IP` is the field to trust. Two other fields are less reliable:
+`External IP` is the field to trust on every platform. The other fields depend on what the tool can detect:
 
-- `Network Topology` and `Attribution Risk` only tell whether your machine sits behind NAT. A home PC behind a router already shows "NAT Protected" and LOW without any VPN. Only on a server with a public IP do they change from "Direct Connection" / MEDIUM to "NAT Protected" / LOW when the VPN is used.
-- `VPN/Proxy Signals` will often still say "No known provider signatures observed". That check only matches keywords in reverse DNS names, and many providers (Proton included) don't use such names.
+- **Linux:** the tool asks the kernel which interface carries internet traffic. A WireGuard, tun or PPP interface (or a typical VPN name such as `wg*`, `tun*`, `proton*`) is shown as "VPN tunnel detected" and lowers `Attribution Risk` to LOW. This works for any provider and for the namespace setup above. The JSON report stores it as `analyst.opsec.vpn_signal: "tunnel_interface"`.
+- **Windows and macOS:** only a reverse-DNS keyword check is available. Many providers (Proton included) don't use such names, so the line often stays at "No known provider signatures observed" and `Attribution Risk` stays MEDIUM even while the VPN is on.
+- `Network Topology: Behind NAT` only means your machine has a private address. It does not hide you: the target still sees your router's public IP, so NAT alone never lowers `Attribution Risk`.
 
 These differences are expected and not errors: a CDN-hosted target may resolve to a different edge IP, the traceroute is usually shorter, and DNSSEC is checked through whichever resolver is active. A resolver that does not answer DS/DNSKEY queries gives `inconclusive`, never "not enabled".
 
@@ -234,7 +237,7 @@ The project-root `.env` is also loaded without overwriting process environment v
 | WHOIS enrichment | `WHOISXML_API_KEY` | 500 req/month |
 | Domain & IP reputation | `VIRUSTOTAL_API_KEY` | 500 req/day |
 | IP abuse score | `ABUSEIPDB_API_KEY` | 1 000 req/day |
-| Historical DNS | `SECURITYTRAILS_API_KEY` | 50 req/month |
+| Historical DNS | `SECURITYTRAILS_API_KEY` | 50 req/month (about 5 scans: one scan uses up to 10 requests) |
 
 Modules without a configured key are skipped and marked in the execution summary. The tool never crashes on a missing key.
 
@@ -291,7 +294,7 @@ If neither traceroute tool is available, the NETWORK PATH module gracefully repo
 - Active probes (DNS resolution, SSL/TLS handshake, HTTP/S, ping, traceroute, subdomain DNS) are visible to the target host.
 - Passive APIs (VirusTotal, AbuseIPDB, SecurityTrails, RobTex, Mnemonic, crt.sh) do not expose your IP to the target.
 - For low-footprint investigations, run the scan through a VPN. See [Running Through a VPN](#running-through-a-vpn).
-- VPN/proxy detection in the OPSEC block is rDNS keyword matching — it will not catch every VPN provider (see [SECURITY.md](SECURITY.md) for details). Don't treat "not detected" as proof no VPN is active.
+- VPN detection in the OPSEC block checks the tunnel interface of the internet route (Linux) and the reverse DNS of your external IP (all platforms). On Windows and macOS it misses providers without branded hostnames (see [SECURITY.md](SECURITY.md)). Don't treat "not detected" as proof no VPN is active.
 - Do not commit `config/api_keys.json` or `.env` files.
 
 Full threat model, data-handling notes, and known security-relevant limitations: [SECURITY.md](SECURITY.md).
@@ -325,6 +328,7 @@ These are the structured `reports/<id>_<domain>.json` exports the tool writes au
 | A module reports "no API key" even though one is set in `config/api_keys.json` | Invalid JSON, a placeholder key, or a different project checkout | Check the project-root config file and key; placeholders in `.env` fall back to JSON |
 | `192.168.0.1` or similar gets scanned instead of rejected | You're on an older build — IP-address rejection was added in a later 1.0.x-track fix | Update to the latest `main` |
 | Traceroute/ping section shows "not available" | `traceroute`/`tracepath`/`ping` binary not installed (Linux) or blocked by a firewall | `sudo apt install iputils-ping traceroute` — the rest of the report is unaffected either way |
+| `SecurityTrails: not available - quota exceeded or no API key` and the module is marked skipped | The free tier (50 requests/month) is used up; one scan needs up to 10 requests | Wait for the monthly reset or use a paid plan. All other modules keep working, and the report lists the skip under `warnings` |
 | `crt.sh` certificate history missing | crt.sh is a shared community service and occasionally rate-limits or times out | The tool retries automatically, then falls back to CertSpotter. If both fail, `Certificate History` shows `not available (all sources failed)` — this is upstream flakiness, not a bug |
 | Domain shows `HISTORICAL ANALYSIS (domain inactive)` but you know it's live | Current DNS resolution failed — could be a genuinely expired domain, or a transient network/VPN DNS issue | Check the domain resolves manually (`nslookup domain.com`) before trusting the historical-mode fallback |
 
