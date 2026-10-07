@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)](https://www.python.org)
 [![Coverage](https://img.shields.io/badge/coverage-74%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
 [![Pylint](https://img.shields.io/badge/pylint-9.41%2F10-brightgreen)](https://pylint.readthedocs.io)
-[![Status: Production](https://img.shields.io/badge/status-production%201.0-blue)](#)
+[![Status: Production](https://img.shields.io/badge/status-production%201.1-blue)](#)
 
 A terminal-based OSINT tool for comprehensive domain reconnaissance and forensic investigation.
 Operationally stable, with known limitations. See [Known Limitations](#known-limitations) section below.

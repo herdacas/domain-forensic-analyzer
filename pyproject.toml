@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "domain-forensic-analyzer"
-version = "1.0.0"
+version = "1.1.0"
 description = "Terminal-based OSINT tool for domain forensic investigations"
 readme = "README.md"
 license = { text = "MIT" }

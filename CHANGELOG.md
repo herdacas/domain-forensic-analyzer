@@ -4,7 +4,9 @@ All notable changes to Domain Forensic Analyzer are documented here.
 
 ---
 
-## [Unreleased] — v1.0 production polish
+## [1.1.0] — 2026-10-07
+
+v1.0 production polish, OPSEC/network fixes from the 2026-10-07 re-validation, and the VPN usage guide.
 
 - Track all 11 module sources and per-module confidence; distinguish skipped, demo and failed results.
 - Missing API keys skip live intelligence clients instead of returning fabricated demonstration findings.
