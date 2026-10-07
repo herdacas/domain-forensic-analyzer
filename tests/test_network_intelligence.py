@@ -102,6 +102,17 @@ class TestExtractPingTime:
         result = ni._extract_ping_time(output)
         assert result == "7.5ms"
 
+    def test_linux_rtt_summary_parsed(self, ni):
+        output = (
+            "3 packets transmitted, 3 received, 0% packet loss, time 2003ms\n"
+            "rtt min/avg/max/mdev = 11.204/12.345/13.901/1.100 ms"
+        )
+        assert ni._extract_ping_time(output) == "12.345ms"
+
+    def test_macos_round_trip_summary_parsed(self, ni):
+        output = "round-trip min/avg/max/stddev = 8.1/9.2/10.3/0.9 ms"
+        assert ni._extract_ping_time(output) == "9.2ms"
+
 
 # ---------------------------------------------------------------------------
 # _is_likely_international_route
