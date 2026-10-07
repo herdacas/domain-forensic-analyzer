@@ -115,6 +115,42 @@ class TestExtractPingTime:
 
 
 # ---------------------------------------------------------------------------
+# _test_http_connectivity
+# ---------------------------------------------------------------------------
+
+def _url_response(status):
+    response = MagicMock(status=status)
+    response.__enter__ = MagicMock(return_value=response)
+    response.__exit__ = MagicMock(return_value=False)
+    return response
+
+
+class TestHttpConnectivity:
+
+    def test_http_probed_even_when_https_works(self, ni):
+        with patch("urllib.request.urlopen", return_value=_url_response(200)) as urlopen:
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": True, "https_accessible": True}
+        probed = [call.args[0].full_url for call in urlopen.call_args_list]
+        assert probed == ["https://example.com", "http://example.com"]
+
+    def test_http_only_site(self, ni):
+        def fake_urlopen(req, timeout):
+            if req.full_url.startswith("https://"):
+                raise OSError("TLS handshake failed")
+            return _url_response(200)
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": True, "https_accessible": False}
+
+    def test_nothing_reachable(self, ni):
+        with patch("urllib.request.urlopen", side_effect=OSError("refused")):
+            result = ni._test_http_connectivity("example.com")
+        assert result == {"http_accessible": False, "https_accessible": False}
+
+
+# ---------------------------------------------------------------------------
 # _is_likely_international_route
 # ---------------------------------------------------------------------------
 
