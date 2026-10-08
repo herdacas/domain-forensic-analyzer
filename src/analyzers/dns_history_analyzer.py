@@ -7,7 +7,9 @@ limited to a compact A/MX summary and is not suitable for a forensic timeline.
 This module keeps that legacy summary intact and implements a separate normalized
 DNS history timeline from scratch.
 
-SecurityTrails and VirusTotal clients were audited for historical endpoints.
+VirusTotal and AlienVault OTX provide historical endpoints used here. SecurityTrails
+is no longer a timeline source (replaced by AlienVault OTX); its client remains
+available as an optional module.
 AbuseIPDB was audited too, but its current integration exposes IP reputation
 reports rather than DNS record timeline data, so it is not used as a DNS history
 source here.
@@ -42,12 +44,8 @@ class DNSHistoryAnalyzer:
     RECORD_TYPES = ("a", "aaaa", "mx", "ns", "txt", "cname")
 
     def __init__(self):
-        self.securitytrails_api_key = APIKeyReader(
-            "SECURITYTRAILS_API_KEY", "securitytrails"
-        ).get()
         self.virustotal_api_key = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal").get()
         self.otx_api_key = APIKeyReader("OTX_API_KEY", "otx").get()
-        self.securitytrails_base_url = "https://api.securitytrails.com/v1"
         self.virustotal_base_url = "https://www.virustotal.com/api/v3"
         self.session = requests.Session()
 
@@ -59,14 +57,12 @@ class DNSHistoryAnalyzer:
         # Mnemonic (Norwegian CERT) is a free passive DNS API with timestamps; no key needed.
         # VirusTotal provides IP resolution history when an API key is present.
         # AlienVault OTX adds passive DNS observations when an API key is present.
-        # SecurityTrails adds record-level history when quota is available.
         # crt.sh certificate transparency is kept as opportunistic supplement.
         source_results = {
             "robtex": self._collect_robtex_history(clean_domain),
             "mnemonic": self._collect_mnemonic_history(clean_domain),
             "virustotal": self._collect_virustotal_history(clean_domain),
             "otx": self._collect_otx_history(clean_domain),
-            "securitytrails": self._collect_securitytrails_history(clean_domain),
             "certificate_transparency": self._collect_certificate_transparency(
                 clean_domain
             ),
@@ -271,74 +267,6 @@ class DNSHistoryAnalyzer:
             "events": events,
             "error": None if events else "no records returned",
         }
-
-    def _collect_securitytrails_history(self, domain: str) -> Dict[str, Any]:
-        if not self.securitytrails_api_key:
-            return {
-                "status": "skipped",
-                "error": "SecurityTrails API key not configured",
-                "events": [],
-            }
-
-        headers = {"APIKEY": self.securitytrails_api_key, "Accept": "application/json"}
-        events = []
-        errors = []
-
-        for record_type in self.RECORD_TYPES:
-            endpoint = (
-                f"{self.securitytrails_base_url}/history/{domain}/dns/{record_type}"
-            )
-            try:
-                response = guarded_request(self.session.get, endpoint, headers=headers, timeout=25, tool='dns_history_analyzer')
-                if response.status_code == 404:
-                    continue
-                if response.status_code == 429:
-                    return {
-                        "status": "quota_exceeded",
-                        "label": "SecurityTrails",
-                        "events": [],
-                    }
-                response.raise_for_status()
-                payload = response.json()
-                events.extend(self._parse_securitytrails_records(record_type, payload))
-                time.sleep(0.2)
-            except Exception as error:
-                errors.append(f"{record_type}: {error}")
-
-        return {
-            "status": "success" if events else "failed",
-            "label": "SecurityTrails",
-            "events": events,
-            "error": "; ".join(errors[:3]) if errors and not events else None,
-        }
-
-    def _parse_securitytrails_records(
-        self, record_type: str, payload: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        events = []
-        for record in payload.get("records", []) or []:
-            values = self._extract_record_values(record_type, record.get("values", []))
-            if not values:
-                continue
-            first_seen = self._normalize_timestamp(
-                record.get("first_seen") or record.get("firstSeen")
-            )
-            last_seen = self._normalize_timestamp(
-                record.get("last_seen") or record.get("lastSeen")
-            )
-            events.append(
-                self._make_event(
-                    event_date=first_seen or last_seen,
-                    change_type=f"{record_type.upper()} record observed",
-                    record_type=record_type.upper(),
-                    source="SecurityTrails",
-                    previous_value=None,
-                    new_value=values,
-                    classification=self._classify_change(record_type, values),
-                    last_seen=last_seen,
-                )
-            )
-        return events
 
     def _collect_virustotal_history(self, domain: str) -> Dict[str, Any]:
         if not self.virustotal_api_key:

@@ -14,6 +14,9 @@ All notable changes to Domain Forensic Analyzer are documented here.
 - DNS history uses AlienVault OTX as an additional passive source (shared download with the `otx` module).
 - `_collect_live_api_statuses` accepts an optional trailing `otx_result` argument.
 - Robust API success count when a registered module was not executed.
+- DNS history no longer queries SecurityTrails. Without a key it only added a
+  `securitytrails: SecurityTrails API key not configured` entry to `source_errors`; the timeline
+  sources are RobTex, Mnemonic, VirusTotal, AlienVault OTX and certificate transparency.
 - Rebased the OTX work (`5c608f7`, `0100432`) onto the `dfapentesting` line (v1.1.0 + pentest scope guards).
 
 ---

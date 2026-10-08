@@ -233,12 +233,31 @@ class TestDNSHistoryOTXSource:
         with patch.object(analyzer, "_collect_robtex_history", return_value=empty), \
              patch.object(analyzer, "_collect_mnemonic_history", return_value=empty), \
              patch.object(analyzer, "_collect_virustotal_history", return_value=empty), \
-             patch.object(analyzer, "_collect_securitytrails_history", return_value=empty), \
              patch.object(analyzer, "_collect_certificate_transparency", return_value=empty), \
              patch("requests.Session.get", _router()):
             result = analyzer.analyze_dns_history("example.com")
         assert "AlienVault OTX" in result.get("data_sources", [])
 
+
+    def test_securitytrails_is_not_a_timeline_source(self, monkeypatch):
+        monkeypatch.setenv("SECURITYTRAILS_API_KEY", "b" * 32)
+        analyzer = self._analyzer(None)
+        urls = []
+
+        def get(_session, url, *args, **kwargs):
+            urls.append(url)
+            response = MagicMock(status_code=404)
+            response.json.return_value = {}
+            return response
+
+        empty = {"status": "skipped", "events": []}
+        with patch.object(analyzer, "_collect_robtex_history", return_value=empty), \
+             patch.object(analyzer, "_collect_mnemonic_history", return_value=empty), \
+             patch.object(analyzer, "_collect_certificate_transparency", return_value=empty), \
+             patch("requests.Session.get", get):
+            result = analyzer.analyze_dns_history("example.com")
+        assert not any("securitytrails" in url for url in urls)
+        assert not any(e.startswith("securitytrails") for e in result.get("source_errors", []))
 
 class TestIntegrationPoints:
 
