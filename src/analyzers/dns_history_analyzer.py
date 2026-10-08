@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import requests
 
 from ..utils.api_key_reader import APIKeyReader
+from .otx_client import fetch_passive_dns
 
 # Central helpers keep action decisions and persisted metadata consistent.
 from src.core.time_utils import utc_now
@@ -45,6 +46,7 @@ class DNSHistoryAnalyzer:
             "SECURITYTRAILS_API_KEY", "securitytrails"
         ).get()
         self.virustotal_api_key = APIKeyReader("VIRUSTOTAL_API_KEY", "virustotal").get()
+        self.otx_api_key = APIKeyReader("OTX_API_KEY", "otx").get()
         self.securitytrails_base_url = "https://api.securitytrails.com/v1"
         self.virustotal_base_url = "https://www.virustotal.com/api/v3"
         self.session = requests.Session()
@@ -56,12 +58,14 @@ class DNSHistoryAnalyzer:
         # RobTex is the primary free passive DNS source (no API key required).
         # Mnemonic (Norwegian CERT) is a free passive DNS API with timestamps; no key needed.
         # VirusTotal provides IP resolution history when an API key is present.
+        # AlienVault OTX adds passive DNS observations when an API key is present.
         # SecurityTrails adds record-level history when quota is available.
         # crt.sh certificate transparency is kept as opportunistic supplement.
         source_results = {
             "robtex": self._collect_robtex_history(clean_domain),
             "mnemonic": self._collect_mnemonic_history(clean_domain),
             "virustotal": self._collect_virustotal_history(clean_domain),
+            "otx": self._collect_otx_history(clean_domain),
             "securitytrails": self._collect_securitytrails_history(clean_domain),
             "certificate_transparency": self._collect_certificate_transparency(
                 clean_domain
@@ -210,6 +214,60 @@ class DNSHistoryAnalyzer:
         return {
             "status": "success" if events else "failed",
             "label": "RobTex",
+            "events": events,
+            "error": None if events else "no records returned",
+        }
+
+    def _collect_otx_history(self, domain: str) -> Dict[str, Any]:
+        """Collect passive DNS observations of the domain itself from AlienVault OTX.
+
+        Needs OTX_API_KEY. Shares one download per process with the otx module.
+        """
+        if not self.otx_api_key:
+            return {
+                "status": "skipped",
+                "error": "AlienVault OTX API key not configured",
+                "events": [],
+            }
+
+        result = fetch_passive_dns(domain, self.otx_api_key, self.session)
+        if result.get("status") == "quota_exceeded":
+            return {"status": "quota_exceeded", "label": "AlienVault OTX", "events": []}
+        if result.get("status") != "success":
+            return {
+                "status": "failed",
+                "label": "AlienVault OTX",
+                "events": [],
+                "error": result.get("error") or "AlienVault OTX unavailable",
+            }
+
+        events = []
+        for entry in result.get("records", []):
+            if str(entry.get("hostname", "")).strip().lower().rstrip(".") != domain:
+                continue
+            rrtype = str(entry.get("record_type", "")).upper()
+            answer = str(entry.get("address", "")).strip().rstrip(".")
+            if not rrtype or not answer:
+                continue
+            first_seen = self._normalize_timestamp(entry.get("first"))
+            last_seen = self._normalize_timestamp(entry.get("last"))
+            events.append(
+                self._make_event(
+                    event_date=first_seen,
+                    change_type=f"{rrtype} record observed",
+                    record_type=rrtype,
+                    source="AlienVault OTX",
+                    previous_value=None,
+                    new_value=[answer],
+                    classification=self._classify_change(rrtype.lower(), [answer]),
+                    severity="low",
+                    last_seen=last_seen,
+                )
+            )
+
+        return {
+            "status": "success" if events else "failed",
+            "label": "AlienVault OTX",
             "events": events,
             "error": None if events else "no records returned",
         }

@@ -14,6 +14,7 @@ _ENV_VAR_MAP = {
     "abuseipdb": "ABUSEIPDB_API_KEY",
     "virustotal": "VIRUSTOTAL_API_KEY",
     "whoisxml": "WHOISXML_API_KEY",
+    "otx": "OTX_API_KEY",
 }
 
 _DEFAULTS = {
@@ -21,6 +22,7 @@ _DEFAULTS = {
     "abuseipdb": ("https://api.abuseipdb.com/api/v2", 1000),
     "virustotal": ("https://www.virustotal.com/api/v3", 1000),
     "whoisxml": ("https://whoisxmlapi.com/whoisserver/WhoisService", 500),
+    "otx": ("https://otx.alienvault.com/api/v1", 1000),
 }
 
 

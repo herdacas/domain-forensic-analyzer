@@ -4,6 +4,20 @@ All notable changes to Domain Forensic Analyzer are documented here.
 
 ---
 
+## [Unreleased] — branch feature/otx-on-dfapentesting
+
+### Changed
+
+- **AlienVault OTX replaces SecurityTrails** in the default module order (`otx` instead of `securitytrails`).
+  New `src/analyzers/otx_client.py`: passive DNS of the domain, hostnames observed below it, threat pulses.
+  Key: `OTX_API_KEY` (free OTX account). SecurityTrails stays available as an explicit, optional module.
+- DNS history uses AlienVault OTX as an additional passive source (shared download with the `otx` module).
+- `_collect_live_api_statuses` accepts an optional trailing `otx_result` argument.
+- Robust API success count when a registered module was not executed.
+- Rebased the OTX work (`5c608f7`, `0100432`) onto the `dfapentesting` line (v1.1.0 + pentest scope guards).
+
+---
+
 ## [1.1.0] — 2026-10-07
 
 v1.0 production polish, OPSEC/network fixes from the 2026-10-07 re-validation, and the VPN usage guide.
@@ -24,6 +38,7 @@ v1.0 production polish, OPSEC/network fixes from the 2026-10-07 re-validation, a
 - Network: ping RTT is parsed on Linux/macOS (`rtt min/avg/max` summary), not only on Windows.
 - Docs: `SECURITY.md` and `docs/KNOWN_LIMITATIONS.md` describe the two VPN signals and the SecurityTrails quota (up to 10 requests per scan).
 - `docs/REVALIDATION_2026-10-07.md`: re-validation of the Phase 4 fixes with `example.com`, direct and through a Proton WireGuard namespace, plus a control scan after this release line was merged into `main`.
+---
 
 ## [1.0.0] — 2026-06-04
 

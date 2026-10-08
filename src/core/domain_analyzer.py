@@ -39,6 +39,7 @@ try:
     from src.analyzers.dns_history_analyzer import DNSHistoryAnalyzer
     from src.analyzers.ip_history_analyzer import IPHistoryAnalyzer
     from src.analyzers.network_intelligence import NetworkIntelligence
+    from src.analyzers.otx_client import OTXClient
     from src.analyzers.securitytrails_client import SecurityTrailsClient
     from src.analyzers.ssl_analyzer import SSLAnalyzer
     from src.analyzers.subdomain_scanner import SubdomainScanner
@@ -88,7 +89,7 @@ class DomainAnalyzer:
             "network",
             "subdomain",
             "ssl",
-            "securitytrails",
+            "otx",
             "abuseipdb",
             "virustotal",
             "ip_history",
@@ -191,6 +192,7 @@ class DomainAnalyzer:
             "cdn": CDNDetector,
             "subdomain": SubdomainScanner,
             "network": NetworkIntelligence,
+            "otx": OTXClient,
             "securitytrails": SecurityTrailsClient,
             "abuseipdb": AbuseIPDBClient,
             "virustotal": VirusTotalClient,
@@ -247,8 +249,9 @@ class DomainAnalyzer:
             apis_used=len(
                 [
                     m
-                    for m in ["securitytrails", "abuseipdb", "virustotal"]
-                    if m in self.modules and self.execution_metrics.get(m, {}).success
+                    for m in ["otx", "securitytrails", "abuseipdb", "virustotal"]
+                    if m in self.modules
+                    and getattr(self.execution_metrics.get(m), "success", False)
                 ]
             ),
         )
@@ -341,7 +344,7 @@ class DomainAnalyzer:
             [m for m in self.execution_metrics.values() if m.timeout_occurred]
         )
 
-        api_modules = ["securitytrails", "abuseipdb", "virustotal"]
+        api_modules = ["otx", "securitytrails", "abuseipdb", "virustotal"]
         api_success = len(
             [
                 m
@@ -550,6 +553,9 @@ class DomainAnalyzer:
         elif module_name == "subdomain":
             return module.scan_subdomains(domain)
 
+        elif module_name == "otx":
+            return module.analyze_domain_intelligence(domain)
+
         elif module_name == "securitytrails":
             return module.analyze_domain_intelligence(domain)
 
@@ -641,6 +647,10 @@ class DomainAnalyzer:
                 "traceroute_data": {"total_hops": 0},
             },
             "subdomain": {"discovered_assets": [], "total_found": 0},
+            "otx": {
+                "api_status": "failed",
+                "domain_details": {"subdomain_count": 0},
+            },
             "securitytrails": {
                 "api_status": "failed",
                 "domain_details": {"subdomain_count": 0},

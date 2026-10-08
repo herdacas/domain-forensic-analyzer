@@ -18,6 +18,7 @@ MODULE_TIMEOUTS: Dict[str, int] = {
     'subdomain':      30,
     'ssl':            25,
     'securitytrails': 30,
+    'otx':            60,
     'abuseipdb':      30,
     'virustotal':     30,
     'ip_history':     45,
@@ -50,6 +51,7 @@ class APISettings:
     """
 
     securitytrails_api_key: Optional[str] = None
+    otx_api_key: Optional[str] = None
     virustotal_api_key: Optional[str] = None
     abuseipdb_api_key: Optional[str] = None
     whoisxml_api_key: Optional[str] = None
@@ -86,7 +88,7 @@ class Settings:
     def _load_from_environment(self) -> None:
         """Load configuration overrides from environment variables."""
         manager = SecureAPIManager()
-        for service in ('securitytrails', 'virustotal', 'abuseipdb', 'whoisxml'):
+        for service in ('otx', 'securitytrails', 'virustotal', 'abuseipdb', 'whoisxml'):
             config = manager.get_api_config(service)
             setattr(self.api_config, f'{service}_api_key', config.api_key if config else None)
             if config and hasattr(self.api_config, f'{service}_base_url'):
@@ -132,6 +134,10 @@ class Settings:
         """Return True if SecurityTrails API key is configured."""
         return bool(self.api_config.securitytrails_api_key)
 
+    def has_otx_api(self) -> bool:
+        """Return True if AlienVault OTX API key is configured."""
+        return bool(self.api_config.otx_api_key)
+
     def has_virustotal_api(self) -> bool:
         """Return True if VirusTotal API key is configured."""
         return bool(self.api_config.virustotal_api_key)
@@ -139,6 +145,7 @@ class Settings:
     def get_api_status(self) -> Dict[str, bool]:
         """Return availability status for each configured API."""
         return {
+            'otx': self.has_otx_api(),
             'securitytrails': self.has_securitytrails_api(),
             'virustotal': self.has_virustotal_api(),
             'abuseipdb': bool(self.api_config.abuseipdb_api_key),
@@ -150,6 +157,9 @@ class Settings:
         """Return list of active feature names based on which API keys are present."""
         features = ['DNS Analysis', 'Network Intelligence', 'Asset Discovery']
         
+        if self.has_otx_api():
+            features.extend(['Passive DNS (OTX)', 'Domain Intelligence', 'Subdomain History', 'Threat Pulses'])
+
         if self.has_securitytrails_api():
             features.extend(['Historical DNS', 'Domain Intelligence', 'Subdomain History'])
         

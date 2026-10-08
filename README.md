@@ -55,7 +55,7 @@ A single structured report combining the available evidence for a domain investi
 - **What changed over time** — historical DNS timeline across Mnemonic PDNS, RobTex, VirusTotal, and certificate transparency logs; nameserver and MX migration events grouped by date
 - **How it behaves** — HTTP→HTTPS redirect, HSTS, CSP, X-Frame-Options, TLS certificate metadata (issuer, SANs, expiry, negotiated version)
 - **Who else is on that IP** — reverse-IP co-hosted domains from three passive sources
-- **What the threat intel says** — VirusTotal domain reputation, AbuseIPDB IP score, SecurityTrails historical subdomain data
+- **What the threat intel says** — VirusTotal domain reputation, AbuseIPDB IP score, AlienVault OTX passive DNS, observed hostnames and threat pulses
 - **What the network path looks like** — traceroute with hop classification, ping latency
 - **Risk summary** — heuristic score with specific factors listed (expired cert, newly registered, no HTTPS redirect, high geographic risk, etc.)
 
@@ -487,7 +487,9 @@ Add keys to unlock historical DNS, reputation data, and deeper WHOIS intelligenc
 export VIRUSTOTAL_API_KEY="your_key"
 export ABUSEIPDB_API_KEY="your_key"
 export WHOISXML_API_KEY="your_key"
-export SECURITYTRAILS_API_KEY="your_key"
+export OTX_API_KEY="your_key"
+# optional, no longer in the default pipeline:
+# export SECURITYTRAILS_API_KEY="your_key"
 ```
 
 **Option B — config file** (`config/api_keys.json`, git-ignored):
@@ -497,7 +499,7 @@ export SECURITYTRAILS_API_KEY="your_key"
   "virustotal":     { "api_key": "YOUR_KEY" },
   "abuseipdb":      { "api_key": "YOUR_KEY" },
   "whoisxml":       { "api_key": "YOUR_KEY" },
-  "securitytrails": { "api_key": "YOUR_KEY" }
+  "otx":            { "api_key": "YOUR_KEY" }
 }
 ```
 
@@ -508,7 +510,8 @@ The project-root `.env` is also loaded without overwriting process environment v
 | WHOIS enrichment | `WHOISXML_API_KEY` | Registration data |
 | Domain & IP reputation | `VIRUSTOTAL_API_KEY` | Reputation and resolutions |
 | IP abuse score | `ABUSEIPDB_API_KEY` | Reported abuse |
-| Historical DNS | `SECURITYTRAILS_API_KEY` | Domain details, history and subdomains |
+| Passive DNS, hostnames, threat pulses | `OTX_API_KEY` | AlienVault OTX (free account); default passive-intel source |
+| Historical DNS (optional, not in default pipeline) | `SECURITYTRAILS_API_KEY` | Domain details, history and subdomains |
 
 Quotas and available datasets depend on the provider account. Check your account's allowance before batch runs; the configured request-admission rate is not a provider quota counter.
 
@@ -530,7 +533,7 @@ HTTP/S BEHAVIOR   — redirect chain, HSTS, CSP, X-Frame-Options
 SSL / TLS         — certificate issuer, validity, SANs, TLS version
 INFRASTRUCTURE    — CDN/WAF/hosting provider, edge protection
 ATTACK SURFACE    — discovered subdomains, sensitive asset candidates
-THREAT INTELLIGENCE — VT domain score, AbuseIPDB IP score, SecurityTrails
+THREAT INTELLIGENCE — VT domain score, AbuseIPDB IP score, AlienVault OTX
 IP & DOMAIN HISTORY — reverse-IP co-hosted domains, historical IPs
 RISK ASSESSMENT   — heuristic score with specific risk factors
 EXECUTION         — module timing, API coverage, log reference
@@ -567,7 +570,7 @@ If neither traceroute tool is available, the NETWORK PATH module gracefully repo
 ## Security Notes
 
 - Active probes can be visible to the target, its authoritative DNS infrastructure and network intermediaries. They are subject to the engine scope; AXFR is blocked by default.
-- Passive APIs (VirusTotal, AbuseIPDB, SecurityTrails, RobTex, Mnemonic, crt.sh) do not expose your IP to the target.
+- Passive APIs (VirusTotal, AbuseIPDB, AlienVault OTX, RobTex, Mnemonic, crt.sh) do not expose your IP to the target.
 - For low-footprint investigations, run the scan through a VPN. See [Running Through a VPN](#running-through-a-vpn).
 - VPN detection in the OPSEC block checks the tunnel interface of the internet route (Linux) and the reverse DNS of your external IP (all platforms). On Windows and macOS it misses providers without branded hostnames (see [SECURITY.md](SECURITY.md)). Don't treat "not detected" as proof no VPN is active.
 - Do not commit `config/api_keys.json` or `.env` files. Review the tracked `config/scope.json` for real engagement data before publishing.
@@ -637,7 +640,7 @@ Almost certainly, since there's no macOS-specific code path missing, but it hasn
 ## Known Limitations
 
 - WHOIS registrant fields are redacted by registry policy for several ccTLDs (DENIC/DE, SIDN/NL, SWITCH/CH, and others) — the report flags this explicitly rather than showing empty fields.
-- SecurityTrails and VirusTotal history depth depends on account tier and provider PDNS coverage.
+- AlienVault OTX and VirusTotal history depth depends on account tier and provider PDNS coverage.
 - Subdomain discovery uses common-name DNS patterns. Wildcard detection narrows the candidate list; responses may still be wildcard results and need verification.
 - Certificate Transparency shows issuance history, not authoritative DNS. Wildcard-only certs (`*.domain.com`) produce no subdomain entries by design.
 - The risk model is heuristic — treat it as a starting point for investigation, not as a conclusive judgement.

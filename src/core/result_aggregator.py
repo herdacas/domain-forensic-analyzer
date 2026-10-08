@@ -30,6 +30,7 @@ class DataSource(Enum):
     SUBDOMAIN_SCAN = "subdomain_scan"
     NETWORK_INTEL = "network_intelligence"
     SECURITYTRAILS = "securitytrails"
+    OTX = "otx"
     WHOIS = "whois"
     DNS_HISTORY = "dns_history"
     SSL_ANALYSIS = "ssl_analysis"
@@ -181,7 +182,7 @@ class ResultAggregator:
         # Mirrors DomainAnalyzer.module_execution_order (11 modules).
         self.supported_modules = [
             "dns", "whois", "dns_history", "cdn", "network", "subdomain",
-            "ssl", "securitytrails", "abuseipdb", "virustotal", "ip_history",
+            "ssl", "otx", "abuseipdb", "virustotal", "ip_history",
         ]
 
     def aggregate_results(
@@ -532,6 +533,7 @@ class ResultAggregator:
         "network": DataSource.NETWORK_INTEL,
         "subdomain": DataSource.SUBDOMAIN_SCAN,
         "ssl": DataSource.SSL_ANALYSIS,
+        "otx": DataSource.OTX,
         "securitytrails": DataSource.SECURITYTRAILS,
         "abuseipdb": DataSource.ABUSEIPDB_REPUTATION,
         "virustotal": DataSource.VIRUSTOTAL_REPUTATION,

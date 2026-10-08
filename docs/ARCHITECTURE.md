@@ -22,7 +22,7 @@ run.py  ─┬─▶ src/core/cli.py            entry point: parses domain, driv
 ## Module execution order
 
 ```
-dns → whois → dns_history → cdn → network → subdomain → ssl → securitytrails → abuseipdb → virustotal → ip_history
+dns → whois → dns_history → cdn → network → subdomain → ssl → otx → abuseipdb → virustotal → ip_history
 ```
 
 Each module gets its own timeout (`MODULE_TIMEOUTS` in `config/settings.py`) and runs in its own thread via `ThreadAwareStdoutRouter`, so a slow or hanging module can't block the others indefinitely or interleave their print output.
@@ -36,7 +36,8 @@ Each module gets its own timeout (`MODULE_TIMEOUTS` in `config/settings.py`) and
 | Network | `src/analyzers/network_intelligence.py` | Ping, traceroute/tracepath, HTTP/S behavior (redirects, HSTS, CSP) |
 | Subdomain | `src/analyzers/subdomain_scanner.py` | DNS-pattern subdomain discovery, wildcard detection |
 | SSL/TLS | `src/analyzers/ssl_analyzer.py` | Certificate chain inspection (stdlib `ssl` + `cryptography`) |
-| SecurityTrails | `src/analyzers/securitytrails_client.py` | Domain intelligence, historical subdomains |
+| AlienVault OTX | `src/analyzers/otx_client.py` | Passive DNS, observed hostnames, threat pulses (replaces SecurityTrails in the default order) |
+| SecurityTrails | `src/analyzers/securitytrails_client.py` | Optional legacy module, not in the default order |
 | AbuseIPDB | `src/analyzers/abuseipdb_client.py` | IP reputation |
 | VirusTotal | `src/analyzers/virustotal_client.py` | Domain/IP reputation |
 | IP History | `src/analyzers/ip_history_analyzer.py` | Reverse-IP co-hosted domains |

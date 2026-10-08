@@ -842,6 +842,42 @@ def _render_securitytrails_status(st_result: dict, unavailable_branch: str) -> N
             print(f"{unavailable_branch} SecurityTrails: {Colors.dim('not available')}")
 
 
+def _render_otx_status(otx_result: dict, unavailable_branch: str) -> None:
+    """Render AlienVault OTX passive DNS and threat pulse status."""
+    if otx_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
+        status_text = "Demo Mode" if otx_result.get("api_status") == "demo_mode" else "Live Data"
+        details = otx_result.get("domain_details")
+        details = details if isinstance(details, dict) else {}
+        subdomain_count = details.get("subdomain_count") or 0
+        pulse_count = details.get("pulse_count") or 0
+        if subdomain_count > 0:
+            hostnames = Colors.info(f"{subdomain_count} hostnames in passive DNS")
+        else:
+            hostnames = Colors.dim("No passive DNS hostnames")
+        print(f"├── AlienVault OTX: {hostnames} [{status_text}]")
+        if pulse_count > 0:
+            print(f"├── OTX Pulses: {Colors.warning(f'referenced in {pulse_count} threat pulse(s)')}")
+        else:
+            print(f"├── OTX Pulses: {Colors.success('no threat pulses')}")
+    elif otx_result.get("api_status") in ("quota_exceeded", "demo_mode"):
+        print(
+            f"{unavailable_branch} AlienVault OTX: {Colors.dim('not available - quota exceeded or no API key')}"
+        )
+    else:
+        print(f"{unavailable_branch} AlienVault OTX: {Colors.dim('not available')}")
+
+
+def _render_passive_intel_status(
+    otx_result: Optional[dict], st_result: Optional[dict], unavailable_branch: str
+) -> None:
+    """AlienVault OTX replaced SecurityTrails; SecurityTrails is shown only when it ran."""
+    if st_result:
+        _render_otx_status(otx_result or {}, unavailable_branch="├──")
+        _render_securitytrails_status(st_result, unavailable_branch)
+    else:
+        _render_otx_status(otx_result or {}, unavailable_branch)
+
+
 def _render_abuseipdb_status(abuse_result: dict) -> None:
     """Render AbuseIPDB IP reputation status."""
     if abuse_result.get("analysis_status") in ["abgeschlossen", "demo_abgeschlossen"]:
@@ -874,9 +910,12 @@ def _collect_live_api_statuses(
     st_result: Optional[dict] = None,
     abuse_result: Optional[dict] = None,
     ip_history_result: Optional[dict] = None,
+    otx_result: Optional[dict] = None,
 ) -> List[str]:
     """Return display labels for live APIs used in the report."""
     api_statuses = []
+    if otx_result and otx_result.get("api_status") == "live_data":
+        api_statuses.append("AlienVault OTX")
     if st_result and st_result.get("api_status") == "live_data":
         api_statuses.append("SecurityTrails")
     if abuse_result and abuse_result.get("api_status") == "live_data":
@@ -1002,7 +1041,7 @@ def _display_historical_blocks(
     _render_virustotal_status(
         vt_result, unavailable_color=Colors.dim, unavailable_text="not available"
     )
-    _render_securitytrails_status(st_result, unavailable_branch="├──")
+    _render_passive_intel_status(result.results.get("otx", {}), st_result, unavailable_branch="├──")
     print(
         f"└── IP Reputation: {Colors.dim('not available (domain inactive — no current IP)')}"
     )
@@ -1016,7 +1055,7 @@ def _display_historical_blocks(
     # --- EXECUTION ---
     print(f"\n{Colors.section_header('EXECUTION', 50)}")
     api_statuses = _collect_live_api_statuses(
-        vt_result, whois_result, dns_history_result
+        vt_result, whois_result, dns_history_result, otx_result=result.results.get("otx", {})
     )
     mode_line = (
         f"├── Mode: {Colors.warning('HISTORICAL ANALYSIS')} "
@@ -1045,6 +1084,7 @@ def _build_summary_context(result: UnifiedResult) -> Dict[str, Any]:
     vt_result = result.results.get("virustotal", {})
     abuse_result = result.results.get("abuseipdb", {})
     st_result = result.results.get("securitytrails", {})
+    otx_result = result.results.get("otx", {})
     dns_result = result.results.get("dns", {})
     whois_result = result.results.get("whois", {})
     dns_history_result = result.results.get("dns_history", {})
@@ -1083,6 +1123,7 @@ def _build_summary_context(result: UnifiedResult) -> Dict[str, Any]:
         "vt_result": vt_result,
         "abuse_result": abuse_result,
         "st_result": st_result,
+        "otx_result": otx_result,
         "dns_result": dns_result,
         "whois_result": whois_result,
         "dns_history_result": dns_history_result,
@@ -1901,7 +1942,7 @@ def _render_threat_intelligence_section(ctx: Dict[str, Any]) -> None:
     print(f"\n{Colors.section_header('THREAT INTELLIGENCE', 50)}")
     _render_virustotal_status(vt_result)
     _render_abuseipdb_status(abuse_result)
-    _render_securitytrails_status(st_result, unavailable_branch="└──")
+    _render_passive_intel_status(ctx.get("otx_result", {}), st_result, unavailable_branch="└──")
 
 
 def _render_ip_domain_history_section(ctx: Dict[str, Any]) -> None:
@@ -2036,6 +2077,7 @@ def _render_execution_section(ctx: Dict[str, Any]) -> None:
         st_result=st_result,
         abuse_result=abuse_result,
         ip_history_result=ip_history_result,
+        otx_result=ctx.get("otx_result"),
     )
     _render_execution_values(
         result,
@@ -2183,7 +2225,7 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"│   └── SSL/TLS handshake (direct connection to target:443)")
     print(f"└── Passive Sources (target does not see your IP):")
     print(f"    ├── VirusTotal, AbuseIPDB, WhoisXML")
-    print(f"    ├── SecurityTrails, RobTex, HackerTarget, Mnemonic PDNS")
+    print(f"    ├── AlienVault OTX, RobTex, HackerTarget, Mnemonic PDNS")
     print(f"    └── crt.sh, CertSpotter, ip-api.com")
 
     print(f"\n{Colors.investigation_separator(80)}")
