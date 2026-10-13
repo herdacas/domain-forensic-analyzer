@@ -13,6 +13,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.scan_runtime import initialize_scan_runtime
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 if isinstance(sys.stdout, io.TextIOWrapper):
@@ -58,23 +63,22 @@ def run_list_mode(file_path: str) -> None:
         sys.exit(1)
 
     total = len(domains)
-    list_start = datetime.now()
+    list_start = utc_now()
 
     print(f"\n{'=' * 80}")
     print(f"DOMAIN FORENSIC ANALYZER — LIST MODE")
     print(f"{'=' * 80}")
     print(f"Source : {file_path}  ({total} domains)")
-    print(f"Started: {list_start.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"Started: {list_start.isoformat()}")
     print(f"{'=' * 80}\n")
 
-    analyzer = DomainAnalyzer()
     exporter = ReportExporter()
     summary_rows = []
     batch_records = []
 
     for idx, domain in enumerate(domains, 1):
         t0 = time.monotonic()
-        domain_start = datetime.now()
+        domain_start = utc_now()
         print(f"\n{'─' * 80}")
         print(f"  [{idx}/{total}] {domain.upper()}")
         print(f"{'─' * 80}")
@@ -84,7 +88,12 @@ def run_list_mode(file_path: str) -> None:
 
         try:
             with capture_console() as console_buffer:
+                # Every batch domain gets its own scope and metadata trace.
+                session_id, trace_file = initialize_scan_runtime(
+                    Path(__file__).resolve().parent, domain_start.strftime("%Y%m%d-%H%M%S"))
                 forensic_metadata = display_forensic_header(domain, domain_start)
+                forensic_metadata["trace_file"] = str(trace_file)
+                analyzer = DomainAnalyzer(session_id=session_id, runtime_initialized=True)
                 result = analyzer.analyze_domain(domain)
                 display_forensic_summary(result)
             overall_risk, _, _ = _compute_risk_summary(result)
@@ -126,7 +135,7 @@ def run_list_mode(file_path: str) -> None:
         )
 
     # --- Overall summary ---
-    total_duration = (datetime.now() - list_start).total_seconds()
+    total_duration = (utc_now() - list_start).total_seconds()
     total_s = int(total_duration)
     mins, secs = divmod(total_s, 60)
     completed = sum(1 for _, s, _, _ in summary_rows if s == "COMPLETE")

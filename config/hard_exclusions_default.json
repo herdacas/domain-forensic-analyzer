@@ -1,0 +1,25 @@
+{
+  "domains": [
+    "ns1.dns-parking.com",
+    "ns2.dns-parking.com",
+    "mail.protonmail.ch",
+    "protonmail.ch",
+    "proton.ch",
+    "stripe.com",
+    "api.openai.com",
+    "api.anthropic.com",
+    "api.mistral.ai",
+    "openai.azure.com",
+    "cognitiveservices.azure.com",
+    "nexmo.com",
+    "vonage.com",
+    "twilio.com",
+    "graph.microsoft.com",
+    "login.microsoftonline.com"
+  ],
+  "ips": [
+    "142.132.194.129"
+  ],
+  "cidrs": [],
+  "comment": "Absolute Sperren — Hoster-Gateway, Nameserver, Zahlungsdienstleister, KI-Modellanbieter"
+}

@@ -256,3 +256,10 @@ auftragwindows.md
 auftragergebnis.md
 .windows-checkpoint.txt
 *.bundle
+
+# Non-secret pentest policy templates are reviewable configuration.
+!config/scope.json
+!config/hard_exclusions_default.json
+
+# Trace files contain engagement metadata and are local runtime artifacts.
+logs/

@@ -22,6 +22,12 @@ import dns.query
 import dns.resolver
 import dns.zone
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.redactor import redact
+
+from src.core.scope_guard import check_and_trace, require_action, ScopeBlocked
+import shlex
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config.settings import get_settings
 from src.utils.validators import DomainValidator
@@ -62,8 +68,13 @@ class DNSAnalyzer:
         """
         default_ns = dns.resolver.Resolver().nameservers
         reachable: List[str] = []
+        admitted: List[str] = []
         for ns_ip in default_ns:
             try:
+                # Constructor probes must respect exclusions before connecting.
+                if not check_and_trace("dns", f"TCP {ns_ip}:53", ns_ip, tool="dns_probe", method="dns", port=53):
+                    continue
+                admitted.append(ns_ip)
                 with socket.create_connection((ns_ip, 53), timeout=1.0):
                     reachable.append(ns_ip)
             except ConnectionRefusedError:
@@ -71,7 +82,7 @@ class DNSAnalyzer:
                 reachable.append(ns_ip)
             except (socket.timeout, OSError):
                 pass  # packet dropped or other network error — skip this server
-        return reachable if reachable else default_ns
+        return reachable if reachable else admitted
 
     def _create_resolver(
         self, nameservers: Optional[List[str]] = None
@@ -85,13 +96,27 @@ class DNSAnalyzer:
             resolver.nameservers = self._reachable_nameservers
         return resolver
 
+    def _guarded_resolve(self, resolver, name, record_type):
+        """Check both the queried name and the configured DNS transport peers."""
+        require_action("dns", f"{record_type} {name}", str(name).rstrip("."),
+                       tool="dns", method="dns", port=53)
+        peers = resolver.nameservers
+        if isinstance(peers, list):
+            allowed_peers = [ip for ip in peers if check_and_trace(
+                "dns", f"{record_type} {name} via {ip}", str(ip),
+                tool="dns_resolver", method="dns", port=53)]
+            if not allowed_peers:
+                raise ScopeBlocked("no_nameserver_in_scope")
+            resolver.nameservers = allowed_peers
+        return resolver.resolve(name, record_type)
+
     def _resolve_dns_records(
         self, name: str, record_type: str, nameservers: Optional[List[str]] = None
     ) -> List[Any]:
         """Execute a DNS resolver query for a specific record type."""
         try:
             resolver = self._create_resolver(nameservers)
-            answer = resolver.resolve(name, record_type)
+            answer = self._guarded_resolve(resolver, name, record_type)
             return list(answer)
         except (
             dns.resolver.NoAnswer,
@@ -199,6 +224,7 @@ class DNSAnalyzer:
         """Resolve domain to its primary IPv4 address."""
         try:
             with self._socket_timeout():
+                require_action("dns", f"A {domain}", domain, tool="dns_socket", method="dns", port=53)
                 ipv4_address = socket.gethostbyname(domain)
 
             return {"ipv4": ipv4_address}
@@ -212,6 +238,7 @@ class DNSAnalyzer:
         """Resolve domain to its primary IPv6 address if available."""
         try:
             with self._socket_timeout():
+                require_action("dns", f"AAAA {domain}", domain, tool="dns_socket", method="dns", port=53)
                 addr_info = socket.getaddrinfo(domain, None, socket.AF_INET6)
 
             if addr_info:
@@ -227,6 +254,7 @@ class DNSAnalyzer:
         """Perform PTR (reverse DNS) lookup for an IPv4 address."""
         try:
             with self._socket_timeout():
+                require_action("dns", f"PTR {ip_address}", ip_address, tool="dns_socket", method="dns", port=53)
                 hostname = socket.gethostbyaddr(ip_address)[0]
 
             return {"reverse_dns": hostname}
@@ -237,8 +265,11 @@ class DNSAnalyzer:
     def _query_nslookup(self, record_type: str, domain: str) -> Optional[str]:
         """Run a nslookup CLI query and return raw stdout, or None on error."""
         try:
+            cmd = ["nslookup", f"-type={record_type}", domain]
+            if not check_and_trace("subprocess", shlex.join(cmd), domain, tool="nslookup", method="dns", port=53):
+                return None
             result = subprocess.run(
-                ["nslookup", f"-type={record_type}", domain],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=self.dns_timeout,
@@ -259,7 +290,7 @@ class DNSAnalyzer:
     def _analyze_mx_records(self, domain: str) -> Dict[str, List[Dict[str, str]]]:
         """Resolve MX records via dnspython to get full FQDNs with priority."""
         try:
-            answer = self._create_resolver().resolve(domain, "MX")
+            answer = self._guarded_resolve(self._create_resolver(), domain, "MX")
         except (
             dns.resolver.NoAnswer,
             dns.resolver.NXDOMAIN,
@@ -537,7 +568,7 @@ class DNSAnalyzer:
     def _analyze_cname_record(self, domain: str) -> Dict[str, Any]:
         """Resolve CNAME target if present (apex domains rarely have one)."""
         try:
-            answer = self._create_resolver().resolve(domain, "CNAME")
+            answer = self._guarded_resolve(self._create_resolver(), domain, "CNAME")
             target = str(answer[0].target).rstrip(".")
             return {"cname_target": target}
         except (
@@ -571,7 +602,7 @@ class DNSAnalyzer:
         genuinely isn't there, not that the check failed.
         """
         try:
-            answer = self._create_resolver().resolve(domain, record_type)
+            answer = self._guarded_resolve(self._create_resolver(), domain, record_type)
             return list(answer), False
         except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
             return [], False
@@ -612,6 +643,10 @@ class DNSAnalyzer:
         self, domain: str, nameservers: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """Attempt AXFR zone transfer against authoritative nameservers."""
+        # AXFR is opt-in and forbidden by the shipped policy.
+        if not check_and_trace("dns", f"AXFR {domain}", domain, tool="dns_axfr", method="axfr", port=53):
+            return {"zone_transfer": {"status": "blocked_by_scope",
+                    "reason": "axfr_not_permitted_by_scope", "tested_nameservers": []}}
         axfr_timeout = 3
         tested_nameservers = []
 
@@ -624,6 +659,9 @@ class DNSAnalyzer:
                     ns_ip = str(server_ip)
                     tested_nameservers.append(ns_ip)
                     try:
+                        if not check_and_trace("dns", f"AXFR {domain} @{ns_ip}", ns_ip,
+                                               tool="dns_axfr", method="axfr", port=53):
+                            continue
                         zone = dns.zone.from_xfr(
                             dns.query.xfr(ns_ip, domain, lifetime=axfr_timeout)
                         )
@@ -742,7 +780,7 @@ class DNSAnalyzer:
     def _resolve_a_ttl(self, domain: str) -> Dict[str, Any]:
         """Resolve A-record TTL via dnspython rrset."""
         try:
-            answer = self._create_resolver().resolve(domain, "A")
+            answer = self._guarded_resolve(self._create_resolver(), domain, "A")
             return {"a_record_ttl": int(answer.rrset.ttl)}
         except Exception:
             return {"a_record_ttl": None}
@@ -750,7 +788,7 @@ class DNSAnalyzer:
     def _resolve_mx_ttl(self, domain: str) -> Dict[str, Any]:
         """Resolve MX-record TTL via dnspython rrset."""
         try:
-            answer = self._create_resolver().resolve(domain, "MX")
+            answer = self._guarded_resolve(self._create_resolver(), domain, "MX")
             return {"mx_record_ttl": int(answer.rrset.ttl)}
         except Exception:
             return {"mx_record_ttl": None}
@@ -758,7 +796,7 @@ class DNSAnalyzer:
     def _resolve_ns_ttl(self, domain: str) -> Dict[str, Any]:
         """Resolve NS-record TTL via dnspython rrset."""
         try:
-            answer = self._create_resolver().resolve(domain, "NS")
+            answer = self._guarded_resolve(self._create_resolver(), domain, "NS")
             return {"ns_record_ttl": int(answer.rrset.ttl)}
         except Exception:
             return {"ns_record_ttl": None}
@@ -813,7 +851,7 @@ class DNSAnalyzer:
                 )
                 entry["record"] = included_spf
             except Exception as exc:
-                entry["error"] = str(exc)
+                entry["error"] = redact(str(exc))
 
             flat.append(entry)
 

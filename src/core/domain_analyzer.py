@@ -4,9 +4,18 @@ import platform
 import sys
 import threading
 import time
-from datetime import datetime
+from contextvars import copy_context
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.redactor import redact
+
+from src.core.scan_runtime import initialize_scan_runtime
+from src.core.redactor import redact_loguru_record
+from src.core.scope_guard import check_and_trace
 
 try:
     from loguru import logger
@@ -52,9 +61,14 @@ except ImportError as error:
 class DomainAnalyzer:
     """Coordinates 11 analyzer modules: execution order, timeouts, and result aggregation."""
 
-    def __init__(self):
+    def __init__(self, session_id=None, runtime_initialized=False):
         self.platform = platform.system().lower()
         self.project_root = Path(__file__).parent.parent.parent
+        # Initialize before DNS constructor probes or any analyzer traffic.
+        if not runtime_initialized:
+            self.session_id, self.trace_file = initialize_scan_runtime(self.project_root, session_id)
+        else:
+            self.session_id = session_id
         self.logs_dir = self.project_root / "logs"
         self.logs_dir.mkdir(exist_ok=True)
         self._setup_logging()
@@ -84,11 +98,13 @@ class DomainAnalyzer:
             logger.remove()
             log_file = (
                 self.logs_dir
-                / f"domain_analyzer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                / f"domain_analyzer_{utc_now().strftime('%Y%m%d_%H%M%S')}.log"
             )
             logger.add(
                 str(log_file),
-                format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}",
+                # UTC offset and extra fields make target/source context visible.
+                format="{time:YYYY-MM-DDTHH:mm:ss.SSSZ!UTC} | {level: <8} | {message} | {extra}",
+                filter=redact_loguru_record,
                 level="DEBUG",
                 rotation="50 MB",
             )
@@ -110,7 +126,7 @@ class DomainAnalyzer:
                     }
                     if context:
                         msg = f"{msg} | {context}"
-                    return msg, kwargs
+                    return redact(msg), kwargs
 
             self.logger = ContextLogger(logging.getLogger("DomainAnalyzer"), {})
 
@@ -124,7 +140,7 @@ class DomainAnalyzer:
                 "System initialization complete", modules_loaded=len(self.modules)
             )
         except Exception as error:
-            self.logger.error("System initialization failed", error=str(error))
+            self.logger.error("System initialization failed", error=redact(str(error)))
 
     def _initialize_modules(self) -> None:
         module_classes = {
@@ -151,7 +167,7 @@ class DomainAnalyzer:
                 self.logger.debug(f"{module_name.title()} module initialized")
             except Exception as error:
                 self.logger.warning(
-                    f"Failed to initialize {module_name}", error=str(error)
+                    f"Failed to initialize {module_name}", error=redact(str(error))
                 )
 
     def analyze_domain(self, domain: str) -> UnifiedResult:
@@ -160,7 +176,7 @@ class DomainAnalyzer:
             raise ValueError(f"Invalid domain format: {domain}")
 
         clean_domain = DomainValidator.clean_domain(domain)
-        start_time = datetime.now()
+        start_time = utc_now()
 
         self.logger.info("Starting multi-API domain analysis", domain=clean_domain)
 
@@ -174,7 +190,7 @@ class DomainAnalyzer:
         }
         self.execution_metrics = {}
         self._execute_analysis_workflow()
-        execution_time = (datetime.now() - start_time).total_seconds()
+        execution_time = (utc_now() - start_time).total_seconds()
 
         self.logger.info(
             "Analysis completed",
@@ -335,6 +351,10 @@ class DomainAnalyzer:
             )
 
         domain = self.current_analysis["domain"]
+        # Check the normalized effective target, not only the CLI input.
+        if not check_and_trace("module", module_name, domain, tool=module_name, method=""):
+            return ModuleExecutionResult(success=True, result={"domain": domain,
+                "analysis_status": "skipped", "reason": "blocked_by_scope"}, execution_time=0.0)
         timeout = self.module_timeouts.get(module_name, 60)
         start_time = time.time()
 
@@ -356,7 +376,9 @@ class DomainAnalyzer:
                 if stdout_router:
                     stdout_router.unmute_current_thread()
 
-        thread = threading.Thread(target=execute_module, daemon=True)
+        # A timed-out worker retains its original scope/trace in later batch scans.
+        action_context = copy_context()
+        thread = threading.Thread(target=action_context.run, args=(execute_module,), daemon=True)
         thread.start()
         thread.join(timeout)
 
@@ -383,15 +405,15 @@ class DomainAnalyzer:
             self.logger.error(
                 f"{module_name} analysis failed",
                 domain=domain,
-                error=str(error),
+                error=redact(str(error)),
                 execution_time=execution_time,
             )
 
             return ModuleExecutionResult(
                 success=False,
-                result=self._get_fallback_result(module_name, "error", str(error)),
+                result=self._get_fallback_result(module_name, "error", redact(str(error))),
                 execution_time=execution_time,
-                error_message=str(error),
+                error_message=redact(str(error)),
             )
 
         else:
@@ -446,7 +468,7 @@ class DomainAnalyzer:
             result = module(domain)
             if not isinstance(result, dict):
                 raise Exception("Invalid WHOIS result")
-            if result.get("error"):
+            if result.get("error") and result.get("analysis_status") != "skipped":
                 raise Exception(str(result["error"]))
             result.setdefault("analysis_status", "abgeschlossen")
             return result
@@ -529,7 +551,7 @@ class DomainAnalyzer:
             "analysis_status": "failed",
             "error": error_details,
             "failure_type": failure_type,
-            "failure_timestamp": datetime.now().isoformat(),
+            "failure_timestamp": utc_now().isoformat(),
         }
 
         domain = (

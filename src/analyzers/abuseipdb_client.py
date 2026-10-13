@@ -9,6 +9,11 @@ import requests
 
 from ..config.api_config import SecureAPIManager
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
+from src.core.redactor import redact
+
 
 class AbuseIPDBClient:
     """
@@ -46,7 +51,7 @@ class AbuseIPDBClient:
             endpoint = f"{self.config.base_url}/check"
             params = {"ipAddress": ip_address, "maxAgeInDays": 90, "verbose": True}
 
-            response = self.session.get(endpoint, params=params, timeout=30)
+            response = guarded_request(self.session.get, endpoint, params=params, timeout=30, tool='abuseipdb_client')
             response.raise_for_status()
 
             data = response.json()["data"]
@@ -75,7 +80,7 @@ class AbuseIPDBClient:
         except Exception as error:
             return {
                 "analysis_status": "failed",
-                "error": str(error),
+                "error": redact(str(error)),
                 "ip_address": ip_address,
                 "associated_domain": domain,
                 "api_status": "error",

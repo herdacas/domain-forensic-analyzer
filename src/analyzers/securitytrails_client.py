@@ -9,6 +9,9 @@ from typing import Any, Dict, List
 
 import requests
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.config.api_config import SecureAPIManager
@@ -86,7 +89,7 @@ class SecurityTrailsClient:
         """Get basic domain information"""
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}"
-            response = self.session.get(endpoint, timeout=30)
+            response = guarded_request(self.session.get, endpoint, timeout=30, tool='securitytrails_client')
             if response.status_code in (402, 429):
                 return {"status": "quota_exceeded"}
             response.raise_for_status()
@@ -109,7 +112,7 @@ class SecurityTrailsClient:
         try:
             # Get A record history (most important)
             a_endpoint = f"{self.config.base_url}/history/{domain}/dns/a"
-            a_response = self.session.get(a_endpoint, timeout=30)
+            a_response = guarded_request(self.session.get, a_endpoint, timeout=30, tool='securitytrails_client')
 
             if a_response.status_code == 429:
                 historical_data["status"] = "quota_exceeded"
@@ -132,7 +135,7 @@ class SecurityTrailsClient:
             time.sleep(0.5)
 
             mx_endpoint = f"{self.config.base_url}/history/{domain}/dns/mx"
-            mx_response = self.session.get(mx_endpoint, timeout=30)
+            mx_response = guarded_request(self.session.get, mx_endpoint, timeout=30, tool='securitytrails_client')
 
             if mx_response.status_code == 429:
                 historical_data["status"] = "quota_exceeded"
@@ -161,7 +164,7 @@ class SecurityTrailsClient:
         """Get subdomain intelligence"""
         try:
             endpoint = f"{self.config.base_url}/domain/{domain}/subdomains"
-            response = self.session.get(endpoint, timeout=30)
+            response = guarded_request(self.session.get, endpoint, timeout=30, tool='securitytrails_client')
             if response.status_code in (402, 429):
                 return {"status": "quota_exceeded"}
             response.raise_for_status()

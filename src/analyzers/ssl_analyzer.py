@@ -15,6 +15,13 @@ import ssl
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.redactor import redact
+
+from src.core.scope_guard import check_and_trace
+
 logger = logging.getLogger("ssl_analyzer")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False
@@ -53,7 +60,7 @@ class SSLAnalyzer:
 
         if cert_der is None:
             return {
-                "analysis_status": "abgeschlossen",
+                "analysis_status": "skipped" if tls_version == "blocked_by_scope" else "abgeschlossen",
                 "domain": domain,
                 "available": False,
                 "error": tls_version,
@@ -80,6 +87,10 @@ class SSLAnalyzer:
                 ctx.verify_mode = ssl.CERT_NONE
 
             try:
+                # Gate each TLS attempt, including the unverified fallback.
+                if not check_and_trace("tls", f"TLS {domain}:443 verify={verify}", domain,
+                                       tool="ssl", method="tls", port=443):
+                    return None, "blocked_by_scope", False
                 with socket.create_connection(
                     (domain, 443), timeout=self.TIMEOUT
                 ) as sock:
@@ -88,7 +99,7 @@ class SSLAnalyzer:
                         tls_version = conn.version() or "Unknown"
                         return cert_der, tls_version, verify
             except ssl.SSLError as exc:
-                last_error = str(exc)[:120]
+                last_error = redact(str(exc))[:120]
                 if verify:
                     continue
             except (socket.timeout, TimeoutError):
@@ -96,9 +107,9 @@ class SSLAnalyzer:
             except ConnectionRefusedError:
                 return None, "port 443 unreachable", False
             except OSError as exc:
-                return None, str(exc)[:120], False
+                return None, redact(str(exc))[:120], False
             except Exception as exc:
-                last_error = str(exc)[:120]
+                last_error = redact(str(exc))[:120]
                 if verify:
                     continue
 
@@ -122,12 +133,12 @@ class SSLAnalyzer:
                 "analysis_status": "abgeschlossen",
                 "domain": domain,
                 "available": True,
-                "parse_error": str(exc)[:120],
+                "parse_error": redact(str(exc))[:120],
                 "tls_version": tls_version,
                 "verified": verified,
             }
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
 
         valid_from = x509.not_valid_before_utc
         valid_until = x509.not_valid_after_utc

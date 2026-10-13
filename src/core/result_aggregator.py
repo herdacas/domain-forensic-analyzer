@@ -4,11 +4,13 @@ Result Aggregator for Domain Forensic Analyzer.
 
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from src.core.risk_assessment import assess_domain_risk
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
 
 
 class ConfidenceLevel(Enum):
@@ -234,7 +236,7 @@ class ResultAggregator:
 
         result = UnifiedResult(
             domain=domain,
-            analysis_timestamp=datetime.now().isoformat(),
+            analysis_timestamp=utc_now().isoformat(),
             total_execution_time=execution_time,
             modules_executed=modules_executed,
             modules_successful=modules_successful,
@@ -357,7 +359,7 @@ class ResultAggregator:
                     confidence=ConfidenceLevel.HIGH,
                     source=DataSource.SUBDOMAIN_SCAN,
                     metadata=asset,
-                    discovered_at=datetime.now().isoformat(),
+                    discovered_at=utc_now().isoformat(),
                 )
             )
 
@@ -556,7 +558,7 @@ class ResultAggregator:
     ) -> Dict[str, str]:
         """Return timestamp of each successfully completed module."""
         freshness = {}
-        current_time = datetime.now().isoformat()
+        current_time = utc_now().isoformat()
 
         for module_name, result in module_results.items():
             if result.get("analysis_status") == "abgeschlossen":

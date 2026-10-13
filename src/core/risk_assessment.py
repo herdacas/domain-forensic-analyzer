@@ -3,6 +3,9 @@
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Tuple
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
 if TYPE_CHECKING:
     from src.core.result_aggregator import UnifiedResult
 
@@ -28,7 +31,7 @@ def assess_domain_risk(result: "UnifiedResult") -> Tuple[str, List[str], str]:
             date_str = str(creation_raw)[:10]
             created_dt = datetime.strptime(date_str, "%Y-%m-%d")
             age_days = (
-                datetime.now(timezone.utc).replace(tzinfo=None) - created_dt
+                utc_now().replace(tzinfo=None) - created_dt
             ).days
             if age_days < 30:
                 risk_factors.append(f"whois: Newly registered domain ({age_days} days old)")

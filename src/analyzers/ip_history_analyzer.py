@@ -19,6 +19,11 @@ import requests
 
 from ..utils.api_key_reader import APIKeyReader
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
+from src.core.redactor import redact
+
 logger = logging.getLogger("ip_history_analyzer")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False
@@ -95,10 +100,11 @@ class IPHistoryAnalyzer:
 
         url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}/resolutions"
         try:
-            response = self.session.get(
+            response = guarded_request(self.session.get,
                 url,
                 headers={"x-apikey": self.virustotal_api_key},
                 timeout=25,
+                tool="ip_history_analyzer",
             )
             if response.status_code == 429:
                 return {"status": "quota_exceeded", "domains": []}
@@ -120,13 +126,13 @@ class IPHistoryAnalyzer:
             return {"status": "success", "domains": domains, "count": len(domains)}
 
         except Exception as error:
-            return {"status": "error", "error": str(error), "domains": []}
+            return {"status": "error", "error": redact(str(error)), "domains": []}
 
     def _query_robtex_reverse(self, ip: str) -> Dict[str, Any]:
         """GET /ipquery/{ip} — passive reverse-IP from RobTex (no key required)."""
         url = f"https://freeapi.robtex.com/ipquery/{ip}"
         try:
-            response = self.session.get(url, timeout=20)
+            response = guarded_request(self.session.get, url, timeout=20, tool='ip_history_analyzer')
             if response.status_code == 404:
                 return {"status": "not_found", "domains": []}
             response.raise_for_status()
@@ -157,13 +163,13 @@ class IPHistoryAnalyzer:
             }
 
         except Exception as error:
-            return {"status": "error", "error": str(error), "domains": []}
+            return {"status": "error", "error": redact(str(error)), "domains": []}
 
     def _query_hackertarget_reverse(self, ip: str) -> Dict[str, Any]:
         """GET /reverseiplookup/?q={ip} — plain-text reverse-IP from HackerTarget."""
         url = f"https://api.hackertarget.com/reverseiplookup/?q={ip}"
         try:
-            response = self.session.get(url, timeout=20)
+            response = guarded_request(self.session.get, url, timeout=20, tool='ip_history_analyzer')
             text = response.text.strip()
 
             # HackerTarget signals rate-limit or errors inside the body
@@ -187,7 +193,7 @@ class IPHistoryAnalyzer:
             }
 
         except Exception as error:
-            return {"status": "error", "error": str(error), "domains": []}
+            return {"status": "error", "error": redact(str(error)), "domains": []}
 
     # ------------------------------------------------------------------
     # Helpers

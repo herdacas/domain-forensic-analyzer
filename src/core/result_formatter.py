@@ -9,6 +9,9 @@ from src.core.result_aggregator import UnifiedResult
 from src.core.risk_assessment import assess_domain_risk as _compute_risk_summary
 from src.utils.colors import Colors
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
 
 
 def _display_traceroute_details(
@@ -606,7 +609,7 @@ def _render_dns_history_block(
                 ip_first_str = min(ip_dates)[:10]
                 try:
                     ip_dt = datetime.strptime(ip_first_str, "%Y-%m-%d")
-                    days_ago = (datetime.now() - ip_dt).days
+                    days_ago = (utc_now().replace(tzinfo=None) - ip_dt).days
                     if days_ago < 365:
                         age_label = "relatively recent"
                     elif days_ago < 3 * 365:
@@ -2118,7 +2121,7 @@ def display_forensic_header(domain: str, start_time: datetime) -> dict:
     print(f"{Colors.investigation_separator(80)}")
 
     print(
-        f"Analysis Timestamp: {Colors.highlight(start_time.strftime('%Y-%m-%d %H:%M:%S UTC'))}"
+        f"Analysis Timestamp: {Colors.highlight(start_time.isoformat())}"
     )
     print(f"Target Domain: {Colors.warning(domain.upper())}")
     print(f"Session ID: {Colors.info(session_id)}")

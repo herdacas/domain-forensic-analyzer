@@ -9,6 +9,9 @@ import requests
 from ..config.api_config import SecureAPIManager
 from ..utils.api_helpers import api_error_response
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
 
 class VirusTotalClient:
     """VirusTotal API client for domain and IP threat intelligence."""
@@ -39,7 +42,7 @@ class VirusTotalClient:
             # Domain Analysis Endpoint
             endpoint = f"{self.config.base_url}/domains/{domain}"
 
-            response = self.session.get(endpoint, timeout=30)
+            response = guarded_request(self.session.get, endpoint, timeout=30, tool='virustotal_client')
             response.raise_for_status()
 
             data = response.json()["data"]

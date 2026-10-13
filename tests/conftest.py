@@ -3,6 +3,36 @@
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolated_network_and_action_runtime(monkeypatch):
+    """Tests use mocked transports; no customer target is contacted by the suite."""
+    import socket
+    from src.core import action_tracer, scope_guard
+
+    def offline(*args, **kwargs):
+        raise OSError("Live network disabled during tests")
+
+    monkeypatch.setattr(socket.socket, "connect", offline)
+    monkeypatch.setattr(socket.socket, "sendto", offline)
+    # libc resolver calls bypass Python socket.connect, so block these too.
+    monkeypatch.setattr(socket, "gethostbyname", offline)
+    monkeypatch.setattr(socket, "getaddrinfo", offline)
+    monkeypatch.setattr(socket, "gethostbyaddr", offline)
+    monkeypatch.setattr(socket, "getfqdn", offline)
+    # Each test starts without state left behind by another scan/test.
+    monkeypatch.setattr(action_tracer, "TRACE_FILE", None)
+    monkeypatch.setattr(scope_guard, "_scope", None)
+    monkeypatch.setattr(scope_guard, "_source_ip", "")
+    monkeypatch.setattr(scope_guard, "_next_action", 0.0)
+    trace_token = action_tracer._trace_context.set(None)
+    policy_token = scope_guard._policy_context.set(None)
+    source_token = scope_guard._source_context.set(None)
+    yield
+    action_tracer._trace_context.reset(trace_token)
+    scope_guard._policy_context.reset(policy_token)
+    scope_guard._source_context.reset(source_token)
+
+
 # ---------------------------------------------------------------------------
 # Mock API responses
 # ---------------------------------------------------------------------------

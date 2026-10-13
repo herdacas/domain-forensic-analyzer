@@ -9,8 +9,14 @@ import json
 import os
 import sys
 import urllib.request
-from datetime import datetime
 from typing import Any, Dict, Optional
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.redactor import redact
+
+from src.core.guarded_http import guarded_urlopen
 
 # Foundation-Module importieren
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -278,7 +284,7 @@ class CDNDetector:
             "ip_address": ip_address,
             "domain": domain,
             "rdns_hostname": rdns_hostname,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "provider_detected": None,
             "provider_name": None,
             "infrastructure_type": None,
@@ -361,7 +367,7 @@ class CDNDetector:
             req = urllib.request.Request(url)
             req.add_header("User-Agent", "Domain-Forensic-Analyzer/3.4")
 
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:  # nosec B310 -- URL built from validated IP address, file:/ scheme not possible
+            with guarded_urlopen(req, timeout=self.api_timeout, tool="cdn_geolocation") as response:  # nosec B310 -- URL built from validated IP address, file:/ scheme not possible
                 data = json.loads(response.read().decode())
 
                 if data.get("status") == "success":
@@ -379,11 +385,11 @@ class CDNDetector:
                 return {"status": "failed", "error": "API returned failure status"}
 
         except urllib.error.URLError as error:
-            return {"status": "error", "error": f"Network error: {str(error)}"}
+            return {"status": "error", "error": f"Network error: {redact(str(error))}"}
         except json.JSONDecodeError:
             return {"status": "error", "error": "JSON parsing failed"}
         except Exception as error:
-            return {"status": "error", "error": str(error)}
+            return {"status": "error", "error": redact(str(error))}
 
     def get_results(self) -> Dict[str, Any]:
         """

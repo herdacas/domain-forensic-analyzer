@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 
 from ..utils.api_key_reader import APIKeyReader
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
+from src.core.redactor import redact
+
+from src.core.scope_guard import check_and_trace, ScopeBlocked
+
 logger = logging.getLogger("whois_module")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False
@@ -127,6 +134,9 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
     """Query WHOIS via python-whois (no API key required). Used as fallback."""
     logger.info("WHOIS (lokal) - Abfrage fuer %s", domain)
     try:
+        # python-whois performs network I/O internally.
+        if not check_and_trace("whois", f"WHOIS {domain}", domain, tool="python-whois", method="whois", port=43):
+            return {"domain": domain, "analysis_status": "skipped", "reason": "blocked_by_scope"}
         w = whois.whois(domain)
 
         result = {
@@ -152,11 +162,11 @@ def get_whois_local(domain: str) -> Dict[str, Any]:
         return result
 
     except Exception as e:
-        logger.warning("WHOIS lokal fehlgeschlagen fuer %s: %s", domain, e)
+        logger.warning("WHOIS lokal fehlgeschlagen fuer %s: %s", domain, redact(str(e)))
         return {
             "source": "python-whois (lokal)",
             "domain": domain.lower(),
-            "error": str(e),
+            "error": redact(str(e)),
         }
 
 
@@ -180,13 +190,13 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
 
     logger.info("WHOIS (WhoisXML API) - Abfrage fuer %s", domain)
     try:
-        response = requests.get(url, params=params, timeout=20)
+        response = guarded_request(requests.get, url, params=params, timeout=20, tool='whois')
         response.raise_for_status()
         data = response.json()
 
         if "ErrorMessage" in data:
             err = data["ErrorMessage"]["msg"]
-            logger.warning("WhoisXML API Fehler fuer %s: %s", domain, err)
+            logger.warning("WhoisXML API Fehler fuer %s: %s", domain, redact(err))
             return {"source": "WhoisXML API", "error": err}
 
         record = data.get("WhoisRecord", {})
@@ -226,12 +236,14 @@ def get_whois_xmlapi(domain: str) -> Dict[str, Any]:
         logger.debug("WHOIS WhoisXML API erfolgreich fuer %s", domain)
         return result
 
+    except ScopeBlocked:
+        return {"source": "WhoisXML API", "domain": domain, "analysis_status": "skipped", "reason": "blocked_by_scope"}
     except requests.exceptions.RequestException as e:
-        logger.warning("WHOIS WhoisXML API Request-Fehler fuer %s: %s", domain, e)
-        return {"source": "WhoisXML API", "error": str(e)}
+        logger.warning("WHOIS WhoisXML API Request-Fehler fuer %s: %s", domain, redact(str(e)))
+        return {"source": "WhoisXML API", "error": redact(str(e))}
     except Exception as e:
-        logger.error("Unerwarteter Fehler bei WhoisXML API fuer %s: %s", domain, e)
-        return {"source": "WhoisXML API", "error": str(e)}
+        logger.error("Unerwarteter Fehler bei WhoisXML API fuer %s: %s", domain, redact(str(e)))
+        return {"source": "WhoisXML API", "error": redact(str(e))}
 
 
 def get_whois(domain: str) -> Dict[str, Any]:

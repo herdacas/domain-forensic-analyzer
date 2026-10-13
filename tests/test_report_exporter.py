@@ -37,7 +37,8 @@ def test_cli_main_passes_captured_console_to_exporter(tmp_path, monkeypatch):
     exporter = ReportExporter(tmp_path)
     monkeypatch.setattr(exporter_module, "ReportExporter", lambda: exporter)
     monkeypatch.setattr(cli, "get_domain_input", lambda: "example.com")
-    monkeypatch.setattr(cli, "DomainAnalyzer", lambda: analyzer)
+    # CLI passes the already initialized session so metadata shares its trace.
+    monkeypatch.setattr(cli, "DomainAnalyzer", lambda **kwargs: analyzer)
     monkeypatch.setattr(cli, "display_forensic_header",
                         lambda *args: (print("HEADER-LINE") or {"session_id": "s1"}))
     monkeypatch.setattr(cli, "display_forensic_summary", lambda *args: print("SUMMARY-LINE"))
@@ -63,7 +64,7 @@ def test_batch_writes_individual_and_consolidated_reports(tmp_path, monkeypatch)
     analyzer = MagicMock()
     analyzer.analyze_domain.return_value = result
     exporter = ReportExporter(tmp_path)
-    monkeypatch.setattr(domain_analyzer, "DomainAnalyzer", lambda: analyzer)
+    monkeypatch.setattr(domain_analyzer, "DomainAnalyzer", lambda **kwargs: analyzer)
     monkeypatch.setattr(exporter_module, "ReportExporter", lambda: exporter)
     monkeypatch.setattr(formatter, "display_forensic_header", lambda *args: {"session_id": "test"})
     monkeypatch.setattr(formatter, "display_forensic_summary",

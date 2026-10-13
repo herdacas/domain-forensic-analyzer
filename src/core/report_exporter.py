@@ -17,6 +17,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.redactor import redact, redact_data
+
 # ---------------------------------------------------------------------------
 # JSON serialisation
 # ---------------------------------------------------------------------------
@@ -204,7 +207,7 @@ class ReportExporter:
             # Raw console capture (audit trail) — on by default, off with debug=False
             if self.debug and raw_console_output:
                 (self.raw_dir / f"{base}.txt").write_text(
-                    raw_console_output, encoding="utf-8", errors="replace"
+                    redact(raw_console_output), encoding="utf-8", errors="replace"
                 )
 
             # Structured JSON report (always written)
@@ -217,6 +220,7 @@ class ReportExporter:
                 "timestamp": ts.isoformat() if isinstance(ts, datetime) else str(ts),
                 "domain": domain,
                 "session_id": meta.get("session_id"),
+                "trace_file": meta.get("trace_file"),
                 "scan_duration_seconds": round(scan_duration, 2),
                 "analyst": {
                     "external_ip": meta.get("external_ip"),
@@ -228,7 +232,7 @@ class ReportExporter:
             }
 
             (self.reports_dir / f"{base}.json").write_text(
-                json.dumps(payload, indent=2, ensure_ascii=False, cls=_SafeEncoder),
+                json.dumps(redact_data(payload), indent=2, ensure_ascii=False, cls=_SafeEncoder),
                 encoding="utf-8",
             )
 
@@ -294,6 +298,7 @@ class ReportExporter:
                         "domain": rec["domain"],
                         "status": rec["status"],
                         "session_id": meta.get("session_id"),
+                        "trace_file": meta.get("trace_file"),
                         "scan_duration_seconds": round(rec.get("duration_s", 0), 2),
                         "analyst": {
                             "external_ip": meta.get("external_ip"),
@@ -326,7 +331,7 @@ class ReportExporter:
             }
 
             (self.batch_dir / filename).write_text(
-                json.dumps(payload, indent=2, ensure_ascii=False, cls=_SafeEncoder),
+                json.dumps(redact_data(payload), indent=2, ensure_ascii=False, cls=_SafeEncoder),
                 encoding="utf-8",
             )
 

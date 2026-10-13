@@ -23,6 +23,13 @@ import requests
 
 from ..utils.api_key_reader import APIKeyReader
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.guarded_http import guarded_request
+
+from src.core.redactor import redact
+
 logger = logging.getLogger("dns_history_analyzer")
 logger.addHandler(logging.NullHandler())
 logger.propagate = False
@@ -146,7 +153,7 @@ class DNSHistoryAnalyzer:
         """
         endpoint = f"https://freeapi.robtex.com/pdns/forward/{domain}"
         try:
-            response = self.session.get(endpoint, timeout=20)
+            response = guarded_request(self.session.get, endpoint, timeout=20, tool='dns_history_analyzer')
             if response.status_code == 404:
                 return {
                     "status": "failed",
@@ -160,7 +167,7 @@ class DNSHistoryAnalyzer:
                 "status": "failed",
                 "label": "RobTex",
                 "events": [],
-                "error": str(error),
+                "error": redact(str(error)),
             }
 
         events = []
@@ -224,7 +231,7 @@ class DNSHistoryAnalyzer:
                 f"{self.securitytrails_base_url}/history/{domain}/dns/{record_type}"
             )
             try:
-                response = self.session.get(endpoint, headers=headers, timeout=25)
+                response = guarded_request(self.session.get, endpoint, headers=headers, timeout=25, tool='dns_history_analyzer')
                 if response.status_code == 404:
                     continue
                 if response.status_code == 429:
@@ -287,7 +294,7 @@ class DNSHistoryAnalyzer:
         endpoint = f"{self.virustotal_base_url}/domains/{domain}/resolutions"
 
         try:
-            response = self.session.get(endpoint, headers=headers, timeout=25)
+            response = guarded_request(self.session.get, endpoint, headers=headers, timeout=25, tool='dns_history_analyzer')
             response.raise_for_status()
             payload = response.json()
         except Exception as error:
@@ -295,7 +302,7 @@ class DNSHistoryAnalyzer:
                 "status": "failed",
                 "label": "VirusTotal",
                 "events": [],
-                "error": str(error),
+                "error": redact(str(error)),
             }
 
         grouped_by_date: Dict[str, Set[str]] = {}
@@ -346,11 +353,12 @@ class DNSHistoryAnalyzer:
         """
         endpoint = f"https://api.mnemonic.no/pdns/v3/{domain}"
         try:
-            response = self.session.get(
+            response = guarded_request(self.session.get,
                 endpoint,
                 params={"limit": 1000},
                 headers={"User-Agent": "Domain-Forensic-Analyzer/1.0"},
                 timeout=20,
+                tool="dns_history_analyzer",
             )
             if response.status_code == 404:
                 return {
@@ -368,7 +376,7 @@ class DNSHistoryAnalyzer:
                 "status": "failed",
                 "label": "Mnemonic",
                 "events": [],
-                "error": str(error),
+                "error": redact(str(error)),
             }
 
         events = []
@@ -414,7 +422,7 @@ class DNSHistoryAnalyzer:
         last_error: Optional[Exception] = None
         for attempt in range(1, max_retries + 2):
             try:
-                response = self.session.get(endpoint, params=params, timeout=25)
+                response = guarded_request(self.session.get, endpoint, params=params, timeout=25, tool='dns_history_analyzer')
                 response.raise_for_status()
                 payload = response.json()
                 break
@@ -478,7 +486,7 @@ class DNSHistoryAnalyzer:
         last_error: Optional[Exception] = None
         for attempt in range(1, max_retries + 2):
             try:
-                response = self.session.get(endpoint, params=params, timeout=25)
+                response = guarded_request(self.session.get, endpoint, params=params, timeout=25, tool='dns_history_analyzer')
                 response.raise_for_status()
                 payload = response.json()
                 break
@@ -601,7 +609,7 @@ class DNSHistoryAnalyzer:
             "label": "Native Fallback",
             "events": [
                 self._make_event(
-                    event_date=datetime.now(timezone.utc).isoformat(),
+                    event_date=utc_now().isoformat(),
                     change_type="Current DNS baseline",
                     record_type="BASELINE",
                     source="Native Fallback",

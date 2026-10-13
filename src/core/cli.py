@@ -1,12 +1,17 @@
 """CLI entry point for Domain Forensic Analyzer (single-domain mode)."""
 
 import sys
-from datetime import datetime
 
 from src.core.domain_analyzer import DomainAnalyzer
 from src.core.result_formatter import display_forensic_header, display_forensic_summary
 from src.utils.colors import Colors
 from src.utils.validators import DomainValidator
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from pathlib import Path
+from src.core.scan_runtime import initialize_scan_runtime
 
 
 def get_domain_input() -> str:
@@ -55,7 +60,7 @@ def main():
     """Main program entry point with forensic metadata collection"""
     from src.core.report_exporter import ReportExporter, capture_console
 
-    analysis_start_time = datetime.now()
+    analysis_start_time = utc_now()
     exporter = ReportExporter()
     forensic_metadata: dict = {}
     result = None
@@ -65,9 +70,13 @@ def main():
 
         # Everything printed for this scan is teed into the raw report.
         with capture_console() as console_buffer:
+            # Metadata performs HTTP/DNS too, so initialize its guard first.
+            session_id, trace_file = initialize_scan_runtime(
+                Path(__file__).resolve().parents[2], analysis_start_time.strftime("%Y%m%d-%H%M%S"))
             forensic_metadata = display_forensic_header(domain, analysis_start_time)
+            forensic_metadata["trace_file"] = str(trace_file)
 
-            analyzer = DomainAnalyzer()
+            analyzer = DomainAnalyzer(session_id=session_id, runtime_initialized=True)
 
             if hasattr(analyzer, "logger"):
                 analyzer.logger.info(
@@ -90,7 +99,7 @@ def main():
                 domain=domain,
                 result=result,
                 forensic_metadata=forensic_metadata,
-                scan_duration=(datetime.now() - analysis_start_time).total_seconds(),
+                scan_duration=(utc_now() - analysis_start_time).total_seconds(),
                 raw_console_output=console_buffer.getvalue(),
             )
 

@@ -8,8 +8,13 @@ import socket
 import string
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from contextvars import copy_context
 from typing import Any, Dict, List, Optional
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.scope_guard import require_action
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config.settings import get_settings
@@ -84,7 +89,7 @@ class SubdomainScanner:
 
         results = {
             'domain': clean_domain,
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': utc_now().isoformat(),
             'wildcard_detected': False,
             'total_subdomains_tested': 0,
             'discovered_assets': [],
@@ -131,6 +136,8 @@ class SubdomainScanner:
             old_timeout = socket.getdefaulttimeout()
             try:
                 socket.setdefaulttimeout(3)
+                # Enumerated names are individual scope decisions too.
+                require_action("dns", f"A {test_subdomain}", test_subdomain, tool="subdomain", method="dns", port=53)
                 ip = socket.gethostbyname(test_subdomain)
                 resolved_ips.append(ip)
             except Exception:
@@ -150,6 +157,7 @@ class SubdomainScanner:
             old_timeout = socket.getdefaulttimeout()
             try:
                 socket.setdefaulttimeout(self.subdomain_timeout)
+                require_action("dns", f"A {full_domain}", full_domain, tool="subdomain", method="dns", port=53)
                 ip_address = socket.gethostbyname(full_domain)
                 return {
                     'subdomain': subdomain,
@@ -163,7 +171,8 @@ class SubdomainScanner:
                 socket.setdefaulttimeout(old_timeout)
 
         with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = {executor.submit(check_subdomain, s): s for s in subdomains_to_test}
+            # Each worker gets a separate copy of the originating scan context.
+            futures = {executor.submit(copy_context().run, check_subdomain, s): s for s in subdomains_to_test}
             for future in as_completed(futures):
                 result = future.result()
                 if result:

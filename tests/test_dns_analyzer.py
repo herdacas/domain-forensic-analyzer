@@ -220,7 +220,8 @@ def test_dns_forensics_bundle_builds_expected_records(monkeypatch):
     assert dkim["dkim"]["status"] == "selectors_found"
     assert caa["caa_records"][0]["value"] == "letsencrypt.org"
     assert dnssec["dnssec"]["status"] == "enabled"
-    assert axfr["zone_transfer"]["status"] == "not_allowed"
+    # A scope skip is distinct from an actually refused zone transfer.
+    assert axfr["zone_transfer"]["status"] == "blocked_by_scope"
     assert dns_assessment["dns_configuration_assessment"]["status"] == "well_hardened"
 
 

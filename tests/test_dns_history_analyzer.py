@@ -67,6 +67,9 @@ def test_virustotal_history_groups_same_day_resolutions():
     }
 
     class FakeResponse:
+        # The redirect guard inspects the real requests response status.
+        status_code = 200
+
         def raise_for_status(self):
             return None
 

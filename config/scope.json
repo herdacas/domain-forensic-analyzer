@@ -1,0 +1,53 @@
+{
+  "engagement_id": "",
+  "valid_from_utc": "",
+  "valid_until_utc": "",
+  "source_ips_allowed": [],
+  "targets_allowed": {
+    "domains": [],
+    "ips": [],
+    "ports": [],
+    "paths": []
+  },
+  "targets_denied": {
+    "domains": [],
+    "ips": [],
+    "comment": "Explizit verbotene Ziele — überschreiben allowed"
+  },
+  "hard_exclusions": {
+    "domains": [
+      "ns1.dns-parking.com",
+      "ns2.dns-parking.com",
+      "mail.protonmail.ch",
+      "protonmail.ch",
+      "proton.ch",
+      "stripe.com",
+      "api.openai.com",
+      "api.anthropic.com",
+      "api.mistral.ai",
+      "openai.azure.com",
+      "cognitiveservices.azure.com",
+      "nexmo.com",
+      "vonage.com",
+      "twilio.com",
+      "graph.microsoft.com",
+      "login.microsoftonline.com"
+    ],
+    "ips": [
+      "142.132.194.129"
+    ],
+    "cidrs": [],
+    "comment": "Absolute Sperren — Hoster-Gateway, Nameserver, Zahlungsdienstleister, KI-Modellanbieter"
+  },
+  "methods_allowed": [],
+  "methods_forbidden": [
+    "dos",
+    "ddos",
+    "brute_force",
+    "fuzzing",
+    "axfr",
+    "persistent_access"
+  ],
+  "rate_limit_req_per_sec": 20,
+  "notes": "Leere Allowlisten sind uneingeschränkt; Hard Exclusions gelten immer. AXFR erfordert methods_allowed und darf nicht in methods_forbidden stehen."
+}

@@ -11,6 +11,11 @@ from typing import Optional
 
 import requests
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.guarded_http import guarded_request
+
+from src.core.scope_guard import check_and_trace, set_source_ip
+
 # Interface names used by common VPN clients and WireGuard setups.
 _TUNNEL_NAME_PREFIXES = (
     "wg", "tun", "tap", "ppp", "utun", "ipsec",
@@ -30,9 +35,12 @@ def get_external_ip() -> str:
         ]
         for service in services:
             try:
-                response = requests.get(service, timeout=5)
+                response = guarded_request(requests.get, service, timeout=5, tool="external_ip", source_probe=True)
                 if response.status_code == 200:
-                    return response.text.strip()
+                    # Validate discovery data before using it as trace context.
+                    value = str(ipaddress.ip_address(response.text.strip()))
+                    set_source_ip(value)
+                    return value
             except Exception:
                 continue
         return "Unknown"
@@ -44,6 +52,9 @@ def get_local_ip() -> str:
     """Get our local IP address"""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # UDP connect only selects a local route; trace it nevertheless.
+            if not check_and_trace("local_route", "UDP route 8.8.8.8:80", "8.8.8.8", tool="metadata"):
+                return "Unknown"
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
     except Exception:
@@ -82,6 +93,9 @@ def detect_tunnel_interface(probe_ip: str = "8.8.8.8") -> Optional[str]:
     if platform.system() != "Linux":
         return None
     try:
+        # The command queries local routing state without sending a packet.
+        if not check_and_trace("subprocess", f"ip -o route get {probe_ip}", probe_ip, tool="ip", method="route"):
+            return None
         output = subprocess.run(
             ["ip", "-o", "route", "get", probe_ip],
             capture_output=True, text=True, timeout=3, check=False,
@@ -122,6 +136,8 @@ def assess_opsec_risk(external_ip: str, local_ip: str) -> dict:
 
     potential_vpn = bool(tunnel_interface)
     try:
+        if not check_and_trace("dns", f"PTR {external_ip}", external_ip, tool="metadata", method="dns"):
+            raise OSError("blocked_by_scope")
         rdns = socket.getfqdn(external_ip).lower()
         if any(
             k in rdns

@@ -10,11 +10,23 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests as _requests
 import urllib3
+
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.time_utils import utc_now
+
+from src.core.guarded_http import guarded_request
+
+from src.core.redactor import redact
+
+import shlex
+from urllib.parse import urljoin, urlsplit
+from src.core.scope_config import extract_host
+from src.core.scope_guard import check_and_trace
+from src.core.guarded_http import guarded_urlopen
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -64,7 +76,7 @@ class NetworkIntelligence:
         results = {
             'target_ip': ip_address,
             'target_domain': domain,
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': utc_now().isoformat(),
             'traceroute_data': {},
             'enhanced_network_path': [],
             'connectivity_test': {},
@@ -124,6 +136,9 @@ class NetworkIntelligence:
         """Platform-specific ping test."""
         try:
             cmd = ['ping', '-n', '3', ip_address] if self.is_windows else ['ping', '-c', '3', ip_address]
+            # Admission precedes process creation; skipped probes are explicit.
+            if not check_and_trace("subprocess", shlex.join(cmd), ip_address, tool="ping", method="ping"):
+                return {"reachable": False, "status": "blocked_by_scope"}
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=15,
                 encoding=self.encoding if self.is_windows else 'utf-8',
@@ -161,7 +176,7 @@ class NetworkIntelligence:
             try:
                 req = urllib.request.Request(f"{scheme}://{domain}")
                 req.add_header('User-Agent', 'Domain-Forensic-Analyzer/3.4')
-                with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
+                with guarded_urlopen(req, timeout=10, tool="http_connectivity") as response:  # nosec B310 -- URL built from validated domain, file:/ scheme not possible
                     if response.status == 200:
                         connectivity[key] = True
             except Exception:
@@ -193,7 +208,7 @@ class NetworkIntelligence:
         session.headers['User-Agent'] = 'Domain-Forensic-Analyzer/1.0'
 
         try:
-            r = session.get(f"http://{domain}", allow_redirects=False, timeout=10, verify=False)
+            r = guarded_request(session.get, f"http://{domain}", allow_redirects=False, timeout=10, verify=False, tool='network_intelligence')
             result['http_status'] = r.status_code
             if r.status_code in (301, 302, 303, 307, 308):
                 result['has_redirect'] = True
@@ -215,15 +230,18 @@ class NetworkIntelligence:
                 if url in visited:
                     break
                 visited.add(url)
-                resp = session.get(url, allow_redirects=False, timeout=10, verify=False)
+                resp = guarded_request(session.get, url, allow_redirects=False, timeout=10, verify=False, tool='network_intelligence')
                 if resp.status_code in (301, 302, 303, 307, 308):
                     location = resp.headers.get('Location', '')
                     if not location:
                         break
-                    if not location.startswith('http'):
-                        from urllib.parse import urlparse
-                        p = urlparse(url)
-                        location = f"{p.scheme}://{p.netloc}{location}"
+                    location = urljoin(url, location)
+                    if not check_and_trace("http_redirect", location, extract_host(location),
+                                           tool="http", method="http_get",
+                                           port=urlsplit(location).port or (443 if location.startswith("https:") else 80),
+                                           path=urlsplit(location).path or "/"):
+                        result["redirect_blocked_by_scope"] = True
+                        break
                     url = location
                 else:
                     final_resp = resp
@@ -332,6 +350,8 @@ class NetworkIntelligence:
         try:
             if self.is_windows:
                 cmd = [executable, '-h', str(self.max_traceroute_hops), '-w', str(self.traceroute_probe_timeout_ms), ip_address]
+                if not check_and_trace("subprocess", shlex.join(cmd), ip_address, tool=tool, method="traceroute"):
+                    return {"status": "blocked_by_scope", "hops": [], "total_hops": 0, **metadata}
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                     encoding=self.encoding, errors='replace',
@@ -357,6 +377,8 @@ class NetworkIntelligence:
                 cmd = ([executable, '-n', '-m', str(self.max_traceroute_hops), ip_address]
                        if use_tracepath else [executable, '-n', '-m', str(self.max_traceroute_hops),
                                               '-q', '1', '-w', '2', ip_address])
+                if not check_and_trace("subprocess", shlex.join(cmd), ip_address, tool=tool, method="traceroute"):
+                    return {"status": "blocked_by_scope", "hops": [], "total_hops": 0, **metadata}
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     text=True, encoding='utf-8', errors='replace',
@@ -400,7 +422,7 @@ class NetworkIntelligence:
             return {'status': 'unavailable', 'error': self._TRACEROUTE_INSTALL_HINT[self.is_windows],
                     'hops': [], 'total_hops': 0, **metadata}
         except Exception as error:
-            return {'status': 'error', 'error': str(error), **metadata}
+            return {'status': 'error', 'error': redact(str(error)), **metadata}
         finally:
             if process and process.poll() is None:
                 process.kill()

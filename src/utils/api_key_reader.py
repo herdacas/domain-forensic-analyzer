@@ -12,6 +12,9 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+# Central helpers keep action decisions and persisted metadata consistent.
+from src.core.redactor import register_secret
+
 
 class APIKeyReader:
     """Read one API key from env var or config/api_keys.json."""
@@ -30,6 +33,7 @@ class APIKeyReader:
         # 1. Environment variable (invalid placeholders fall back to file)
         env_val = os.getenv(self.env_var)
         if self._is_real_key(env_val):
+            register_secret(env_val.strip())
             return env_val.strip()  # type: ignore[union-attr]
 
         # 2. config/api_keys.json
@@ -50,7 +54,10 @@ class APIKeyReader:
             if isinstance(service_config, dict)
             else service_config
         )
-        return str(config_val).strip() if self._is_real_key(config_val) else None
+        value = str(config_val).strip() if self._is_real_key(config_val) else None
+        if value:
+            register_secret(value)  # Hide keys even in unlabeled exception text.
+        return value
 
     @classmethod
     def _is_real_key(cls, value: Optional[str]) -> bool:

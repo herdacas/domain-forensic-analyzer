@@ -55,4 +55,4 @@ where = ["."]
 include = ["src*", "config*"]
 
 [tool.setuptools.package-data]
-"config" = ["settings.py"]
+"config" = ["settings.py", "scope.json", "hard_exclusions_default.json"]
