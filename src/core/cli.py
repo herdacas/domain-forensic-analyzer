@@ -72,7 +72,8 @@ def main():
         with capture_console() as console_buffer:
             # Metadata performs HTTP/DNS too, so initialize its guard first.
             session_id, trace_file = initialize_scan_runtime(
-                Path(__file__).resolve().parents[2], analysis_start_time.strftime("%Y%m%d-%H%M%S"))
+                Path(__file__).resolve().parents[2], analysis_start_time.strftime("%Y%m%d-%H%M%S"),
+                target=domain)
             forensic_metadata = display_forensic_header(domain, analysis_start_time)
             forensic_metadata["trace_file"] = str(trace_file)
 

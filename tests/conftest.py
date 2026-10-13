@@ -7,7 +7,7 @@ import pytest
 def isolated_network_and_action_runtime(monkeypatch):
     """Tests use mocked transports; no customer target is contacted by the suite."""
     import socket
-    from src.core import action_tracer, scope_guard
+    from src.core import action_tracer, scope_guard, scan_runtime
 
     def offline(*args, **kwargs):
         raise OSError("Live network disabled during tests")
@@ -27,10 +27,12 @@ def isolated_network_and_action_runtime(monkeypatch):
     trace_token = action_tracer._trace_context.set(None)
     policy_token = scope_guard._policy_context.set(None)
     source_token = scope_guard._source_context.set(None)
+    target_token = scan_runtime._target_context.set(None)
     yield
     action_tracer._trace_context.reset(trace_token)
     scope_guard._policy_context.reset(policy_token)
     scope_guard._source_context.reset(source_token)
+    scan_runtime._target_context.reset(target_token)
 
 
 # ---------------------------------------------------------------------------

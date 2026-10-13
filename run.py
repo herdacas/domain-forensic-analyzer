@@ -90,7 +90,8 @@ def run_list_mode(file_path: str) -> None:
             with capture_console() as console_buffer:
                 # Every batch domain gets its own scope and metadata trace.
                 session_id, trace_file = initialize_scan_runtime(
-                    Path(__file__).resolve().parent, domain_start.strftime("%Y%m%d-%H%M%S"))
+                    Path(__file__).resolve().parent, domain_start.strftime("%Y%m%d-%H%M%S"),
+                    target=domain)
                 forensic_metadata = display_forensic_header(domain, domain_start)
                 forensic_metadata["trace_file"] = str(trace_file)
                 analyzer = DomainAnalyzer(session_id=session_id, runtime_initialized=True)

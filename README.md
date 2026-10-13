@@ -7,7 +7,7 @@
 A terminal-based OSINT tool for comprehensive domain reconnaissance and forensic investigation.
 This README describes **`dfapentesting`**, based on version 1.1.0, with UTC timestamps, redacted action traces and engine scope checks. See [Scope Configuration](#scope-configuration-dfapentesting) before a customer scan.
 
-Local implementation validation: **441 tests passed**, including 43 security regressions. The current workflow triggers pushes to `main`, `feature/**`, `fix/**` and `refactor/**`, or pull requests to `main`; a push to `dfapentesting` alone does not trigger it. The badge above refers to `main`. Historical platform validation is listed below.
+Local implementation validation: **447 tests passed**, including 43 security regressions. The current workflow triggers pushes to `main`, `feature/**`, `fix/**` and `refactor/**`, or pull requests to `main`; a push to `dfapentesting` alone does not trigger it. The badge above refers to `main`. Historical platform validation is listed below.
 
 It provides broad domain forensic intelligence — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Coverage depends on resolvers, installed tools, provider availability, and API credentials. Designed for security analysts, incident responders, and researchers; findings require analyst interpretation.
 
@@ -280,7 +280,7 @@ python run.py --list domains.txt
 ```
 
 No extra scope flag is required. Check `trace_file` in the JSON report, or open
-`logs/trace_<session_id>_<UTC-timestamp>_<suffix>.jsonl`. Each line contains
+`logs/<target>_<UTC-date-time>_<id>/trace.jsonl`. Each line contains
 `timestamp_utc`, `action_type`, `tool`, redacted `command`, `target`, known
 `source_ip`, `scope_decision` and `block_reason`.
 
@@ -318,10 +318,25 @@ Completed scans are exported to `reports/<id>_<domain>.json`. Console stdout is 
 
 Reports are written automatically—no flags needed.
 
+Every new measurement has its own directory under `logs/`, named with the
+effective scan target, UTC date/time and a collision-resistant ID. Both the
+session log and trace are stored there:
+
+```text
+logs/
+  example.com_2026-10-13_17-30-00Z_1a2b3c4d5e6f/
+    domain_analyzer.log
+    trace.jsonl
+```
+
+Batch scans create one such directory per domain. Repeated scans of the same
+domain receive separate directories even within the same second. The JSON
+report's `trace_file` points to the trace in its measurement directory.
+
 - Batch mode (`--list`) writes the same per-domain JSON and raw files, plus one consolidated `reports/batch/BATCH_<id>_<listname>.json`.
 - The console capture retains ANSI color codes but applies credential redaction. Muted worker output and separate stderr are not fully captured; it is not a complete subprocess trace.
-- `logs/trace_<session_id>_<UTC-timestamp>_<suffix>.jsonl` records pre-action scope decisions. JSON reports include `trace_file`.
-- `logs/domain_analyzer_<timestamp>.log` contains session messages and context when Loguru is available.
+- `logs/<target>_<UTC-date-time>_<id>/trace.jsonl` records pre-action scope decisions. JSON reports include `trace_file`.
+- `logs/<target>_<UTC-date-time>_<id>/domain_analyzer.log` contains session messages and context, including with the standard-logging fallback.
 - Timestamps are UTC with a timezone indication: report ISO timestamps include an offset, trace timestamps end in `Z`.
 - The CLI uses fixed project-root `reports/` and `logs/` paths; `OUTPUT_DIRECTORY` is not wired into the exporter.
 - `reports/` and `logs/` are git-ignored. They retain target, registrant and analyst metadata, including IPs. Redaction is not anonymization; treat them as engagement working data.

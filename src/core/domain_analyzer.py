@@ -13,7 +13,8 @@ from src.core.time_utils import utc_now
 
 from src.core.redactor import redact
 
-from src.core.scan_runtime import initialize_scan_runtime
+from src.core.scan_runtime import initialize_scan_runtime, create_measurement_dir, get_scan_target
+from src.core.action_tracer import get_trace_file, set_trace_file
 from src.core.redactor import redact_loguru_record
 from src.core.scope_guard import check_and_trace
 
@@ -61,16 +62,22 @@ except ImportError as error:
 class DomainAnalyzer:
     """Coordinates 11 analyzer modules: execution order, timeouts, and result aggregation."""
 
-    def __init__(self, session_id=None, runtime_initialized=False):
+    def __init__(self, session_id=None, runtime_initialized=False, target=None):
         self.platform = platform.system().lower()
         self.project_root = Path(__file__).parent.parent.parent
         # Initialize before DNS constructor probes or any analyzer traffic.
         if not runtime_initialized:
-            self.session_id, self.trace_file = initialize_scan_runtime(self.project_root, session_id)
+            self.session_id, self.trace_file = initialize_scan_runtime(self.project_root, session_id, target=target)
         else:
             self.session_id = session_id
-        self.logs_dir = self.project_root / "logs"
-        self.logs_dir.mkdir(exist_ok=True)
+            self.trace_file = get_trace_file()
+            if self.trace_file is None:
+                raise RuntimeError("Scan runtime must be initialized before creating its logger")
+        self._measurement_target = target or get_scan_target()
+        self._analysis_started = False
+        self.logs_dir = self.trace_file.parent
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.log_file = self.logs_dir / "domain_analyzer.log"
         self._setup_logging()
         self.modules = {}
         self.module_execution_order = [
@@ -96,12 +103,8 @@ class DomainAnalyzer:
     def _setup_logging(self) -> None:
         if LOGURU_AVAILABLE:
             logger.remove()
-            log_file = (
-                self.logs_dir
-                / f"domain_analyzer_{utc_now().strftime('%Y%m%d_%H%M%S')}.log"
-            )
             logger.add(
-                str(log_file),
+                str(self.log_file),
                 # UTC offset and extra fields make target/source context visible.
                 format="{time:YYYY-MM-DDTHH:mm:ss.SSSZ!UTC} | {level: <8} | {message} | {extra}",
                 filter=redact_loguru_record,
@@ -128,7 +131,45 @@ class DomainAnalyzer:
                         msg = f"{msg} | {context}"
                     return redact(msg), kwargs
 
-            self.logger = ContextLogger(logging.getLogger("DomainAnalyzer"), {})
+            # The fallback also writes a file in the same measurement folder.
+            file_logger = logging.getLogger(f"DomainAnalyzer.{self.logs_dir.name}")
+            file_logger.setLevel(logging.DEBUG)
+            for handler in list(file_logger.handlers):
+                file_logger.removeHandler(handler)
+                handler.close()
+            handler = logging.FileHandler(self.log_file, encoding="utf-8")
+            formatter = logging.Formatter("%(asctime)sZ | %(levelname)s | %(message)s",
+                                          datefmt="%Y-%m-%dT%H:%M:%S")
+            formatter.converter = time.gmtime
+            handler.setFormatter(formatter)
+            file_logger.addHandler(handler)
+            self.logger = ContextLogger(file_logger, {})
+
+    def _prepare_measurement(self, domain: str) -> None:
+        """Bind target-less API startup logs, or start a fresh repeated API scan."""
+        if not self._analysis_started and self._measurement_target == domain:
+            self._analysis_started = True
+            return
+        # Close file handles before moving an unnamed startup directory on Windows.
+        if LOGURU_AVAILABLE:
+            logger.remove()
+        else:
+            for handler in list(self.logger.logger.handlers):
+                self.logger.logger.removeHandler(handler)
+                handler.close()
+        if not self._analysis_started and self._measurement_target is None:
+            destination = create_measurement_dir(self.project_root, domain)
+            destination.rmdir()  # Rename the existing pair, retaining constructor traces.
+            self.logs_dir.rename(destination)
+            self.trace_file = destination / "trace.jsonl"
+            set_trace_file(self.trace_file)
+        else:
+            self.session_id, self.trace_file = initialize_scan_runtime(self.project_root, target=domain)
+        self.logs_dir = self.trace_file.parent
+        self.log_file = self.logs_dir / "domain_analyzer.log"
+        self._measurement_target = domain
+        self._analysis_started = True
+        self._setup_logging()
 
     def _initialize_system(self) -> None:
         if not CORE_MODULES_AVAILABLE:
@@ -176,6 +217,7 @@ class DomainAnalyzer:
             raise ValueError(f"Invalid domain format: {domain}")
 
         clean_domain = DomainValidator.clean_domain(domain)
+        self._prepare_measurement(clean_domain)  # One target owns each new log/trace pair.
         start_time = utc_now()
 
         self.logger.info("Starting multi-API domain analysis", domain=clean_domain)

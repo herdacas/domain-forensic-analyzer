@@ -13,6 +13,11 @@ _LOCK = threading.RLock()
 _trace_context = ContextVar("dfa_trace_file", default=None)
 
 
+def get_trace_file() -> Path | None:
+    """Expose the scan-local artifact path to the session logger."""
+    return _trace_context.get() or TRACE_FILE
+
+
 def set_trace_file(path: Path):
     """Open eagerly so an unwritable audit trail cannot silently allow a scan."""
     global TRACE_FILE
