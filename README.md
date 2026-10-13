@@ -333,6 +333,52 @@ Batch scans create one such directory per domain. Repeated scans of the same
 domain receive separate directories even within the same second. The JSON
 report's `trace_file` points to the trace in its measurement directory.
 
+
+### File formats and report references
+
+| File | Format and contents |
+|---|---|
+| `domain_analyzer.log` | UTF-8 plaintext session messages with UTC time, level and context |
+| `trace.jsonl` | UTF-8 JSON Lines; one standalone JSON object per recorded action/scope decision before execution |
+| `reports/<id>_<domain>.json` | Structured result with `scan_id`, `timestamp`, `domain`, `session_id`, `trace_file`, `scan_duration_seconds`, `analyst` and `result` |
+| `reports/raw/<id>_<domain>.txt` | Redacted captured console stdout, including ANSI codes |
+| `reports/batch/BATCH_<id>_<listname>.json` | Batch summary and per-domain entries under `scans` |
+
+`trace_file` is a top-level field in individual JSON reports and a field under
+`scans[]` in batch reports. It contains the trace path; the session log is in the
+same directory. JSON/TXT reports remain under `reports/`. Older files directly
+under `logs/` are not automatically migrated.
+
+A trace line has this schema (formatted here for readability; IPs are
+illustrative documentation addresses):
+
+```json
+{
+  "timestamp_utc": "2026-10-13T17:30:00Z",
+  "action_type": "subprocess",
+  "tool": "ping",
+  "command": "ping -c 3 192.0.2.10",
+  "target": "192.0.2.10",
+  "source_ip": "203.0.113.5",
+  "scope_decision": "allowed",
+  "block_reason": ""
+}
+```
+
+`allowed` records admission, not command success. `blocked` skips the action and
+records its reason. `no_scope_loaded` means engagement rules were not loaded,
+while default exclusions still apply. `source_ip` may be empty before discovery.
+The trace does not contain complete stdout, stderr, return codes or response
+bodies. Session messages, scope decisions and aggregated findings are separate
+artifacts.
+
+With Loguru, the session log rotates at 50 MB; additional rotated log files stay
+in the same measurement directory. The JSONL trace has no configured rotation.
+
+Optional OPSEC helper packages keep their own `ergebnisse/` measurement JSON,
+console logs and source-disclosure Markdown documents. Those outputs are
+separate from the engine's `logs/` and `reports/` directories.
+
 - Batch mode (`--list`) writes the same per-domain JSON and raw files, plus one consolidated `reports/batch/BATCH_<id>_<listname>.json`.
 - The console capture retains ANSI color codes but applies credential redaction. Muted worker output and separate stderr are not fully captured; it is not a complete subprocess trace.
 - `logs/<target>_<UTC-date-time>_<id>/trace.jsonl` records pre-action scope decisions. JSON reports include `trace_file`.
