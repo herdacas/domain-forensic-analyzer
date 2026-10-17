@@ -18,6 +18,7 @@ All notable changes to Domain Forensic Analyzer are documented here.
   `securitytrails: SecurityTrails API key not configured` entry to `source_errors`; the timeline
   sources are RobTex, Mnemonic, VirusTotal, AlienVault OTX and certificate transparency.
 - Rebased the OTX work (`5c608f7`, `0100432`) onto the `dfapentesting` line (v1.1.0 + pentest scope guards).
+- Verified: 465 tests pass; live scan (`iana.org`) runs 11/11 modules with APIs 6/6, OTX passive DNS and threat pulses populated, WHOIS via WhoisXML, SecurityTrails absent, pentest scope guard and trace active.
 
 ---
 
