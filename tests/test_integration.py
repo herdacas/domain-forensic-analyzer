@@ -140,7 +140,7 @@ def _make_module_mock_map():
         "subdomain": MOCK_SUBDOMAIN_RESULT,
         "virustotal": MOCK_VT_RESULT,
         "abuseipdb": MOCK_ABUSE_RESULT,
-        "securitytrails": MOCK_ST_RESULT,
+        "otx": MOCK_ST_RESULT,
         "dns_history": MOCK_DNS_HISTORY_RESULT,
         "ip_history": MOCK_IP_HISTORY_RESULT,
     }
@@ -240,7 +240,7 @@ class TestDomainAnalyzerIntegration:
 
     def test_get_fallback_result_for_all_modules(self, analyzer):
         for module in ["dns", "whois", "cdn", "network", "subdomain",
-                       "securitytrails", "abuseipdb", "virustotal", "ip_history", "ssl", "dns_history"]:
+                       "otx", "abuseipdb", "virustotal", "ip_history", "ssl", "dns_history"]:
             result = analyzer._get_fallback_result(module, "error", "test error")
             assert isinstance(result, dict)
             assert result["analysis_status"] == "failed"

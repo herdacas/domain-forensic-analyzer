@@ -4,7 +4,7 @@ from src.core.domain_analyzer import DomainAnalyzer
 from src.core.result_aggregator import DataSource, ResultAggregator
 
 ALL_MODULES = {"dns", "whois", "dns_history", "cdn", "network",
-               "subdomain", "ssl", "securitytrails", "abuseipdb",
+               "subdomain", "ssl", "otx", "abuseipdb",
                "virustotal", "ip_history"}
 
 
