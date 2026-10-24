@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Domain Forensic Analyzer Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Replay of a Domain Forensic Analyzer scan of example.com in the browser: terminal output, module status, OPSEC header and the JSON report.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="assets/demo.css">
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-name">Domain Forensic Analyzer</span>
+      <span class="chip chip-version">v1.1.0</span>
+      <span class="chip chip-demo">Demo</span>
+    </div>
+    <nav class="masthead-links" aria-label="Project links">
+      <a href="https://github.com/herdacas/domain-forensic-analyzer" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/herdacas/domain-forensic-analyzer#quick-start" target="_blank" rel="noopener">Quick start</a>
+    </nav>
+  </header>
+
+  <section class="intro">
+    <h1>Watch a scan of <span class="mono-inline">example.com</span></h1>
+    <p class="lede">
+      This page replays the four validation scans from the repository: the same domain, scanned from Linux and
+      Windows, once directly and once through a VPN. Your browser sends nothing to the target. The terminal shows
+      what the CLI prints, rendered by the v1.1 report code from the stored module results.
+    </p>
+  </section>
+
+  <section class="picker" aria-label="Choose a scan">
+    <span class="eyebrow" id="picker-label">Scan setup</span>
+    <div class="picker-options" role="radiogroup" aria-labelledby="picker-label" id="scenario-picker"></div>
+  </section>
+
+  <main class="workbench">
+    <section class="terminal-wrap" aria-label="Terminal replay">
+      <div class="terminal-bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="terminal-title" id="terminal-title">bash</span>
+        <div class="terminal-controls">
+          <button type="button" class="btn" id="btn-play">Pause</button>
+          <button type="button" class="btn" id="btn-restart">Restart</button>
+          <button type="button" class="btn" id="btn-skip">Show all</button>
+          <label class="speed" for="speed">
+            <span class="sr-only">Replay speed</span>
+            <select id="speed">
+              <option value="1">1×</option>
+              <option value="2" selected>2×</option>
+              <option value="4">4×</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="terminal" id="terminal" tabindex="0" aria-live="off" aria-label="Scan output"></div>
+    </section>
+
+    <aside class="inspector" aria-label="Scan inspector">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Session</h2>
+          <span class="mono small" id="session-id"></span>
+        </div>
+        <dl class="facts" id="session-facts"></dl>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Modules</h2>
+          <span class="small muted" id="module-count"></span>
+        </div>
+        <ol class="modules" id="module-list"></ol>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Domain risk</h2>
+          <span class="pill" id="risk-pill"></span>
+        </div>
+        <ul class="factors" id="risk-factors"></ul>
+        <p class="small muted" id="risk-note"></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Analyst OPSEC</h2>
+          <span class="pill" id="opsec-pill"></span>
+        </div>
+        <dl class="facts" id="opsec-facts"></dl>
+        <p class="small muted">Analyst IPs, hostname and username are masked. Public addresses use the RFC 5737 documentation ranges.</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="compare" aria-labelledby="compare-heading">
+    <div class="section-head">
+      <h2 id="compare-heading">What the VPN changes</h2>
+      <p>Same target, four network setups. The target only ever sees the external IP. On Linux the tool finds the tunnel interface of the internet route; on Windows it can only check the reverse DNS of the exit IP.</p>
+    </div>
+    <div class="table-scroll">
+      <table class="compare-table" id="compare-table"></table>
+    </div>
+  </section>
+
+  <section class="report" aria-labelledby="report-heading">
+    <div class="section-head">
+      <h2 id="report-heading">JSON report</h2>
+      <p>Every scan writes <span class="mono-inline">reports/&lt;id&gt;_&lt;domain&gt;.json</span>. This is the <span class="mono-inline">result</span> block for the selected scan. Expand a key to look inside.</p>
+    </div>
+    <div class="report-tools">
+      <label for="json-filter" class="sr-only">Filter top-level keys</label>
+      <input id="json-filter" type="search" placeholder="Filter keys, e.g. dns_info" autocomplete="off">
+      <button type="button" class="btn btn-quiet" id="btn-expand">Expand all top-level</button>
+      <button type="button" class="btn btn-quiet" id="btn-copy">Copy JSON</button>
+      <span class="small muted" id="copy-status" role="status"></span>
+    </div>
+    <div class="json-tree" id="json-tree"></div>
+    <textarea id="copy-fallback" class="sr-only" aria-hidden="true" tabindex="-1" readonly></textarea>
+  </section>
+
+  <section class="run-it" aria-labelledby="run-heading">
+    <div class="section-head">
+      <h2 id="run-heading">Run it yourself</h2>
+      <p>No API keys needed for a first scan. Active probes come from your IP, so read the VPN section of the README first if that matters for your target.</p>
+    </div>
+    <pre class="code-block" id="quickstart"><code>git clone https://github.com/herdacas/domain-forensic-analyzer.git
+cd domain-forensic-analyzer
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+python3 run.py example.com</code></pre>
+  </section>
+
+  <footer class="colophon">
+    <p>Scan data: <span class="mono-inline">docs/examples/*.json</span>, recorded on 2026-09-11 during the cross-platform validation. Rebuilt with <span class="mono-inline">python scripts/build_demo.py</span>. Per-module run times are not stored in the reports, so the replay paces modules evenly; the total time is the recorded one.</p>
+  </footer>
+</div>
+
+<script src="data/scenarios.js"></script>
+<script src="assets/demo.js"></script>
+</body>
+</html>

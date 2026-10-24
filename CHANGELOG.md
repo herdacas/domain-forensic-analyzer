@@ -4,6 +4,10 @@ All notable changes to Domain Forensic Analyzer are documented here.
 
 ---
 
+## [Unreleased]
+
+- Live demo in `demo/`: a static page that replays the `example.com` validation scans (terminal output, module status, OPSEC header, VPN comparison, JSON report). `scripts/build_demo.py` rebuilds its data from `docs/examples/` with the current report code and masks analyst identifiers; `.github/workflows/demo.yml` deploys it to GitHub Pages.
+
 ## [1.1.0] — 2026-10-07
 
 v1.0 production polish, OPSEC/network fixes from the 2026-10-07 re-validation, and the VPN usage guide.

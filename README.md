@@ -5,6 +5,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-74%25-green)](https://github.com/herdacas/domain-forensic-analyzer/actions)
 [![Pylint](https://img.shields.io/badge/pylint-9.41%2F10-brightgreen)](https://pylint.readthedocs.io)
 [![Status: Production](https://img.shields.io/badge/status-production%201.1-blue)](#)
+[![Live Demo](https://img.shields.io/badge/demo-live-0b6e80)](https://herdacas.github.io/domain-forensic-analyzer/)
 
 A terminal-based OSINT tool for comprehensive domain reconnaissance and forensic investigation.
 Operationally stable, with known limitations. See [Known Limitations](#known-limitations) section below.
@@ -12,6 +13,21 @@ Operationally stable, with known limitations. See [Known Limitations](#known-lim
 It provides broad domain forensic intelligence — from DNS configuration and certificate history to infrastructure fingerprinting, threat intelligence, and network path analysis. Coverage depends on resolvers, installed tools, provider availability, and API credentials. Designed for security analysts, incident responders, and researchers; findings require analyst interpretation.
 
 See [SECURITY.md](SECURITY.md) for the OPSEC threat model (what this tool exposes to a scanned target), [CONTRIBUTING.md](CONTRIBUTING.md) if you want to work on it, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module layout and the report lifecycle.
+
+---
+
+## Live Demo
+
+**[herdacas.github.io/domain-forensic-analyzer](https://herdacas.github.io/domain-forensic-analyzer/)** replays a scan of `example.com` in the browser, no install needed:
+
+- the terminal output, as `run.py` prints it, with the 11 modules finishing one by one
+- module status, domain risk and the analyst OPSEC header next to it
+- the same scan from Linux and Windows, direct and through a VPN, side by side
+- the JSON report, expandable key by key
+
+The data comes from the four validation scans in [`docs/examples/`](docs/examples/). `scripts/build_demo.py` re-renders them with the current report code and masks the analyst IPs, hostname and username. To view it offline, open `demo/index.html`; after changing the report code, rerun `python scripts/build_demo.py`. The page sends no traffic to the target.
+
+The site is deployed by `.github/workflows/demo.yml` on every push to `main` that touches the demo, the examples or `src/`. It needs GitHub Pages enabled once: **Settings → Pages → Source: GitHub Actions**.
 
 ---
 
